@@ -6,7 +6,8 @@ import { articles } from '../src/data/articles';
 import { readDraft } from '../src/hooks/usePractice';
 
 const response = (data: unknown) => ({ ok: true, status: 200, json: async () => data }) as Response;
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); Element.prototype.scrollIntoView = vi.fn(); });
+beforeEach(() => {
+  window.history.replaceState(null, '', '/'); localStorage.clear(); sessionStorage.clear(); Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it('does not apply a delayed submission to the next completed practice', async () => {

@@ -16,6 +16,15 @@ type Props = {
 };
 
 const difficulties: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
+const validEntry = (value: unknown): value is RankingEntry => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.nickname === 'string' && typeof row.speed === 'number' && Number.isFinite(row.speed) && row.speed >= 0 &&
+    typeof row.accuracy === 'number' && Number.isFinite(row.accuracy) && row.accuracy >= 0 && row.accuracy <= 100 &&
+    (row.rank === undefined || (Number.isSafeInteger(row.rank) && (row.rank as number) > 0));
+};
+const validBoard = (data: Board) => Array.isArray(data.entries) && data.entries.every(validEntry) &&
+  (data.self == null || validEntry(data.self)) && (data.total === undefined || (Number.isSafeInteger(data.total) && data.total >= 0));
 
 export function RankingView({ initial, articles, isAdmin, ownerId }: Props) {
   const [language, setLanguage] = useState(initial.language);
@@ -43,6 +52,7 @@ export function RankingView({ initial, articles, isAdmin, ownerId }: Props) {
     const controller = new AbortController();
     setFailure(undefined);
     api<Board>(`/api/leaderboard?${request}`, { signal: controller.signal, headers: ownerId ? { 'X-Workspace-Owner': ownerId } : undefined }).then((data) => {
+      if (!validBoard(data)) throw new Error('排行榜数据无法读取');
       if (!controller.signal.aborted) setBoard({ query: identity, data });
     }).catch((error) => {
       if (!controller.signal.aborted) setFailure({ query: identity, message: (error as Error).message });
@@ -87,7 +97,7 @@ export function RankingView({ initial, articles, isAdmin, ownerId }: Props) {
       <label>文章<select value={articleId} onChange={(event) => setArticleId(event.target.value)}><option value="">全部</option>{articles.filter((article) => article.language === language && article.difficulty === difficulty).map((article) => <option key={article.id} value={article.id}>{article.title}</option>)}</select></label>
     </div>
     {!request && <p className="form-error" role="alert">请输入 1–60 的整数</p>}
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {error && <><p className="form-error" role="alert">{error}</p><button type="button" className="outline-button" onClick={() => setRevision((value) => value + 1)}>重试</button></>}
     {!!request && !data && !error && <p className="empty-state" role="status">加载中…</p>}
     {data?.self && <p className="ranking-self"><strong>我的排名</strong> 第 {data.self.rank} 名 <span>{data.self.speed} {unit} · {data.self.accuracy}%</span></p>}
     {data && !data.entries.length && <p className="empty-state">暂无成绩</p>}

@@ -41,6 +41,7 @@ function renderOnlineApp() {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '/');
   localStorage.clear();
   sessionStorage.clear();
   delete document.documentElement.dataset.theme;

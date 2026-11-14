@@ -6,6 +6,7 @@ import { localHistory, readDraft, readDrafts } from '../src/hooks/usePractice';
 
 const response = (data: unknown) => ({ ok: true, json: async () => data }) as Response;
 beforeEach(() => {
+  window.history.replaceState(null, '', '/');
   localStorage.clear(); sessionStorage.clear();
   Element.prototype.scrollIntoView = vi.fn();
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url === '/api/me' ? { user: null } : {})));

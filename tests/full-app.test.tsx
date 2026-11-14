@@ -10,6 +10,7 @@ import { defaultSettings } from '../src/lib/models';
 const response = (value: unknown) => ({ ok: true, json: async () => value }) as Response;
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '/');
   localStorage.clear();
   sessionStorage.clear();
   Element.prototype.scrollIntoView = vi.fn();

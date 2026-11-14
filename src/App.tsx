@@ -64,8 +64,9 @@ import { collectGuestImport } from './lib/guest-import';
 import { readPagedHistory } from './lib/history';
 import { deletePracticeRecords } from './lib/history-delete';
 import { mergePracticeRecords, stableRecordId } from './lib/records';
+import { mainRoute, navigationIndex, navigationState, pathForView, type MainRoute, type MainView } from './lib/routes';
 
-type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback' | 'data' | InfoPage;
+type View = MainRoute;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
 const languageNames: Record<Language, string> = { zh: '中文', en: 'English' };
@@ -113,10 +114,12 @@ export function App() {
     if (next) { try { cancelLocalCleanup(next.id); } catch { allowLocalAccount(next.id); } setPendingCleanup(pendingLocalCleanups()); }
     try { localStorage.setItem(authChangeKey, `${Date.now()}-${Math.random()}`); } catch { /* The current tab still changes account. */ }
     setAccountNotice('');
-    setFeedbackResume(next && pendingFeedback.current ? { ownerId: next.id, draft: pendingFeedback.current } : undefined);
+    const handoff = next && pendingFeedback.current ? { ownerId: next.id, draft: pendingFeedback.current } : undefined;
+    setFeedbackResume(handoff);
     pendingFeedback.current = undefined;
     setPreviewOwner(undefined);
-    window.history.replaceState(null, '', next?.isAdmin ? '/admin' : '/');
+    const path = next?.isAdmin ? '/admin' : !next ? '/' : handoff ? '/feedback' : mainRoute(window.location.pathname) === 'notfound' ? '/' : window.location.pathname;
+    window.history.replaceState(null, '', path);
     setUser(next);
     setAuthReady(true);
   }, []);
@@ -172,11 +175,11 @@ export function App() {
   const inAdministration = !!user?.isAdmin && previewOwner !== user.id;
   useEffect(() => {
     if (!authReady || !user) return;
-    const target = inAdministration ? '/admin' : '/';
-    if (window.location.pathname !== target) window.history.replaceState(null, '', target);
+    if (inAdministration && window.location.pathname !== '/admin') window.history.replaceState(null, '', '/admin');
+    else if (!inAdministration && /^\/admin\/?$/.test(window.location.pathname)) window.history.replaceState(null, '', '/');
   }, [authReady, user?.id, user?.isAdmin, inAdministration]);
   if (!authReady && /^\/admin\/?$/.test(window.location.pathname)) return <div className="administration-session" role="status"><Cloud size={32} aria-hidden="true" />正在读取账号…</div>;
-  if (inAdministration && user) return <AdminWorkspace key={user.id} user={user} onLogout={() => changeUser(null)} onPreview={() => setPreviewOwner(user.id)} />;
+  if (inAdministration && user) return <AdminWorkspace key={user.id} user={user} onLogout={() => changeUser(null)} onPreview={() => { window.history.replaceState(null, '', '/'); setPreviewOwner(user.id); }} />;
   return <PracticeApp key={`${user ? `account:${user.id}` : 'guest'}:${identityEpoch}`} user={user} authReady={authReady} onUser={changeUser}
     accountNotice={accountNotice} onAccountReauthentication={(message) => { changeUser(null); setAccountNotice(message); }}
     onSignedOutNotice={(message) => { setPendingCleanup(pendingLocalCleanups()); if (!currentUser.current) setAccountNotice(message); }}
@@ -198,7 +201,11 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const refreshCatalog = useCallback(() => setCatalogRevision((revision) => revision + 1), []);
   const [guestTheme, setGuestTheme] = useState(initialTheme);
   const [directAdmin] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
-  const [view, setView] = useState<View>(feedbackResume ? 'feedback' : 'practice');
+  const [view, setView] = useState<View>(() => feedbackResume ? 'feedback' : directAdmin ? 'practice' : mainRoute(window.location.pathname));
+  const currentPath = useRef(window.location.pathname + window.location.search + window.location.hash);
+  const currentHistoryIndex = useRef(0);
+  const restoringHistory = useRef(false);
+  const popRoute = useRef<() => void>(() => {});
   const [feedbackDraft, setFeedbackDraft] = useState<FeedbackDraft>(() => feedbackResume ?? newFeedbackDraft());
   const [adminLoginDismissed, setAdminLoginDismissed] = useState(false);
   const [minutesText, setMinutesText] = useState<string>();
@@ -497,7 +504,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
 
   function enterFocus() {
     setShowSettings(false);
-    setView('practice');
+    commitView('practice');
     setFocused(true);
     try { void focusRoot.current?.requestFullscreen?.().catch(() => {}); } catch { /* Embedded preview still uses focus layout. */ }
   }
@@ -538,7 +545,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     setMinutesText(String(choice.minutes));
     resetPractice(nextArticle, true);
     setFeedback(presets ? '设置已导入，本机已保存。' : '预设已应用。');
-    setView('practice'); setShowPresets(false); setShowSettingsTransfer(false);
+    commitView('practice'); setShowPresets(false); setShowSettingsTransfer(false);
   }
 
   async function importPracticeConfiguration(file: PracticeSettingsFile) {
@@ -577,11 +584,58 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     }
   }
 
-  function navigate(next: View) {
-    setShowMore(false);
-    if (next === view) return;
-    void afterPark(() => { setShowResult(false); setFeedback(''); setView(next); });
+  function commitView(next: MainView) {
+    const path = pathForView(next);
+    if (window.location.pathname !== path) {
+      currentHistoryIndex.current++;
+      window.history.pushState(navigationState(window.history.state, currentHistoryIndex.current), '', path);
+    }
+    currentPath.current = window.location.pathname + window.location.search + window.location.hash;
+    setView(next);
   }
+
+  function navigate(next: MainView) {
+    setShowMore(false);
+    if (next === view && window.location.pathname === pathForView(next)) return;
+    void afterPark(() => { setShowResult(false); setFeedback(''); if (focused && next !== 'practice') exitFocus(); commitView(next); });
+  }
+
+  popRoute.current = () => {
+    if (restoringHistory.current) { restoringHistory.current = false; return; }
+    const nextPath = window.location.pathname;
+    const nextAddress = nextPath + window.location.search + window.location.hash;
+    const targetIndex = navigationIndex(window.history.state);
+    const restoreAddress = () => {
+      if (targetIndex !== undefined && targetIndex !== currentHistoryIndex.current) {
+        restoringHistory.current = true;
+        window.history.go(currentHistoryIndex.current - targetIndex);
+      } else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', currentPath.current);
+    };
+    // Browser back first dismisses a dialog, allowing its own unsaved-change
+    // confirmation to run before the underlying view can be replaced.
+    if (document.querySelector('[role="dialog"]')) {
+      restoreAddress();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      return;
+    }
+    let applied = false;
+    void afterPark(() => {
+      const next = mainRoute(nextPath);
+      setShowMore(false); setShowResult(false); setFeedback('');
+      if (focused && next !== 'practice') exitFocus();
+      setView(next); currentPath.current = nextAddress;
+      if (targetIndex !== undefined) currentHistoryIndex.current = targetIndex;
+      else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', nextAddress);
+      applied = true;
+    }).finally(() => { if (!applied && live.current) restoreAddress(); });
+  };
+  useEffect(() => {
+    currentHistoryIndex.current = navigationIndex(window.history.state) ?? 0;
+    if (navigationIndex(window.history.state) === undefined) window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', window.location.href);
+    const pop = () => popRoute.current();
+    window.addEventListener('popstate', pop);
+    return () => window.removeEventListener('popstate', pop);
+  }, []);
 
   function openSettings() {
     setShowMore(false);
@@ -596,7 +650,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   function selectArticle(article: ArticleSnapshot) {
     void afterPark(() => {
       resetPractice(article, true);
-      setView('practice');
+      commitView('practice');
     });
   }
 
@@ -607,7 +661,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       setSelection(draft.article);
       const legacy = !newRound && readDrafts(ownerId).find((item) => item.legacy && item.recordId === draft.recordId);
       setPendingLoad(legacy ? { legacy } : { draft, newRound });
-      setView('practice');
+      commitView('practice');
     });
   }
 
@@ -871,7 +925,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
                   {selection.author && <span>{selection.author}</span>}
                   {selection.theme && <span>{selection.theme}</span>}
                   {source && <a href={source.url} target="_blank" rel="noopener noreferrer" title={source.name} aria-label={`查看《${displayTitle}》原文`}>查看原文</a>}
-                  {!selection.custom && publicById.get(selection.id) === selectedCatalogKey && <button className="text-button" disabled={!authReady} onClick={() => void afterPark(() => { setFeedbackDraft(newFeedbackDraft({ id: selection.id, title: selection.title, snapshotKey: selectedCatalogKey, position: '', wrongText: '' })); setView('feedback'); })}>文章纠错</button>}
+                  {!selection.custom && publicById.get(selection.id) === selectedCatalogKey && <button className="text-button" disabled={!authReady} onClick={() => void afterPark(() => { setFeedbackDraft(newFeedbackDraft({ id: selection.id, title: selection.title, snapshotKey: selectedCatalogKey, position: '', wrongText: '' })); commitView('feedback'); })}>文章纠错</button>}
                 </p>}
               </div></div>
               <div className="practice-actions">
@@ -902,7 +956,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
               setFeedback('');
               setSelection(legacyArticle(draft));
               setPendingLoad({ legacy: draft });
-              setView('practice');
+              commitView('practice');
             }),
           }))}
         />}
@@ -911,7 +965,9 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         })} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} />}
         {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
+        {view === 'data' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>个人数据</h1></div>{authReady ? <><p>请先登录</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>登录</button></> : <p role="status">正在读取账号…</p>}</section>}
         {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} onGuestImport={() => setShowGuestImport(true)} />}
+        {view === 'notfound' && <section className="content-panel feature-panel"><div className="content-heading"><h1>页面未找到</h1></div><button type="button" className="outline-button" onClick={() => navigate('practice')}>返回练习</button></section>}
         {(view === 'help' || view === 'about' || view === 'privacy' || view === 'terms') && <SiteInfoView page={view} onFeedback={() => navigate('feedback')} />}
       </div>
     </RoomBackground>
@@ -923,7 +979,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       {customError && <p className="form-error" role="alert">{customError}</p>}
       <div className="result-actions"><span className="custom-count">{splitCharacters(customDraft).length} / 20000 字符</span><button className="primary-button" onClick={useCustomText}>使用这段文字</button></div>
     </Dialog>}
-    {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) window.history.replaceState(null, '', '/'); }} onLogin={onUser} registrationEnabled={site.features?.registrationEnabled} />}
+    {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) { window.history.replaceState(null, '', '/'); currentPath.current = '/'; } }} onLogin={onUser} registrationEnabled={site.features?.registrationEnabled} />}
     {showAccount && user && <AccountDialog user={user} onClose={() => setShowAccount(false)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} />}
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
     {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} onPresets={() => { setShowSettings(false); setShowPresets(true); }} onSettingsTransfer={() => { setShowSettings(false); setShowSettingsTransfer(true); }} onCommands={() => { setShowSettings(false); setShowCommands(true); }} />}
