@@ -22,7 +22,7 @@ beforeEach(() => {
     else if (path === '/api/auth/login') { account = loginAs; body = { user: account }; }
     else if (path === '/api/auth/logout') { account = null; body = { ok: true }; }
     else if (path === '/api/admin/overview') body = overview;
-    else if (path.startsWith('/api/workspace')) body = { items: [], serverTime: Date.now() };
+    else if (path.startsWith('/api/workspace')) body = { items: [], serverTime: Date.now(), protocol: 2, generation: 1 };
     else if (path === '/api/articles') body = { articles: [] };
     return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
   }));
@@ -138,7 +138,7 @@ it.each([admin, member])('waits for uncached account preferences before allowing
   const toggle = screen.getByRole('button', { name: '切换至夜间模式' }) as HTMLButtonElement;
   expect(toggle.disabled).toBe(true);
   await waitFor(() => expect(resolveWorkspace).toBeTypeOf('function'));
-  await act(async () => resolveWorkspace(new Response(JSON.stringify({ items: [{ kind: 'settings', id: 'preferences', updatedAt: Date.now(), value: preferences }], serverTime: Date.now() }))));
+  await act(async () => resolveWorkspace(new Response(JSON.stringify({ items: [{ kind: 'settings', id: 'preferences', updatedAt: Date.now(), serverRevision: 1, value: preferences }], serverTime: Date.now(), protocol: 2, generation: 1 }))));
   await waitFor(() => expect(toggle.disabled).toBe(false));
   fireEvent.click(toggle);
   await waitFor(async () => expect((await readWorkspace(current.id)).find((item) => item.kind === 'settings')?.value).toMatchObject({ minutes: 17, fontSize: 23, theme: 'dark' }));

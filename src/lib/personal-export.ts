@@ -9,7 +9,7 @@ export type FeedbackExport = { id: string; category: string; title: string; desc
   attachments: Array<{ name: string; data: string | null }> };
 type Inputs = {
   user: User; local: WorkspaceItem[]; localAvailable?: boolean; remote?: WorkspaceItem[]; legacyDrafts: SavedPractice[];
-  localHistory: PracticeRecord[]; remoteHistory: PracticeRecord[]; feedback: FeedbackExport[]; missing: string[]; exportedAt: string;
+  localHistory: PracticeRecord[]; remoteHistory: PracticeRecord[]; feedback: FeedbackExport[]; missing: string[]; exportedAt: string; preserveLocalCopies?: boolean;
 };
 
 function article(value: ArticleSnapshot) {
@@ -85,6 +85,7 @@ export function buildPersonalExport(input: Inputs) {
       articles: items.filter((item) => item.kind === 'article' && !item.deleted).map((item) => article(item.value as ArticleSnapshot)),
       drafts: [...drafts.values()].map(draft), records,
       backgrounds: items.filter((item) => item.kind === 'background' && !item.deleted).map((item) => ({ theme: item.id, ...background(item.value as BackgroundConfig) })),
+      ...(input.preserveLocalCopies && { localRecoveryCopies: { drafts: input.legacyDrafts.map(draft), records: input.localHistory.map(record) } }),
       feedback: input.feedback.map((item) => ({ id: item.id, category: item.category, title: item.title, description: item.description, status: item.status,
         createdAt: item.createdAt, updatedAt: item.updatedAt, ...(item.article && { article: { id: item.article.id, title: item.article.title, snapshotKey: item.article.snapshotKey,
           position: item.article.position, wrongText: item.article.wrongText } }),

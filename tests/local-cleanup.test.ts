@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from 'vitest';
-import { allowLocalAccount, blockLocalAccount, clearLocalWorkspace, mergeRemoteWorkspace, putWorkspaceValue, readWorkspace } from '../src/lib/workspace';
+import { allowLocalAccount, blockLocalAccount, clearLocalWorkspace, mergeRemoteWorkspace, putWorkspaceValue, readWorkspace, replaceLocalWorkspace } from '../src/lib/workspace';
 import { clearLocalPractice } from '../src/hooks/usePractice';
-import { finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from '../src/lib/local-account-cleanup';
+import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from '../src/lib/local-account-cleanup';
 
 afterEach(() => { localStorage.clear(); sessionStorage.clear(); });
 
@@ -30,6 +30,16 @@ it('clears only one account and blocks late writes until that account signs in a
   expect(await readWorkspace('alice')).toEqual([]);
   await putWorkspaceValue('alice', 'favorite', 'new', { articleId: 'new' });
   expect((await readWorkspace('alice')).map((item) => item.id)).toEqual(['new']);
+});
+
+it('replaces only a blocked account workspace with an authoritative server snapshot', async () => {
+  await putWorkspaceValue('alice', 'favorite', 'old', { articleId: 'old' });
+  await putWorkspaceValue('bob', 'favorite', 'keep', { articleId: 'keep' });
+  prepareLocalCleanup('alice');
+  await replaceLocalWorkspace('alice', [{ kind: 'favorite', id: 'new', updatedAt: 4, serverRevision: 3, value: { articleId: 'new' } }], 2);
+  cancelLocalCleanup('alice');
+  expect(await readWorkspace('alice')).toEqual([{ kind: 'favorite', id: 'new', updatedAt: 4, serverRevision: 3, baseUpdatedAt: 4, clientGeneration: 2, value: { articleId: 'new' } }]);
+  expect((await readWorkspace('bob')).map((item) => item.id)).toEqual(['keep']);
 });
 
 it('retains a retry marker until all local cleanup steps succeed', async () => {

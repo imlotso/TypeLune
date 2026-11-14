@@ -6,6 +6,7 @@ import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import argon2 from 'argon2';
 import { createApp } from '../server/app';
+import { syncWorkspace } from './workspace-sync-helper';
 
 describe('account deletion', () => {
   let directory: string; let app: Awaited<ReturnType<typeof createApp>>; let codes: Map<string, string>;
@@ -35,7 +36,7 @@ describe('account deletion', () => {
     const png = await sharp({ create: { width: 12, height: 12, channels: 3, background: '#aabbcc' } }).png().toBuffer();
     const image = `data:image/png;base64,${png.toString('base64')}`;
     const background = { kind: 'background', id: 'light', updatedAt: now, value: { image, name: 'bg.png', width: 12, height: 12, fit: 'cover', positionX: 50, positionY: 50, blur: 0, shade: 20 } };
-    expect((await post('/api/workspace/sync', { items: [favorite, background] }, alice.headers)).statusCode).toBe(200);
+    expect((await syncWorkspace(app, alice.headers, [favorite, background])).statusCode).toBe(200);
     const feedback = await post('/api/feedback', { category: 'issue', title: '私人反馈', description: '私人内容', attachments: [{ name: 'private.png', data: image }] }, alice.headers);
     expect(feedback.statusCode).toBe(201);
     expect((await post('/api/auth/code', { email: alice.email, purpose: 'login' })).statusCode).toBe(200);

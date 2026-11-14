@@ -26,3 +26,20 @@ it('reads all history pages without writing and reports inaccessible feedback', 
   expect(calls.every((call) => !call.method || call.method === 'GET')).toBe(true);
   await expect((await import('../src/lib/workspace')).readWorkspace('user')).resolves.toHaveLength(1);
 });
+
+it('exports an offline recovery copy without contacting the server', async () => {
+  const user = { id: 'user', username: 'reader', email: 'reader@example.test', isAdmin: false };
+  await putWorkspaceValue('user', 'favorite', 'offline', { articleId: 'offline' });
+  const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+  const result = await collectPersonalExport(user, { localOnly: true });
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(result.data.favorites).toEqual([{ articleId: 'offline' }]);
+  expect(result.scope.cloudWorkspace).toBe('unavailable');
+  expect(result.missing.some((entry) => entry.includes('云端'))).toBe(true);
+});
+
+it('reports a malformed legacy save rather than calling an incomplete local export complete', async () => {
+  localStorage.setItem('cloudtyping.practice.v2.broken', '{');
+  const result = await collectPersonalExport({ id: 'user', username: 'reader', email: 'reader@example.test', isAdmin: false }, { localOnly: true });
+  expect(result.missing.some((entry) => entry.includes('本机旧版资料'))).toBe(true);
+});

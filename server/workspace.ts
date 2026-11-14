@@ -74,6 +74,7 @@ const schemas = {
 const item = z.object({
   kind: z.enum(['favorite', 'article', 'draft', 'record', 'settings', 'background']),
   id, updatedAt: timestamp, deleted: z.boolean().optional(), value: z.unknown().optional(),
+  baseRevision: integer(Number.MAX_SAFE_INTEGER).optional(),
 });
 const batch = z.array(item).max(100);
 
@@ -89,11 +90,11 @@ export function validateWorkspaceItems(items: unknown, owner: string, now: numbe
   const parsed = batch.safeParse(items);
   if (!parsed.success) return null;
   const validated: WorkspaceItem[] = [];
-  for (const { kind, id, updatedAt, deleted, value } of parsed.data) {
+  for (const { kind, id, updatedAt, deleted, value, baseRevision } of parsed.data) {
     if (updatedAt > now + clockGraceMs) return null;
     if (kind === 'background' && id !== 'light' && id !== 'dark') return null;
     if (deleted) {
-      validated.push({ kind, id, updatedAt, deleted: true });
+      validated.push({ kind, id, updatedAt, deleted: true, ...(baseRevision !== undefined && { baseRevision }) });
       continue;
     }
     const result = schemas[kind].safeParse(value);
@@ -105,7 +106,7 @@ export function validateWorkspaceItems(items: unknown, owner: string, now: numbe
     if (('savedAt' in data && data.savedAt > now + clockGraceMs) ||
       ('finishedAt' in data && data.finishedAt > now + clockGraceMs)) return null;
     if (kind === 'draft' || 'ownerId' in data) Object.assign(data, { ownerId: owner });
-    validated.push({ kind, id, updatedAt, value: kind === 'draft' ? stripDraftLease(data) : data });
+    validated.push({ kind, id, updatedAt, value: kind === 'draft' ? stripDraftLease(data) : data, ...(baseRevision !== undefined && { baseRevision }) });
   }
   return validated;
 }
@@ -115,11 +116,29 @@ export function createWorkspaceStore(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS workspace_items (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       kind TEXT NOT NULL, item_id TEXT NOT NULL, updated_at INTEGER NOT NULL,
-      value TEXT, PRIMARY KEY(user_id, kind, item_id)
+      value TEXT, revision INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(user_id, kind, item_id)
+    );
+    CREATE TABLE IF NOT EXISTS workspace_generations (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, generation INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS workspace_deleted_drafts (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, draft_id TEXT NOT NULL, PRIMARY KEY(user_id,draft_id)
     );
   `);
-  const read = db.prepare(`SELECT kind, item_id AS id, updated_at AS updatedAt, value
+  db.transaction(() => {
+    const columns = new Set((db.pragma('table_info(workspace_items)') as Array<{ name: string }>).map((column) => column.name));
+    if (!columns.has('revision')) db.exec('ALTER TABLE workspace_items ADD COLUMN revision INTEGER NOT NULL DEFAULT 1');
+  }).immediate();
+  const ensureGeneration = db.prepare('INSERT OR IGNORE INTO workspace_generations(user_id,generation) VALUES (?,1)');
+  const readGeneration = db.prepare('SELECT generation FROM workspace_generations WHERE user_id=?');
+  const generation = (owner: string) => {
+    ensureGeneration.run(owner);
+    return (readGeneration.get(owner) as { generation: number }).generation;
+  };
+  const read = db.prepare(`SELECT kind, item_id AS id, updated_at AS updatedAt, revision AS serverRevision, value
     FROM workspace_items WHERE user_id=? ORDER BY kind, item_id`);
+  const readItem = db.prepare('SELECT updated_at AS updatedAt,value,revision FROM workspace_items WHERE user_id=? AND kind=? AND item_id=?');
+  const deletedDraft = db.prepare('SELECT 1 FROM workspace_deleted_drafts WHERE user_id=? AND draft_id=?');
   const limits = db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(length(CAST(value AS BLOB))), 0) AS bytes FROM workspace_items WHERE user_id=?');
   const storedClaim = "COALESCE(json_extract(workspace_items.value, '$.claimVersion'), 0)";
   const incomingClaim = "COALESCE(json_extract(excluded.value, '$.claimVersion'), 0)";
@@ -131,7 +150,7 @@ export function createWorkspaceStore(db: Database.Database) {
   const incomingRecoveryBase = "COALESCE(json_extract(excluded.value, '$.recoveryBaseVersion'), 0)";
   const upsert = db.prepare(`INSERT INTO workspace_items(user_id, kind, item_id, updated_at, value)
     VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, kind, item_id) DO UPDATE SET
-    updated_at=excluded.updated_at, value=excluded.value
+    updated_at=excluded.updated_at, value=excluded.value, revision=workspace_items.revision+1
     WHERE CASE
       WHEN excluded.kind='draft' AND (excluded.value IS NULL) != (workspace_items.value IS NULL)
         THEN excluded.value IS NULL
@@ -147,9 +166,18 @@ export function createWorkspaceStore(db: Database.Database) {
         THEN ${incomingProgress} > ${storedProgress}
       ELSE excluded.updated_at > workspace_items.updated_at
     END`);
-  const merge = db.transaction((owner: string, items: WorkspaceItem[]) => {
-    for (const { kind, id, updatedAt, deleted, value } of items) {
-      upsert.run(owner, kind, id, updatedAt, deleted ? null : JSON.stringify(value));
+  const merge = db.transaction((owner: string, requestedGeneration: number, items: WorkspaceItem[]) => {
+    if (generation(owner) !== requestedGeneration) throw new WorkspaceGenerationError();
+    for (const { kind, id, updatedAt, deleted, value, baseRevision } of items) {
+      const previous = readItem.get(owner, kind, id) as { updatedAt: number; value: string | null; revision: number } | undefined;
+      const serialized = deleted ? null : JSON.stringify(value);
+      if (kind === 'draft' && !deleted && deletedDraft.get(owner, id)) throw new WorkspaceConflictError();
+      if (baseRevision !== (previous?.revision ?? 0)) {
+        if (previous && previous.updatedAt === updatedAt && previous.value === serialized) continue;
+        throw new WorkspaceConflictError();
+      }
+      const written = upsert.run(owner, kind, id, updatedAt, serialized);
+      if (!written.changes && !(previous && previous.updatedAt === updatedAt && previous.value === serialized)) throw new WorkspaceConflictError();
     }
     const { count, bytes } = limits.get(owner) as { count: number; bytes: number };
     if (count > maxWorkspaceItems || bytes > maxWorkspaceBytes) throw new WorkspaceLimitError();
@@ -160,7 +188,24 @@ export function createWorkspaceStore(db: Database.Database) {
       const data: unknown = JSON.parse(value);
       return { ...item, value: item.kind === 'draft' ? stripDraftLease(data) : data };
     });
-  return { get, merge };
+  const compact = db.transaction((owner: string, requestedGeneration: number) => {
+    const current = generation(owner);
+    if (current !== requestedGeneration) throw new WorkspaceGenerationError();
+    db.prepare("INSERT OR IGNORE INTO workspace_deleted_drafts(user_id,draft_id) SELECT user_id,item_id FROM workspace_items WHERE user_id=? AND kind='draft' AND value IS NULL").run(owner);
+    const removed = db.prepare('DELETE FROM workspace_items WHERE user_id=? AND value IS NULL').run(owner).changes;
+    if (removed) db.prepare('UPDATE workspace_generations SET generation=generation+1 WHERE user_id=?').run(owner);
+    return { removed, generation: current + Number(removed > 0) };
+  });
+  const snapshot = db.transaction((owner: string) => ({ generation: generation(owner), items: get(owner) }));
+  const usage = db.transaction((owner: string) => {
+    const total = db.prepare('SELECT COUNT(*) AS count,COALESCE(SUM(length(CAST(value AS BLOB))),0) AS bytes,COUNT(CASE WHEN value IS NULL THEN 1 END) AS tombstones FROM workspace_items WHERE user_id=?')
+      .get(owner) as { count: number; bytes: number; tombstones: number };
+    const types = db.prepare('SELECT kind,COUNT(*) AS count,COALESCE(SUM(length(CAST(value AS BLOB))),0) AS bytes,COUNT(CASE WHEN value IS NULL THEN 1 END) AS tombstones FROM workspace_items WHERE user_id=? GROUP BY kind ORDER BY kind').all(owner);
+    return { ...total, maxItems: maxWorkspaceItems, maxBytes: maxWorkspaceBytes, generation: generation(owner), types };
+  });
+  return { get, generation, snapshot: snapshot.immediate, usage: usage.immediate, merge: merge.immediate, compact: compact.immediate };
 }
 
 export class WorkspaceLimitError extends Error {}
+export class WorkspaceGenerationError extends Error {}
+export class WorkspaceConflictError extends Error {}

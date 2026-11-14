@@ -58,7 +58,8 @@ export type WorkspaceValues = {
   background: BackgroundConfig;
 };
 export type WorkspaceKind = keyof WorkspaceValues;
-export type WorkspaceItem = { kind: WorkspaceKind; id: string; updatedAt: number; deleted?: boolean; value?: unknown };
+export type WorkspaceItem = { kind: WorkspaceKind; id: string; updatedAt: number; deleted?: boolean; value?: unknown;
+  serverRevision?: number; baseRevision?: number; baseUpdatedAt?: number; clientGeneration?: number };
 export type SyncState = 'guest' | 'loading' | 'syncing' | 'synced' | 'error';
 export type MistakeEntry = { id: string; language: Language; expected: string; actual: string[]; count: number; lastSeen: number; contexts: string[] };
 export type RankingEntry = { nickname: string; speed: number; accuracy: number; guest: number; createdAt: number; attemptId: string; rank?: number; mine?: boolean; articleId?: string; mode?: PracticeMode; strict?: boolean };

@@ -9,7 +9,7 @@ test('exports and permanently deletes a test account while revoking its other se
   expect(registration.ok()).toBe(true);
   const ownerId = (await registration.json()).user.id as string;
   const favorite = { kind: 'favorite', id: 'zh-beginner-1', updatedAt: Date.now(), value: { articleId: 'zh-beginner-1' } };
-  expect((await page.request.post('/api/workspace/sync', { data: { items: [favorite] } })).ok()).toBe(true);
+  expect((await page.request.post('/api/workspace/sync', { headers: { 'X-Workspace-Protocol': '2' }, data: { generation: 1, items: [{ ...favorite, baseRevision: 0 }] } })).ok()).toBe(true);
   const other = await browser.newContext({ baseURL: test.info().project.use.baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
   expect((await other.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
   await page.goto('/');

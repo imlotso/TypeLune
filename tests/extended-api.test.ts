@@ -7,6 +7,7 @@ import Database from 'better-sqlite3';
 import { createApp } from '../server/app';
 import { splitCharacters } from '../src/lib/scoring';
 import { pngFixture } from './background-fixture';
+import { syncWorkspace } from './workspace-sync-helper';
 
 describe('extended practice API', () => {
   let app: Awaited<ReturnType<typeof createApp>>;
@@ -44,9 +45,7 @@ describe('extended practice API', () => {
     return { cookie: response.cookies[0].name + '=' + response.cookies[0].value };
   }
 
-  function sync(items: unknown[], headers?: { cookie: string }) {
-    return app.inject({ method: 'POST', url: '/api/workspace/sync', headers, payload: { items } });
-  }
+  function sync(items: unknown[], headers?: { cookie: string }) { return syncWorkspace(app, headers, items); }
 
   function workspace(headers?: { cookie: string }) {
     return app.inject({ method: 'GET', url: '/api/workspace', headers });
@@ -88,11 +87,11 @@ describe('extended practice API', () => {
     const staleClient = { ...second, 'x-workspace-owner': user.id };
     expect((await workspace(staleClient)).statusCode).toBe(403);
     expect((await sync([favorite], staleClient)).statusCode).toBe(403);
-    expect((await sync([{ ...favorite, ownerId: 'second' }], first)).json()).toEqual({ items: [favorite], serverTime: now });
+    expect((await sync([{ ...favorite, ownerId: 'second' }], first)).json()).toMatchObject({ items: [favorite], serverTime: now, protocol: 2 });
     expect((await workspace(second)).json().items).toEqual([]);
     const deleted = { kind: favorite.kind, id: favorite.id, updatedAt: ++now, deleted: true };
-    expect((await sync([deleted], first)).json().items).toEqual([deleted]);
-    expect((await sync([favorite, { ...favorite, updatedAt: now }], first)).json().items).toEqual([deleted]);
+    expect((await sync([deleted], first)).json().items).toMatchObject([deleted]);
+    expect((await sync([favorite, { ...favorite, updatedAt: now }], first)).statusCode).toBe(409);
     await app.close();
     app = await open();
     expect((await workspace(first)).json().items).toEqual([deleted]);
@@ -122,10 +121,10 @@ describe('extended practice API', () => {
     const night = { ...day, id: 'dark', value: { ...value, shade: 40 } };
     expect((await sync([day, night], owner)).statusCode).toBe(200);
     expect((await workspace(other)).json().items).toEqual([]);
-    const firstHeaders = { ...owner, 'x-workspace-backgrounds': 'initial' };
+    const firstHeaders = { ...owner, 'x-workspace-backgrounds': 'initial', 'x-workspace-protocol': '2' };
     const first = (await workspace(firstHeaders)).json();
     expect(first.backgroundsVersion).toMatch(/^[a-f0-9]{64}$/);
-    const knownHeaders = { ...owner, 'x-workspace-backgrounds': first.backgroundsVersion };
+    const knownHeaders = { ...owner, 'x-workspace-backgrounds': first.backgroundsVersion, 'x-workspace-protocol': '2' };
     const cached = (await workspace(knownHeaders)).json();
     expect(cached.backgroundsUnchanged).toBe(true);
     expect(cached.items).toEqual([]);
@@ -159,8 +158,9 @@ describe('extended practice API', () => {
     const live = { kind: 'draft', id: draft.id, updatedAt: now, value: draft };
     const deleted = { kind: 'draft', id: draft.id, updatedAt: now - 1, deleted: true };
     expect((await sync([live], headers)).json().items[0]).toMatchObject(live);
-    expect((await sync([deleted], headers)).json().items).toEqual([deleted]);
-    expect((await sync([{ ...live, updatedAt: now + 1 }], headers)).json().items).toEqual([deleted]);
+    expect((await sync([deleted], headers)).json().items).toMatchObject([deleted]);
+    expect((await sync([{ ...live, updatedAt: now + 1 }], headers)).statusCode).toBe(409);
+    expect((await workspace(headers)).json().items).toEqual([deleted]);
   });
 
   it('keeps synced client records out of official scores', async () => {

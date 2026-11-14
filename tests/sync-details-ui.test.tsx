@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { SettingsDialog } from '../src/components/SettingsDialog';
 import { defaultSettings } from '../src/lib/models';
 
@@ -14,4 +14,13 @@ it('shows a partial sync failure, pending count and the last successful time', (
   expect(screen.getByText('上次读取云端：3 项')).toBeTruthy();
   expect(screen.getByText(/最近成功同步/)).toBeTruthy();
   expect(screen.getByRole('button', { name: '立即同步' })).toBeTruthy();
+});
+
+it('offers an explicit recovery flow instead of a retry that cannot resolve a stale generation', () => {
+  const recover = vi.fn();
+  render(<SettingsDialog settings={defaultSettings} onChange={() => {}} locked={false} onClose={() => {}} onFocus={() => {}} focused={false}
+    syncState="error" syncError="云端资料已整理" recoveryReason="generation" onRecovery={recover} onSync={() => {}} isSignedIn />);
+  expect(screen.queryByRole('button', { name: '立即同步' })).toBeNull();
+  screen.getByRole('button', { name: '处理同步冲突' }).click();
+  expect(recover).toHaveBeenCalledOnce();
 });

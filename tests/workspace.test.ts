@@ -5,13 +5,16 @@ import { useWorkspace } from '../src/hooks/useWorkspace';
 import {
   chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceDraftDeleted, mergeWorkspaceItems, newerWorkspaceItems, putWorkspaceValue, readWorkspace,
 } from '../src/lib/workspace';
-import type { SavedPractice, WorkspaceItem } from '../src/lib/models';
+import { defaultSettings, type SavedPractice, type WorkspaceItem } from '../src/lib/models';
 import { defaultBackground } from '../src/lib/background';
 
 const favorite = (id: string, updatedAt = Date.now()): WorkspaceItem =>
   ({ kind: 'favorite', id, updatedAt, value: { articleId: id } });
+const asServer = (items: WorkspaceItem[]) => items.map(({ baseRevision, baseUpdatedAt: _baseTime, ...item }) => ({
+  ...item, serverRevision: item.serverRevision ?? (baseRevision ?? 0) + 1,
+}));
 const response = (items: WorkspaceItem[]) =>
-  new Response(JSON.stringify({ items, serverTime: Date.now() }), { headers: { 'Content-Type': 'application/json' } });
+  new Response(JSON.stringify({ items: asServer(items), protocol: 2, generation: 1, serverTime: Date.now() }), { headers: { 'Content-Type': 'application/json' } });
 const draft: SavedPractice = {
   id: 'draft-1', article: { id: 'private-1', title: '练习', text: '你好', language: 'zh', difficulty: 'beginner', custom: true },
   typed: '你', elapsedMs: 3000, backspaces: 0, duration: 60, mode: 'timed', strict: false, offset: 0,
@@ -30,7 +33,7 @@ it('reuses unchanged cloud images without downloading or uploading them on ordin
   const fetcher = vi.fn(async (_url: string, options: RequestInit) => {
     if (options.method === 'POST') remote = mergeWorkspaceItems(remote, JSON.parse(options.body as string).items);
     const cached = new Headers(options.headers).get('X-Workspace-Backgrounds') === version;
-    return new Response(JSON.stringify({ items: cached ? remote.filter((item) => item.kind !== 'background') : remote, backgroundsVersion: version, backgroundsUnchanged: cached, serverTime: Date.now() }));
+    return new Response(JSON.stringify({ items: asServer(cached ? remote.filter((item) => item.kind !== 'background') : remote), protocol: 2, generation: 1, backgroundsVersion: version, backgroundsUnchanged: cached, serverTime: Date.now() }));
   });
   vi.stubGlobal('fetch', fetcher);
   const { result } = renderHook(() => useWorkspace('background-cache'));
@@ -138,8 +141,8 @@ describe('workspace sync', () => {
       .mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }))
       .mockImplementation(async (_url, options) => response(JSON.parse(String(options?.body)).items));
     vi.stubGlobal('fetch', fetcher);
-    const initial = favorite('same');
     await putWorkspaceValue('alice', 'favorite', 'same', { articleId: 'same' });
+    const initial = (await readWorkspace('alice'))[0];
     const { result } = renderHook(() => useWorkspace('alice'));
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
     await act(() => result.current.remove('favorite', 'same'));
@@ -278,6 +281,35 @@ describe('workspace sync', () => {
       await waitFor(() => expect(result.current.syncState).toBe('synced'), { timeout: 4000 });
       expect(serverItems.map((item) => item.id).sort()).toEqual(['first', 'second']);
       expect(result.current.pendingCount).toBe(0);
+    } finally { release(); }
+  });
+
+  it('rebases a newer edit on the acknowledged revision when the same item changes during an upload', async () => {
+    let release!: () => void; let started!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const firstStarted = new Promise<void>((resolve) => { started = resolve; });
+    let remote: WorkspaceItem = { kind: 'settings', id: 'preferences', updatedAt: Date.now() - 10_000, serverRevision: 1, value: { ...defaultSettings } };
+    const bases: number[] = [];
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (_url, options) => {
+      if (!options?.body) return response([remote]);
+      const item = (JSON.parse(String(options.body)) as { items: WorkspaceItem[] }).items[0];
+      bases.push(item.baseRevision!);
+      if (bases.length === 1) { started(); await held; }
+      const { baseRevision, ...rest } = item;
+      remote = { ...rest, serverRevision: baseRevision! + 1 };
+      return response([remote]);
+    }));
+    const { result } = renderHook(() => useWorkspace('same-item'));
+    try {
+      await waitFor(() => expect(result.current.syncState).toBe('synced'));
+      await act(() => result.current.updateSettings({ minutes: 10 }));
+      const syncing = act(() => result.current.sync());
+      await firstStarted;
+      await act(() => result.current.updateSettings({ minutes: 15 }));
+      release(); await syncing;
+      await waitFor(() => expect(result.current.syncState).toBe('synced'), { timeout: 5000 });
+      expect(bases).toEqual([1, 2]);
+      expect(remote.value).toMatchObject({ minutes: 15 });
     } finally { release(); }
   });
 

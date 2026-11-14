@@ -21,7 +21,7 @@ test('downloads personal JSON and CSV without authentication or recovery materia
     { kind: 'draft', id: 'draft-1', updatedAt: time, value: { id: 'draft-1', recordId: 'record-1', article, typed: '私', elapsedMs: 1000, backspaces: 0,
       duration: 300, mode: 'timed', strict: false, offset: 0, offline: true, ownerId: owner, savedAt: time, recoveryKey: secret } },
   ];
-  expect((await page.request.post('/api/workspace/sync', { data: { items } })).ok()).toBe(true);
+  expect((await page.request.post('/api/workspace/sync', { headers: { 'X-Workspace-Protocol': '2' }, data: { generation: 1, items: items.map((item) => ({ ...item, baseRevision: 0 })) } })).ok()).toBe(true);
   const feedback = await page.request.post('/api/feedback', { data: { category: 'issue', title: '导出反馈', description: '附图', attachments: [{ name: 'screen.png', data: `data:image/png;base64,${png.toString('base64')}` }] } });
   expect(feedback.status()).toBe(201);
   await page.goto('/');

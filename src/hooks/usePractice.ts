@@ -3,7 +3,7 @@ import type { Difficulty, Language } from '../data/articles';
 import { api, ApiError } from '../lib/api';
 import { catalogSnapshotKey, compareDraftProgress, sameDraftSnapshot, snapshotKey, type ArticleSnapshot, type MistakeSample, type PracticeMode, type PracticeRecord, type SavedPractice } from '../lib/models';
 import { scoreTyping, splitCharacters, type Score } from '../lib/scoring';
-import { isLocalAccountBlocked } from '../lib/workspace';
+import { isLocalAccountBlocked, readWorkspaceGeneration } from '../lib/workspace';
 
 export type PracticePhase = 'ready' | 'starting' | 'running' | 'pausing' | 'paused' | 'resuming' | 'restoring' | 'finishing' | 'finished';
 type RoundConfig = { articleId: string; title: string; text: string; language: Language; difficulty: Difficulty; duration: number; custom: boolean; ownerId: string | null; article?: ArticleSnapshot; mode?: PracticeMode; strict?: boolean };
@@ -24,7 +24,7 @@ type Attempt = RoundConfig & {
   backspaces: number; nextCheckpointMs: number; offset?: number; mistakes?: MistakeSample[]; pendingStart?: boolean;
   recoveryId?: string; recoveryKey?: string; claimId?: string; claimVersion?: number; recoveryRequestId?: string; recoveryMarker?: string; progressVersion?: number; recoveryBaseVersion?: number; progressFingerprint?: string; personalOnly?: boolean;
 };
-export type PracticeDraft = Omit<Attempt, 'startedAt' | 'nextCheckpointMs'> & { version: 1; typed: string; completed?: boolean; early?: boolean; savedAt?: number; leaseOwner?: string | null; leaseAt?: number };
+export type PracticeDraft = Omit<Attempt, 'startedAt' | 'nextCheckpointMs'> & { version: 1; typed: string; completed?: boolean; early?: boolean; savedAt?: number; leaseOwner?: string | null; leaseAt?: number; localSyncGeneration?: number };
 export type History = PracticeRecord;
 type ServerResult = { attemptId: string; score: Score; status: string; eligible: boolean; elapsedMs: number; submitted?: boolean };
 type RecoveryState = { id: string; status: string; elapsedMs?: number; remainingMs?: number; claimVersion?: number; result?: ServerResult; typed?: string; backspaces?: number };
@@ -111,7 +111,11 @@ export function localHistory(): History[] {
 }
 function rememberHistory(entry: History, previousId?: string) {
   if (isLocalAccountBlocked(entry.ownerId ?? null)) return;
-  try { localStorage.setItem(historyKey, JSON.stringify([entry, ...localHistory().filter((item) => item.ownerId !== entry.ownerId || !item.recordId || (item.recordId !== entry.recordId && item.recordId !== previousId))].slice(0, 50))); } catch { /* Practice still works without storage. */ }
+  try {
+    const generation = entry.ownerId ? readWorkspaceGeneration(entry.ownerId) : null;
+    const saved = generation ? { ...entry, localSyncGeneration: generation } : entry;
+    localStorage.setItem(historyKey, JSON.stringify([saved, ...localHistory().filter((item) => item.ownerId !== entry.ownerId || !item.recordId || (item.recordId !== entry.recordId && item.recordId !== previousId))].slice(0, 50)));
+  } catch { /* Practice still works without storage. */ }
 }
 export function readDrafts(ownerId?: string | null): PracticeDraft[] {
   if (ownerId && isLocalAccountBlocked(ownerId)) return [];
@@ -200,8 +204,9 @@ function saveDraft(attempt: Attempt, typed: string, owner: string, completed = f
   const elapsed = elapsedTime(attempt);
   const fingerprint = progressFingerprint(attempt, typed, elapsed);
   const version = (attempt.progressVersion ?? 0) + Number(attempt.progressFingerprint !== fingerprint);
-  const data: PracticeDraft = { ...rest, revision: attempt.revision + 1, progressVersion: version, version: 1, elapsedMs: elapsed, typed, completed, early, savedAt: Date.now(), leaseOwner: owner, leaseAt: Date.now() };
   try {
+    const generation = attempt.ownerId ? readWorkspaceGeneration(attempt.ownerId) : null;
+    const data: PracticeDraft = { ...rest, revision: attempt.revision + 1, progressVersion: version, version: 1, elapsedMs: elapsed, typed, completed, early, savedAt: Date.now(), leaseOwner: owner, leaseAt: Date.now(), ...(generation && { localSyncGeneration: generation }) };
     localStorage.setItem(draftPrefix + attempt.recordId, JSON.stringify(data));
     attempt.revision = data.revision;
     attempt.progressVersion = data.progressVersion;

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { localPracticeNeedsRecovery } from '../lib/local-practice-generation';
 import type { ReaderSettings, SyncState, WorkspaceItem, WorkspaceKind, WorkspaceValues } from '../lib/models';
 import {
   cachedWorkspace, chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceItem, mergeRemoteWorkspace, mutateWorkspaceValue,
-  newerWorkspaceItems, putWorkspaceValue, readWorkspace, subscribeWorkspace, workspaceItemKey, workspaceSettings, workspaceValue,
+  newerWorkspaceItems, putWorkspaceValue, readWorkspace, readWorkspaceGeneration, saveWorkspaceGeneration, subscribeWorkspace, workspaceGenerationKey, workspaceItemKey, workspaceRecoveryReason, WorkspaceMergeConflictError, workspaceSettings, workspaceValue,
 } from '../lib/workspace';
 
 const pollMs = 30_000;
@@ -18,7 +19,7 @@ function readSyncTime(owner: string | null) {
 function saveSyncTime(owner: string, time: number) {
   try { localStorage.setItem(syncTimeKey(owner), String(time)); } catch { /* The current view still has the time. */ }
 }
-export function clearSyncTime(owner: string) { localStorage.removeItem(syncTimeKey(owner)); }
+export function clearSyncTime(owner: string) { localStorage.removeItem(syncTimeKey(owner)); localStorage.removeItem(workspaceGenerationKey(owner)); }
 
 type View = {
   ownerId: string | null;
@@ -30,19 +31,21 @@ type View = {
   lastSyncedAt: number | null;
   pendingCount: number | null;
   cloudCount: number | null;
+  recoveryReason: 'generation' | 'conflict' | null;
 };
-type Response = { items: WorkspaceItem[]; serverTime: number; backgroundsVersion?: string; backgroundsUnchanged?: boolean };
+type Response = { items: WorkspaceItem[]; serverTime: number; protocol: number; generation: number; backgroundsVersion?: string; backgroundsUnchanged?: boolean };
 type KnownBackgrounds = { version: string; items: WorkspaceItem[] };
 
-async function workspaceRequest(owner: string, signal: AbortSignal, items?: WorkspaceItem[], known?: KnownBackgrounds): Promise<Response> {
+async function workspaceRequest(owner: string, signal: AbortSignal, items?: WorkspaceItem[], known?: KnownBackgrounds, generation?: number): Promise<Response> {
   const data = await api<Response>(items === undefined ? '/api/workspace' : '/api/workspace/sync', {
     method: items === undefined ? 'GET' : 'POST',
-    body: items === undefined ? undefined : { items },
-    headers: { 'X-Workspace-Owner': owner, 'X-Workspace-Backgrounds': known?.version ?? 'initial' },
+    body: items === undefined ? undefined : { generation, items: items.map(({ serverRevision, baseUpdatedAt: _baseTime, baseRevision: _baseRevision, clientGeneration: _clientGeneration, ...item }) => ({ ...item, baseRevision: serverRevision ?? 0 })) },
+    headers: { 'X-Workspace-Owner': owner, 'X-Workspace-Backgrounds': known?.version ?? 'initial', 'X-Workspace-Protocol': '2' },
     signal,
   });
   if (!Array.isArray(data.items) || data.items.length > 2000 || !data.items.every(isWorkspaceItem) ||
-    !Number.isSafeInteger(data.serverTime) || data.serverTime <= 0) {
+    !Number.isSafeInteger(data.serverTime) || data.serverTime <= 0 || data.protocol !== 2 || !Number.isSafeInteger(data.generation) || data.generation < 1 ||
+    data.items.some((item) => item.serverRevision === undefined)) {
     throw new Error('同步数据无法读取');
   }
   if (data.backgroundsVersion !== undefined && (typeof data.backgroundsVersion !== 'string' || !/^[a-f0-9]{64}$/.test(data.backgroundsVersion))) throw new Error('同步数据无法读取');
@@ -55,7 +58,7 @@ async function workspaceRequest(owner: string, signal: AbortSignal, items?: Work
 
 export function useWorkspace(ownerId: string | null, enabled = true) {
   const [view, setView] = useState<View>(() => ({
-    ownerId, ready: false, cloudLoaded: false, items: emptyItems, syncState: ownerId ? 'loading' : 'guest', error: '', lastSyncedAt: readSyncTime(ownerId), pendingCount: null, cloudCount: null,
+    ownerId, ready: false, cloudLoaded: false, items: emptyItems, syncState: ownerId ? 'loading' : 'guest', error: '', lastSyncedAt: readSyncTime(ownerId), pendingCount: null, cloudCount: null, recoveryReason: null,
   }));
   const lifecycle = useRef<{ ownerId: string | null; sync: () => Promise<void> } | null>(null);
 
@@ -69,10 +72,12 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     let lastStartedAt = -Infinity;
     let pendingWrite = false;
     let localGeneration = 0;
+    let recoveryRequired = false;
+    let generation: number | undefined;
     let lastCloud: WorkspaceItem[] | undefined;
     let knownBackgrounds: KnownBackgrounds | undefined;
     const requestWorkspace = async (items?: WorkspaceItem[]) => {
-      const response = await workspaceRequest(ownerId!, signal, items, knownBackgrounds);
+      const response = await workspaceRequest(ownerId!, signal, items, knownBackgrounds, generation);
       if (!signal.aborted) {
         lastCloud = response.items;
         publish({ cloudCount: response.items.filter((item) => !item.deleted).length });
@@ -82,7 +87,7 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
       }
       return response;
     };
-    setView({ ownerId, ready: !!cached, cloudLoaded: false, items: cached ?? emptyItems, syncState: ownerId ? 'loading' : 'guest', error: '', lastSyncedAt: readSyncTime(ownerId), pendingCount: null, cloudCount: null });
+    setView({ ownerId, ready: !!cached, cloudLoaded: false, items: cached ?? emptyItems, syncState: ownerId ? 'loading' : 'guest', error: '', lastSyncedAt: readSyncTime(ownerId), pendingCount: null, cloudCount: null, recoveryReason: null });
 
     const publish = (patch: Partial<View>) => {
       if (!signal.aborted) setView((current) => current.ownerId === ownerId ? { ...current, ...patch } : current);
@@ -103,6 +108,7 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     };
     const schedule = (items?: WorkspaceItem[], preserveCount = false) => {
       if (!ownerId || signal.aborted) return;
+      if (recoveryRequired) return;
       pendingWrite = true;
       publish({ syncState: 'syncing', error: '', ...(preserveCount ? {} : { pendingCount: items && lastCloud ? newerWorkspaceItems(items, lastCloud).length : null }) });
       clearTimeout(timer);
@@ -113,6 +119,7 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     const quarantined = new Map<string, { updatedAt: number; reason: string }>();
     const sync = (retry = false) => {
       if (!ownerId || signal.aborted) return Promise.resolve();
+      if (recoveryRequired) return Promise.resolve();
       if (running) return running;
       if (retry) quarantined.clear();
       lastStartedAt = performance.now();
@@ -121,12 +128,25 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
       publish({ syncState: 'syncing', error: '' });
       running = (async () => {
         try {
+          const beforeRequest = await readWorkspace(ownerId);
           let cloud = await requestWorkspace();
           if (signal.aborted) return;
-          const local = await mergeRemoteWorkspace(ownerId, cloud.items, cloud.serverTime, signal);
+          const existing = await readWorkspace(ownerId);
+          const knownGeneration = readWorkspaceGeneration(ownerId);
+          const reason = localPracticeNeedsRecovery(ownerId, knownGeneration, cloud.generation) ?? workspaceRecoveryReason(existing, cloud.items, knownGeneration, cloud.generation, beforeRequest);
+          if (reason) {
+            recoveryRequired = true; pendingWrite = false;
+            publish({ syncState: 'error', recoveryReason: reason, pendingCount: null,
+              error: reason === 'generation' ? '云端资料已整理，请先导出本机资料并重新同步' : '部分资料已在其他设备更改，请先保留本机资料' });
+            return;
+          }
+          generation = cloud.generation;
+          if (knownGeneration !== generation) saveWorkspaceGeneration(ownerId, generation);
+          const local = await mergeRemoteWorkspace(ownerId, cloud.items, cloud.serverTime, signal, true, beforeRequest, generation);
           publish({ cloudLoaded: true });
           const upload = async (remaining: Set<string>): Promise<void> => {
             if (signal.aborted) return;
+            if (localPracticeNeedsRecovery(ownerId, readWorkspaceGeneration(ownerId), cloud.generation)) throw new WorkspaceMergeConflictError();
             // A local edit or deletion can land while another chunk is in flight.
             const latest = await readWorkspace(ownerId);
             if (signal.aborted) return;
@@ -157,14 +177,14 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
               }
               return;
             }
-            if (!signal.aborted) await mergeRemoteWorkspace(ownerId, cloud.items, cloud.serverTime, signal);
+            if (!signal.aborted) await mergeRemoteWorkspace(ownerId, cloud.items, cloud.serverTime, signal, true, batch, generation);
           };
           const remaining = new Set(newerWorkspaceItems(local, cloud.items).map(workspaceItemKey));
           while (remaining.size && !signal.aborted) await upload(remaining);
           if (signal.aborted) return;
-          const generation = localGeneration;
+          const observedGeneration = localGeneration;
           const latest = await readWorkspace(ownerId);
-          const changedDuringRead = generation !== localGeneration;
+          const changedDuringRead = observedGeneration !== localGeneration;
           const outstanding = newerWorkspaceItems(latest, cloud.items);
           const rejected = outstanding.filter((item) =>
             quarantined.get(workspaceItemKey(item))?.updatedAt === item.updatedAt);
@@ -181,6 +201,11 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
             publish({ syncState: 'synced', error: '', pendingCount: 0, lastSyncedAt: cloud.serverTime });
           }
         } catch (error) {
+          if ((error instanceof ApiError && (error.code === 'SYNC_RESYNC_REQUIRED' || error.code === 'SYNC_CONFLICT')) || error instanceof WorkspaceMergeConflictError) {
+            recoveryRequired = true; pendingWrite = false;
+            publish({ syncState: 'error', recoveryReason: error instanceof ApiError && error.code === 'SYNC_RESYNC_REQUIRED' ? 'generation' : 'conflict', pendingCount: null, error: error.message });
+            return;
+          }
           const latest = await readWorkspace(ownerId).catch(() => undefined);
           failed(error, latest && lastCloud ? newerWorkspaceItems(latest, lastCloud).length : null);
         } finally {
@@ -216,7 +241,7 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     putWorkspaceValue(ownerId, kind, id, value), [ownerId]);
   const remove = useCallback((kind: WorkspaceKind, id: string) =>
     deleteWorkspaceValue(ownerId, kind, id), [ownerId]);
-  const settingsAvailable = !ownerId || (view.ownerId === ownerId && (view.cloudLoaded || workspaceValue(view.items, 'settings', 'preferences') !== undefined));
+  const settingsAvailable = !ownerId || (view.ownerId === ownerId && (view.cloudLoaded || view.syncState === 'error' || workspaceValue(view.items, 'settings', 'preferences') !== undefined));
   const updateSettings = useCallback((patch: Partial<ReaderSettings>) => {
     if (!settingsAvailable) return Promise.reject(new Error('账号设置尚未读取'));
     return mutateWorkspaceValue(ownerId, 'settings', 'preferences', (_saved, items) => ({ ...workspaceSettings(items), ...patch }));
@@ -246,13 +271,14 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
   return {
     ...values,
     ready: visible?.ready ?? false,
-    settingsReady: !!visible?.ready && (!ownerId || visible.cloudLoaded || values.hasSavedSettings),
+    settingsReady: !!visible?.ready && (!ownerId || visible.cloudLoaded || visible.syncState === 'error' || values.hasSavedSettings),
     cloudLoaded: visible?.cloudLoaded ?? false,
     syncState: visible?.syncState ?? (ownerId ? 'loading' : 'guest'),
     error: visible?.error ?? '',
     lastSyncedAt: visible?.lastSyncedAt ?? null,
     pendingCount: visible?.pendingCount ?? null,
     cloudCount: visible?.cloudCount ?? null,
+    recoveryReason: visible?.recoveryReason ?? null,
     put, remove, updateSettings, toggleFavorite, sync,
   };
 }

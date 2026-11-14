@@ -32,3 +32,13 @@ it('quotes CSV content and prevents spreadsheet formula execution', () => {
   expect(csv).toContain('"\'=HYPERLINK(""https://example.test"")"');
   expect(csv).toContain('WPM');
 });
+
+it('retains a local legacy draft copy for recovery even when its workspace item is deleted', () => {
+  const article = { id: 'private', title: '私文', text: '原文', language: 'zh' as const, difficulty: 'beginner' as const, custom: true as const };
+  const saved: SavedPractice = { id: 'draft-1', recordId: '1', article, typed: '原', elapsedMs: 1, backspaces: 0, duration: 300, mode: 'timed', strict: false, offset: 0, offline: true, ownerId: 'user', savedAt: 1, recoveryKey: 'secret-recovery-material' };
+  const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false },
+    local: [{ kind: 'draft', id: saved.id, updatedAt: 2, deleted: true }], legacyDrafts: [saved], localHistory: [], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z', preserveLocalCopies: true });
+  expect(exported.data.drafts).toEqual([]);
+  expect(exported.data.localRecoveryCopies?.drafts[0]).toMatchObject({ id: 'draft-1', typed: '原' });
+  expect(JSON.stringify(exported)).not.toContain('secret-recovery-material');
+});

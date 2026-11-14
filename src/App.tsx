@@ -28,6 +28,7 @@ import { MistakesView } from './components/MistakesView';
 import { PracticeLines } from './components/PracticeLines';
 import { PersonalDataView } from './components/PersonalDataView';
 import { LogoutDialog } from './components/LogoutDialog';
+import { WorkspaceRecoveryDialog } from './components/WorkspaceRecoveryDialog';
 import { RankingView } from './components/RankingView';
 import { RecordsView } from './components/RecordsView';
 import { SettingsDialog } from './components/SettingsDialog';
@@ -44,6 +45,7 @@ import { scoreTyping, splitCharacters } from './lib/scoring';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
 import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, localAccountBlockPrefix, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
 import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from './lib/local-account-cleanup';
+import { resetWorkspaceFromCloud, WorkspaceResetIncompleteError } from './lib/workspace-recovery';
 
 type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback' | 'data' | InfoPage;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
@@ -175,13 +177,14 @@ export function App() {
   return <PracticeApp key={`${user ? `account:${user.id}` : 'guest'}:${identityEpoch}`} user={user} authReady={authReady} onUser={changeUser}
     accountNotice={accountNotice} onAccountReauthentication={(message) => { changeUser(null); setAccountNotice(message); }}
     onSignedOutNotice={(message) => { setPendingCleanup(pendingLocalCleanups()); if (!currentUser.current) setAccountNotice(message); }}
+    onWorkspaceReset={() => setIdentityEpoch((value) => value + 1)}
     pendingCleanup={pendingCleanup.length} cleanupBusy={cleanupBusy} onRetryCleanup={() => void retryCleanup()}
     feedbackResume={feedbackResume && user && feedbackResume.ownerId === user.id ? feedbackResume.draft : undefined}
     onFeedbackHandoff={(draft) => { pendingFeedback.current = draft; }} onCancelFeedbackHandoff={() => { pendingFeedback.current = undefined; }}
     onUpdateUser={updateUser} onAdministration={user?.isAdmin ? () => setPreviewOwner(undefined) : undefined} />;
 }
 
-function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, pendingCleanup, cleanupBusy, onRetryCleanup, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; pendingCleanup: number; cleanupBusy: boolean; onRetryCleanup: () => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
+function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, onWorkspaceReset, pendingCleanup, cleanupBusy, onRetryCleanup, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; onWorkspaceReset: () => void; pendingCleanup: number; cleanupBusy: boolean; onRetryCleanup: () => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
   const ownerId = user?.id ?? null;
   const workspace = useWorkspace(ownerId, authReady);
   const [selection, setSelection] = useState(builtIns[0]);
@@ -206,6 +209,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [showAuth, setShowAuth] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [showLogout, setShowLogout] = useState<{ clear: boolean }>();
+  const [showRecovery, setShowRecovery] = useState<'generation' | 'conflict'>();
   const [confirmPractice, setConfirmPractice] = useState<{ action: 'restart' | 'finish'; resumeOnCancel: boolean } | null>(null);
   const [nickname, setNickname] = useState('');
   const [rankMessage, setRankMessage] = useState('');
@@ -404,7 +408,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       else if (wasFullscreen) setFocused(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !showResult && !confirmPractice && !showSettings && !showBackground) exitFocus();
+      if (event.key === 'Escape' && !showResult && !confirmPractice && !showSettings && !showBackground && !showRecovery) exitFocus();
     };
     document.addEventListener('fullscreenchange', fullscreenChange);
     document.addEventListener('keydown', escape);
@@ -412,7 +416,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       document.removeEventListener('fullscreenchange', fullscreenChange);
       document.removeEventListener('keydown', escape);
     };
-  }, [focused, showResult, confirmPractice, showSettings, showBackground]);
+  }, [focused, showResult, confirmPractice, showSettings, showBackground, showRecovery]);
 
   function exitFocus() {
     setFocused(false);
@@ -663,6 +667,15 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     catch { onSignedOutNotice('账号已注销，但本机数据未能完全清理；请重试清理'); }
   }
 
+  async function resetWorkspace() {
+    if (!user) return;
+    try { await resetWorkspaceFromCloud(user.id); onWorkspaceReset(); }
+    catch (problem) {
+      if (problem instanceof WorkspaceResetIncompleteError) { onUser(null); onSignedOutNotice(problem.message); return; }
+      throw problem;
+    }
+  }
+
   const matchingArticle = availableArticles.find((article) => article.id === selection.id);
   const snapshotOption = !matchingArticle || matchingArticle.title !== selection.title || matchingArticle.text !== selection.text;
   const selectedOption = snapshotOption ? 'current-snapshot' : selection.id;
@@ -760,7 +773,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {view === 'mistakes' && <MistakesView records={records} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} />}
         {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
-        {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} />}
+        {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} />}
         {(view === 'help' || view === 'about' || view === 'privacy' || view === 'terms') && <SiteInfoView page={view} onFeedback={() => navigate('feedback')} />}
       </div>
     </RoomBackground>
@@ -775,7 +788,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) window.history.replaceState(null, '', '/'); }} onLogin={onUser} />}
     {showAccount && user && <AccountDialog user={user} onClose={() => setShowAccount(false)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} />}
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
-    {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} />}
+    {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} />}
+    {showRecovery && user && <WorkspaceRecoveryDialog user={user} reason={showRecovery} onReset={resetWorkspace} onClose={() => setShowRecovery(undefined)} />}
     {showBackground && <BackgroundDialog theme={showBackground} value={workspace.backgrounds[showBackground]} onClose={() => setShowBackground(undefined)} onSave={(background) => background ? workspace.put('background', showBackground, background) : workspace.remove('background', showBackground)} />}
     {confirmPractice && <Dialog title={confirmPractice.action === 'restart' ? '重新开始本次练习？' : '结束本次练习？'} onClose={cancelPracticeAction}>
       {confirmPractice.action === 'restart' && <p className="dialog-intro">本次输入和计时将被清除。</p>}

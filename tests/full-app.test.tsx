@@ -190,7 +190,7 @@ it('does not revive a locally cached draft deleted on another device', async () 
   }));
   const fetch = vi.fn(async (url: string) => {
     if (url === '/api/me') return response({ user: { id: ownerId, username: '同步账号' } });
-    return response({ items: [{ kind: 'draft', id: 'draft-old', updatedAt: Date.now(), deleted: true }], serverTime: Date.now() });
+    return response({ items: [{ kind: 'draft', id: 'draft-old', updatedAt: Date.now(), deleted: true, serverRevision: 1 }], serverTime: Date.now(), protocol: 2, generation: 1 });
   });
   vi.stubGlobal('fetch', fetch);
   render(<App />);

@@ -3,6 +3,7 @@ import { Database } from '@phosphor-icons/react/Database';
 import type { User } from '../lib/api';
 import { collectPersonalExport } from '../lib/personal-export-fetch';
 import { recordsCsv } from '../lib/personal-export';
+import { WorkspaceCapacity } from './WorkspaceCapacity';
 
 function download(content: string, type: string, name: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -11,15 +12,15 @@ function download(content: string, type: string, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export async function downloadPersonalData(user: User, format: 'json' | 'csv') {
-  const data = await collectPersonalExport(user, { includeFeedback: format === 'json' });
+export async function downloadPersonalData(user: User, format: 'json' | 'csv', options?: { localOnly?: boolean }) {
+  const data = await collectPersonalExport(user, { includeFeedback: format === 'json', localOnly: options?.localOnly });
   const date = data.exportedAt.slice(0, 10);
-  if (format === 'json') download(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', `typing-personal-data-${date}.json`);
+  if (format === 'json') download(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', `typing-${options?.localOnly ? 'local-recovery' : 'personal-data'}-${date}.json`);
   else download(recordsCsv(data.data.records), 'text/csv;charset=utf-8', `typing-records-${date}.csv`);
   return data.missing;
 }
 
-export function PersonalDataView({ user, onClear }: { user: User; onClear: () => void }) {
+export function PersonalDataView({ user, onClear, onCompacted }: { user: User; onClear: () => void; onCompacted: () => void }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [missing, setMissing] = useState<string[]>([]);
@@ -42,5 +43,6 @@ export function PersonalDataView({ user, onClear }: { user: User; onClear: () =>
     {notice && <p className="form-notice" role="status">{notice}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     {!!missing.length && <ul className="personal-data-missing">{missing.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>}
+    <WorkspaceCapacity ownerId={user.id} onCompacted={onCompacted} />
   </section>;
 }

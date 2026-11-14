@@ -4,6 +4,7 @@ import { api, type User } from './api';
 import type { PracticeRecord, WorkspaceItem } from './models';
 import { isWorkspaceItem, readWorkspace } from './workspace';
 import { buildPersonalExport, type FeedbackExport } from './personal-export';
+import { localPracticeNeedsRecovery } from './local-practice-generation';
 
 const errorText = (problem: unknown) => problem instanceof Error ? problem.message : '读取失败';
 const dataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
@@ -26,7 +27,20 @@ async function readAttachment(ownerId: string, feedbackId: string, attachmentId:
   } finally { clearTimeout(timer); }
 }
 
-export async function collectPersonalExport(initialUser: User, options?: { includeFeedback?: boolean }) {
+function legacyData(ownerId: string, missing: string[]) {
+  let legacyDrafts = [] as ReturnType<typeof savedPracticeFromLegacy>[];
+  let history: PracticeRecord[] = [];
+  try { localPracticeNeedsRecovery(ownerId, 1, 1); }
+  catch (problem) { missing.push(`本机旧版资料：${errorText(problem)}`); }
+  try {
+    localStorage.getItem('cloudtyping.history.v1');
+    legacyDrafts = readDrafts(ownerId).map(savedPracticeFromLegacy);
+    history = localHistory().filter((item) => (item.ownerId ?? null) === ownerId);
+  } catch (problem) { missing.push(`本机旧版资料：${errorText(problem)}`); }
+  return { legacyDrafts, history };
+}
+
+export async function collectPersonalExport(initialUser: User, options?: { includeFeedback?: boolean; localOnly?: boolean }) {
   const ownerId = initialUser.id;
   const headers = { 'X-Workspace-Owner': ownerId };
   const missing: string[] = [];
@@ -36,6 +50,13 @@ export async function collectPersonalExport(initialUser: User, options?: { inclu
   let remote: WorkspaceItem[] | undefined;
   const remoteHistory: PracticeRecord[] = [];
   const feedback: FeedbackExport[] = [];
+  if (options?.localOnly) {
+    try { local = await readWorkspace(ownerId); localAvailable = true; }
+    catch (problem) { missing.push(`本机工作区：${errorText(problem)}`); }
+    const legacy = legacyData(ownerId, missing);
+    missing.push('云端工作区、服务端历史和反馈未读取');
+    return buildPersonalExport({ user, local, localAvailable, legacyDrafts: legacy.legacyDrafts, localHistory: legacy.history, remoteHistory, feedback, missing, exportedAt: new Date().toISOString(), preserveLocalCopies: true });
+  }
   try {
     const current = await api<{ user: User | null }>('/api/me', { headers });
     if (!current.user || current.user.id !== ownerId) throw new Error('登录账号已变更');
@@ -93,14 +114,6 @@ export async function collectPersonalExport(initialUser: User, options?: { inclu
       if (seen.size < total) missing.push('反馈列表可能因导出期间发生变化而不完整');
     } catch (problem) { missing.push(`反馈：${errorText(problem)}`); }
   }
-  let legacyDrafts = [] as ReturnType<typeof savedPracticeFromLegacy>[];
-  let history: PracticeRecord[] = [];
-  try {
-    // The legacy helpers intentionally return an empty list when browser storage
-    // is unavailable; probe it separately so the export reports that limitation.
-    localStorage.getItem('cloudtyping.history.v1');
-    legacyDrafts = readDrafts(ownerId).map(savedPracticeFromLegacy);
-    history = localHistory().filter((item) => (item.ownerId ?? null) === ownerId);
-  } catch (problem) { missing.push(`本机旧版资料：${errorText(problem)}`); }
-  return buildPersonalExport({ user, local, localAvailable, remote, legacyDrafts, localHistory: history, remoteHistory, feedback, missing, exportedAt: new Date().toISOString() });
+  const legacy = legacyData(ownerId, missing);
+  return buildPersonalExport({ user, local, localAvailable, remote, legacyDrafts: legacy.legacyDrafts, localHistory: legacy.history, remoteHistory, feedback, missing, exportedAt: new Date().toISOString() });
 }

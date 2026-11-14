@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import { difficulties, type Difficulty, type Language } from '../src/data/articles';
 import { scoreTyping, splitCharacters } from '../src/lib/scoring';
 import { catalogSnapshotKey, type ArticleSnapshot, type PracticeMode, type RankingEntry } from '../src/lib/models';
-import { createWorkspaceStore, recoveryIdPattern, recoveryKeyPattern, syncBodyLimit, validateWorkspaceItems, WorkspaceLimitError } from './workspace';
+import { createWorkspaceStore, recoveryIdPattern, recoveryKeyPattern, syncBodyLimit, validateWorkspaceItems, WorkspaceConflictError, WorkspaceGenerationError, WorkspaceLimitError } from './workspace';
 import { AdminAccessError, createAdminAudit, migrateAdministration, registerAdminRoutes } from './admin';
 import { createCatalogStore, registerCatalogRoutes } from './catalog';
 import { createSiteSettings, registerSiteSettingsRoutes } from './site-settings';
@@ -433,15 +433,22 @@ export async function createApp(options: AppOptions) {
   });
 
   function workspaceResponse(request: FastifyRequest, owner: string, serverTime: number) {
-    const items = workspace.get(owner);
+    const protocol2 = request.headers['x-workspace-protocol'] === '2';
+    const snapshot = workspace.snapshot(owner);
+    const items = snapshot.items.map((item) => {
+      if (protocol2) return item;
+      const { serverRevision: _revision, ...legacy } = item;
+      return legacy;
+    });
+    const metadata = protocol2 ? { protocol: 2, generation: snapshot.generation } : {};
     const known = request.headers['x-workspace-backgrounds'];
-    if (typeof known !== 'string') return { items, serverTime };
+    if (typeof known !== 'string') return { items, serverTime, ...metadata };
     const backgrounds = items.filter((item) => item.kind === 'background');
     const version = createHash('sha256').update(owner).update(JSON.stringify(backgrounds)).digest('hex');
     const unchanged = known === version;
     return {
       items: unchanged ? items.filter((item) => item.kind !== 'background') : items,
-      serverTime, backgroundsVersion: version, backgroundsUnchanged: unchanged,
+      serverTime, backgroundsVersion: version, backgroundsUnchanged: unchanged, ...metadata,
     };
   }
 
@@ -452,21 +459,46 @@ export async function createApp(options: AppOptions) {
     reply.header('Cache-Control', 'no-store');
     return workspaceResponse(request, user.id, now());
   });
+  app.get('/api/workspace/usage', async (request, reply) => {
+    const user = userFor(request);
+    if (!user) return invalid(reply, '请先登录', 401);
+    if (!accountMatches(request, user)) return invalid(reply, '登录账号已变更', 403);
+    if (request.headers['x-workspace-protocol'] !== '2') return reply.code(426).send({ error: '同步版本过旧，请更新页面后重试', code: 'SYNC_CLIENT_UPDATE_REQUIRED' });
+    reply.header('Cache-Control', 'no-store');
+    return workspace.usage(user.id);
+  });
 
   app.post('/api/workspace/sync', { bodyLimit: syncBodyLimit }, async (request, reply) => {
     const user = userFor(request);
     if (!user) return invalid(reply, '请先登录', 401);
     if (!accountMatches(request, user)) return invalid(reply, '登录账号已变更', 403);
+    if (request.headers['x-workspace-protocol'] !== '2') return reply.code(426).send({ error: '同步版本过旧，请更新页面后重试', code: 'SYNC_CLIENT_UPDATE_REQUIRED' });
     const serverTime = now();
-    const items = validateWorkspaceItems(bodyOf(request).items, user.id, serverTime);
-    if (!items) return invalid(reply, '同步数据无效');
-    try { workspace.merge(user.id, items); }
+    const body = bodyOf(request);
+    const items = validateWorkspaceItems(body.items, user.id, serverTime);
+    if (!items || items.some((item) => item.baseRevision === undefined) || typeof body.generation !== 'number' || !Number.isSafeInteger(body.generation) || body.generation < 1) return invalid(reply, '同步数据无效');
+    try { workspace.merge(user.id, body.generation, items); }
     catch (error) {
       if (error instanceof WorkspaceLimitError) return invalid(reply, '同步空间已满', 413);
+      if (error instanceof WorkspaceGenerationError) return reply.code(409).send({ error: '云端资料已整理，请先导出本机资料并重新同步', code: 'SYNC_RESYNC_REQUIRED' });
+      if (error instanceof WorkspaceConflictError) return reply.code(409).send({ error: '部分资料已在其他设备更改，请先保留本机资料', code: 'SYNC_CONFLICT' });
       throw error;
     }
     reply.header('Cache-Control', 'no-store');
     return workspaceResponse(request, user.id, serverTime);
+  });
+  app.post('/api/workspace/compact', async (request, reply) => {
+    const user = userFor(request);
+    if (!user) return invalid(reply, '请先登录', 401);
+    if (!accountMatches(request, user)) return invalid(reply, '登录账号已变更', 403);
+    if (request.headers['x-workspace-protocol'] !== '2') return reply.code(426).send({ error: '同步版本过旧，请更新页面后重试', code: 'SYNC_CLIENT_UPDATE_REQUIRED' });
+    const body = bodyOf(request);
+    if (typeof body.generation !== 'number' || !Number.isSafeInteger(body.generation) || body.generation < 1) return invalid(reply, '同步数据无效');
+    try { return workspace.compact(user.id, body.generation); }
+    catch (error) {
+      if (error instanceof WorkspaceGenerationError) return reply.code(409).send({ error: '云端资料已整理，请先导出本机资料并重新同步', code: 'SYNC_RESYNC_REQUIRED' });
+      throw error;
+    }
   });
 
   const findOwnedChallenge = (request: FastifyRequest, reply: FastifyReply) => {
@@ -479,13 +511,16 @@ export async function createApp(options: AppOptions) {
     COALESCE(json_extract(value, '$.claimVersion'), 0) AS claimVersion,
     json_extract(value, '$.progressVersion') AS progressVersion, json_extract(value, '$.recoveryMarker') AS recoveryMarker
     FROM workspace_items WHERE user_id=? AND kind='draft' AND item_id=?`);
+  const findDeletedDraft = db.prepare('SELECT 1 FROM workspace_deleted_drafts WHERE user_id=? AND draft_id=?');
   const draftFor = (owner: string, id: string) => owner.startsWith('u:')
-    ? findWorkspaceDraft.get(owner.slice(2), id) as {
+    ? (findWorkspaceDraft.get(owner.slice(2), id) ?? (findDeletedDraft.get(owner.slice(2), id) ? { deleted: 1, claimVersion: 0, progressVersion: null, recoveryMarker: null } : undefined)) as {
       deleted: number; claimVersion: number; progressVersion: number | null; recoveryMarker: string | null;
     } | undefined
     : undefined;
   const draftStillPresent = `NOT EXISTS (SELECT 1 FROM workspace_items WHERE user_id=substr(challenges.owner, 3)
-    AND substr(challenges.owner, 1, 2)='u:' AND kind='draft' AND item_id=challenges.draft_id AND value IS NULL)`;
+    AND substr(challenges.owner, 1, 2)='u:' AND kind='draft' AND item_id=challenges.draft_id AND value IS NULL)
+    AND NOT EXISTS (SELECT 1 FROM workspace_deleted_drafts WHERE user_id=substr(challenges.owner, 3)
+    AND substr(challenges.owner, 1, 2)='u:' AND draft_id=challenges.draft_id)`;
   const requireOwnedChallenge = (request: FastifyRequest, reply: FastifyReply) => {
     const challenge = findOwnedChallenge(request, reply);
     if (!challenge) {

@@ -13,6 +13,15 @@ const caches = new Map<string, WorkspaceItem[]>();
 const listeners = new Set<(owner: string, local: boolean, items?: WorkspaceItem[]) => void>();
 const blockedAccounts = new Set<string>();
 export const localAccountBlockPrefix = 'cloudtyping.account-blocked.v1.';
+export const workspaceGenerationKey = (owner: string) => `cloudtyping.workspace.generation.v2.${owner}`;
+export function readWorkspaceGeneration(owner: string) {
+  const raw = localStorage.getItem(workspaceGenerationKey(owner));
+  if (raw === null) return null;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 1) throw new Error('本机同步代次无法读取');
+  return value;
+}
+export function saveWorkspaceGeneration(owner: string, generation: number) { localStorage.setItem(workspaceGenerationKey(owner), String(generation)); }
 let database: Promise<IDBDatabase | null> | undefined;
 let channel: BroadcastChannel | undefined;
 
@@ -46,10 +55,14 @@ const isArticle = (value: unknown) => isObject(value) && typeof value.id === 'st
 
 export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
   if (!isObject(value)) return false;
-  const { kind, id, updatedAt, deleted, value: payload } = value;
+  const { kind, id, updatedAt, deleted, value: payload, serverRevision, baseRevision, baseUpdatedAt, clientGeneration } = value;
   if (!['favorite', 'article', 'draft', 'record', 'settings', 'background'].includes(kind as string) ||
     typeof id !== 'string' || !id || typeof updatedAt !== 'number' || !Number.isSafeInteger(updatedAt) || updatedAt < 0 ||
-    (deleted !== undefined && typeof deleted !== 'boolean')) return false;
+    (deleted !== undefined && typeof deleted !== 'boolean') ||
+    (serverRevision !== undefined && (!Number.isSafeInteger(serverRevision) || (serverRevision as number) < 1)) ||
+    (baseRevision !== undefined && (!Number.isSafeInteger(baseRevision) || (baseRevision as number) < 0)) ||
+    (baseUpdatedAt !== undefined && (!Number.isSafeInteger(baseUpdatedAt) || (baseUpdatedAt as number) < 0)) ||
+    (clientGeneration !== undefined && (!Number.isSafeInteger(clientGeneration) || (clientGeneration as number) < 1))) return false;
   if (kind === 'background' && !isTheme(id)) return false;
   if (deleted) return true;
   if (!isObject(payload)) return false;
@@ -70,6 +83,32 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
       [payload.fontSize, payload.lineHeight, payload.visibleLines].every(isNumber);
     default: return false;
   }
+}
+
+function comparable(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(comparable);
+  if (!isObject(value)) return value;
+  return Object.fromEntries(Object.keys(value).filter((key) => key !== 'claimId' && key !== 'recoveryRequestId').sort().map((key) => [key, comparable(value[key])]));
+}
+function samePayload(a: WorkspaceItem, b: WorkspaceItem) {
+  return a.updatedAt === b.updatedAt && !!a.deleted === !!b.deleted && JSON.stringify(comparable(a.value)) === JSON.stringify(comparable(b.value));
+}
+export function workspaceRecoveryReason(local: WorkspaceItem[], remote: WorkspaceItem[], knownGeneration: number | null, serverGeneration: number, baseline: WorkspaceItem[] = []): 'generation' | 'conflict' | null {
+  if (local.length && ((knownGeneration !== null && knownGeneration !== serverGeneration) || (knownGeneration === null && serverGeneration > 1))) return 'generation';
+  if (knownGeneration !== null && local.some((item) => item.clientGeneration !== knownGeneration)) return 'conflict';
+  const cloud = new Map(remote.map((item) => [keyOf(item), item]));
+  const before = new Map(baseline.map((item) => [keyOf(item), item]));
+  for (const item of local) {
+    const current = cloud.get(keyOf(item));
+    if (!current) { if (item.serverRevision !== undefined) return 'conflict'; continue; }
+    if (samePayload(item, current)) continue;
+    const previous = before.get(keyOf(item));
+    if (previous && samePayload(previous, current) && (item.serverRevision ?? 0) === (previous.serverRevision ?? 0)) continue;
+    if (item.serverRevision === undefined || item.baseUpdatedAt === undefined) return 'conflict';
+    const dirty = item.updatedAt !== item.baseUpdatedAt;
+    if (dirty && item.serverRevision !== current.serverRevision) return 'conflict';
+  }
+  return null;
 }
 
 function replacesItem(previous: WorkspaceItem | undefined, incoming: WorkspaceItem, includeTies: boolean) {
@@ -275,6 +314,32 @@ export class DraftDeletedError extends Error {
     this.name = 'DraftDeletedError';
   }
 }
+export class WorkspaceMergeConflictError extends Error {
+  constructor() { super('部分资料已在其他设备更改，请先保留本机资料'); }
+}
+
+function mergeProtocolItems(local: WorkspaceItem[], incoming: WorkspaceItem[], acknowledged: WorkspaceItem[], generation: number) {
+  const items = new Map(local.map((item) => [keyOf(item), item]));
+  const sent = new Map(acknowledged.map((item) => [keyOf(item), item]));
+  for (const remote of incoming) {
+    const key = keyOf(remote); const current = items.get(key);
+    const localLease = current?.kind === 'draft' && isObject(current.value) && isObject(remote.value) && samePayload(current, remote)
+      ? { value: { ...remote.value, ...(typeof current.value.claimId === 'string' && { claimId: current.value.claimId }),
+        ...(typeof current.value.recoveryRequestId === 'string' && { recoveryRequestId: current.value.recoveryRequestId }) } } : {};
+    const cleanRemote = { ...remote, ...localLease, baseUpdatedAt: remote.updatedAt, clientGeneration: generation };
+    if (!current || samePayload(current, remote)) { items.set(key, cleanRemote); continue; }
+    const dirty = current.baseUpdatedAt === undefined || current.updatedAt !== current.baseUpdatedAt;
+    if (!dirty) { items.set(key, cleanRemote); continue; }
+    if (current.serverRevision === remote.serverRevision) continue;
+    const submitted = sent.get(key);
+    if (submitted && samePayload(submitted, remote) && (current.serverRevision ?? 0) === (submitted.serverRevision ?? 0)) {
+      items.set(key, { ...current, serverRevision: remote.serverRevision, baseUpdatedAt: remote.updatedAt, clientGeneration: generation });
+      continue;
+    }
+    throw new WorkspaceMergeConflictError();
+  }
+  return [...items.values()].map((item) => item.clientGeneration === undefined ? { ...item, clientGeneration: generation } : item);
+}
 
 function editWorkspace(ownerId: string | null, edit: Edit, local: boolean): Promise<WorkspaceItem[]> {
   const owner = scope(ownerId);
@@ -325,12 +390,44 @@ export function clearLocalWorkspace(ownerId: string): Promise<void> {
   });
 }
 
+export function replaceLocalWorkspace(ownerId: string, items: WorkspaceItem[], generation: number): Promise<void> {
+  const owner = scope(ownerId);
+  if (!Number.isSafeInteger(generation) || generation < 1 || items.some((item) => !isWorkspaceItem(item) || item.serverRevision === undefined)) return Promise.reject(new Error('云端资料无法读取'));
+  return serialized(owner, async () => {
+    if (!isLocalAccountBlocked(ownerId)) throw new Error('请先保护本机资料');
+    const replacement = items.map(({ baseRevision: _baseRevision, ...item }) => ({ ...item, baseUpdatedAt: item.updatedAt, clientGeneration: generation }));
+    const db = await openDatabase();
+    if (!db) localStorage.setItem(storagePrefix + owner, JSON.stringify(replacement));
+    else {
+      localStorage.removeItem(storagePrefix + owner);
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(itemStore, 'readwrite');
+        const store = transaction.objectStore(itemStore);
+        const request = store.index('owner').openKeyCursor(IDBKeyRange.only(owner));
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (cursor) { store.delete(cursor.primaryKey); cursor.continue(); }
+          else for (const item of replacement) store.put({ ...item, owner });
+        };
+        transaction.oncomplete = () => resolve();
+        transaction.onabort = () => reject(transaction.error ?? new Error('本机资料替换失败'));
+        transaction.onerror = () => reject(transaction.error ?? new Error('本机资料替换失败'));
+      });
+    }
+    caches.set(owner, replacement); clocks.delete(owner);
+    for (const listener of listeners) listener(owner, false, []);
+    const broadcaster = broadcastChannel();
+    broadcaster?.postMessage({ owner, local: false });
+    if (!listeners.size) { broadcaster?.close(); channel = undefined; }
+  });
+}
+
 function estimatedServerTime(ownerId: string | null) {
   const clock = clocks.get(scope(ownerId));
   return clock ? clock.serverTime + Math.round(performance.now() - clock.observedAt) : Date.now();
 }
 
-export function mergeRemoteWorkspace(ownerId: string, items: WorkspaceItem[], serverTime: number, signal: AbortSignal) {
+export function mergeRemoteWorkspace(ownerId: string, items: WorkspaceItem[], serverTime: number, signal: AbortSignal, protocol2 = false, acknowledged: WorkspaceItem[] = [], generation = 1) {
   return editWorkspace(ownerId, (current) => {
     if (signal.aborted) return current;
     clocks.set(scope(ownerId), { serverTime, observedAt: performance.now() });
@@ -346,13 +443,13 @@ export function mergeRemoteWorkspace(ownerId: string, items: WorkspaceItem[], se
         } }),
       };
     });
-    const merged = mergeWorkspaceItems(normalized, items);
+    const merged = protocol2 ? mergeProtocolItems(normalized, items, acknowledged, generation) : mergeWorkspaceItems(normalized, items);
     // Server responses can include the entire workspace for every chunk. Avoid
     // rewriting records that already match the stored copy.
     const previous = new Map(current.map((item) => [keyOf(item), item]));
     const next = merged.map((item) => {
       const stored = previous.get(keyOf(item));
-      return stored && stored.updatedAt === item.updatedAt &&
+      return stored && stored.updatedAt === item.updatedAt && stored.serverRevision === item.serverRevision && stored.baseUpdatedAt === item.baseUpdatedAt && stored.clientGeneration === item.clientGeneration &&
         !!stored.deleted === !!item.deleted && JSON.stringify(stored.value) === JSON.stringify(item.value) ? stored : item;
     });
     return next.length === current.length && next.every((item, index) => item === current[index]) ? current : next;
@@ -387,9 +484,12 @@ export function mutateWorkspaceValue<K extends WorkspaceKind>(
     }
     if (old && !old.deleted && old.value === value) return items;
     const updatedAt = Math.max(estimatedServerTime(ownerId), (old?.updatedAt ?? -1) + 1);
+    const generation = ownerId ? readWorkspaceGeneration(ownerId) : null;
+    const base = { ...(old?.serverRevision === undefined ? {} : { serverRevision: old.serverRevision, baseUpdatedAt: old.baseUpdatedAt ?? old.updatedAt }),
+      ...((old?.clientGeneration ?? (!old ? generation : null)) ? { clientGeneration: old?.clientGeneration ?? generation! } : {}) };
     const item: WorkspaceItem = value === undefined
-      ? { kind, id, updatedAt, deleted: true }
-      : { kind, id, updatedAt, value };
+      ? { kind, id, updatedAt, deleted: true, ...base }
+      : { kind, id, updatedAt, value, ...base };
     return mergeWorkspaceItems(items, [item]);
   }, true).then(() => {});
 }

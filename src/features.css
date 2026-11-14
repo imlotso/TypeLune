@@ -456,6 +456,20 @@
   font-size: 13px;
 }
 
+.workspace-capacity {
+  display: grid;
+  justify-items: start;
+  gap: 9px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--typing-border);
+  color: var(--typing-text);
+  font-size: 14px;
+}
+.workspace-capacity h2 { margin: 0; font-size: 17px; }
+.workspace-capacity p { margin: 0; }
+.workspace-capacity ul { display: grid; gap: 4px; margin: 0; padding-left: 20px; color: var(--typing-muted); }
+
 @media (max-width: 700px) {
   .stats .feature-metrics > div:last-child { grid-column: 1 / -1; }
   .feature-filters {

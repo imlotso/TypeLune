@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import argon2 from 'argon2';
 import { createApp } from '../server/app';
+import { syncWorkspace } from './workspace-sync-helper';
 
 describe('account identity changes', () => {
   let app: Awaited<ReturnType<typeof createApp>>;
@@ -31,7 +32,7 @@ describe('account identity changes', () => {
     const alice = await register('alice');
     await register('other');
     const item = { kind: 'favorite', id: 'zh-beginner-1', updatedAt: Date.now(), value: { articleId: 'zh-beginner-1' } };
-    expect((await post('/api/workspace/sync', { items: [item] }, alice.headers)).statusCode).toBe(200);
+    expect((await syncWorkspace(app, alice.headers, [item])).statusCode).toBe(200);
     expect((await post('/api/account/username', { username: 'new_name', currentPassword: 'wrong' }, alice.headers)).statusCode).toBe(401);
     expect((await post('/api/account/username', { username: 'a!', currentPassword: password }, alice.headers)).statusCode).toBe(400);
     expect((await post('/api/account/username', { username: 'OTHER', currentPassword: password }, alice.headers)).statusCode).toBe(409);
