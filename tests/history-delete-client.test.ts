@@ -45,6 +45,25 @@ it('retires both the workspace ID and a matching id-less local copy', async () =
   expect((await readWorkspace('alice')).map((item) => item.id).sort()).toEqual([alias, 'old-cloud-id'].sort());
 });
 
+it('uses a bounded local marker when an old status cannot be safely reconstructed on the server', async () => {
+  const local: PracticeRecord = { ownerId: 'alice', language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, status: 'old-custom-status', typed: '山' };
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([local]));
+  const cloud = normalizeWorkspaceRecord({ kind: 'record', id: 'old-cloud-id', updatedAt: 1000, value: { ...local, status: 'finished' } })!;
+  const [merged] = mergePracticeRecords(localHistory(), [], [cloud]);
+  expect(merged.legacyProof).toBeUndefined();
+  const marker = legacyConflictId(local);
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => {
+    const body = JSON.parse(String(options?.body));
+    expect(body.ids).toEqual(['old-cloud-id', marker]);
+    expect(body.localConflicts).toEqual([marker]);
+    expect(body.legacyPairs).toBeUndefined();
+    return new Response(JSON.stringify({ ok: true, generation: 1, items: body.ids.map((id: string) => ({ kind: 'record', id, deleted: true, updatedAt: 2000, serverRevision: 1, ...(id === marker && { localConflict: true }) })) }));
+  }));
+  await deletePracticeRecords('alice', [merged]);
+  expect(localHistory()).toEqual([]);
+  expect((await readWorkspace('alice')).find((item) => item.id === marker)).toMatchObject({ deleted: true, localConflict: true });
+});
+
 it('deletes a conflicting local legacy copy without deleting the distinct cloud record', async () => {
   const legacy: PracticeRecord = { ownerId: 'alice', language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山' };
   localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));

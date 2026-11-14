@@ -466,7 +466,11 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       !(conflicts.size && record.legacyLocalIds?.length && conflicts.has(legacyConflictId(record))));
   }, [authReady, ownerId, remoteHistory, workspace.records, workspace.deletedRecordIds, workspace.deletedLocalConflictIds, localRecordVersion, result, view]);
   async function deleteRecords(selected: PracticeRecord[]) {
-    const ids = new Set(await deletePracticeRecords(ownerId, selected));
+    if (ownerId && (!workspace.cloudLoaded || !historyLoaded || historyError)) throw new Error('记录仍在读取，请稍后重试');
+    const current = selected.map((record) => records.find((entry) => stableRecordId(entry) === stableRecordId(record) &&
+      (!record.legacyLocalIds?.length || legacyConflictId(entry) === legacyConflictId(record))));
+    if (current.some((record) => !record)) throw new Error('记录已更新，请重新选择后删除');
+    const ids = new Set(await deletePracticeRecords(ownerId, current as PracticeRecord[]));
     if (!live.current) return;
     setRemoteHistory((current) => current.filter((record) => !ids.has(stableRecordId(record))));
     setLocalRecordVersion((version) => version + 1);

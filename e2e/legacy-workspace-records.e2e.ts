@@ -103,3 +103,62 @@ test('deletes a collided local legacy record while preserving the unrelated clou
   expect(stale.status()).toBe(409);
   await staleDevice.close(); await device.close();
 });
+
+test('deletes a matched legacy record with an unknown old status while the workspace is full', async ({ page, browser, baseURL, clientIp }) => {
+  test.setTimeout(60_000);
+  const username = 'legacy_full_status'; const email = `${username}@example.test`; const password = 'legacy-password-123';
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  const registered = await page.request.post('/api/auth/register', { data: { username, email, password, code } });
+  const ownerId = (await registered.json()).user.id as string;
+  const local = { ownerId, language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: Date.now() - 1000, typed: '山', status: 'old-custom-status',
+    article: { id: 'old-article', title: '旧状态记录', text: '山海', language: 'zh' as const, difficulty: 'beginner' as const, custom: true } };
+  const headers = { 'X-Workspace-Owner': ownerId, 'X-Workspace-Protocol': '2', 'X-Workspace-Capabilities': 'local-conflict-v1' };
+  expect((await page.request.post('/api/workspace/sync', { headers, data: { generation: 1, items: [{ kind: 'record', id: 'old-cloud-id', updatedAt: Date.now(), baseRevision: 0, value: { ...local, status: 'finished' } }] } })).ok()).toBe(true);
+  for (let batch = 0; batch < 20; batch++) {
+    const count = batch === 19 ? 99 : 100;
+    const items = Array.from({ length: count }, (_, index) => { const id = `full-favorite-${batch * 100 + index}`; return { kind: 'favorite', id, updatedAt: Date.now(), baseRevision: 0, value: { articleId: id } }; });
+    expect((await page.request.post('/api/workspace/sync', { headers, data: { generation: 1, items } })).ok()).toBe(true);
+  }
+  const device = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
+  expect((await device.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
+  const other = await device.newPage(); await other.goto('/');
+  await other.evaluate((record) => localStorage.setItem('cloudtyping.history.v1', JSON.stringify([record])), local);
+  await other.goto('/records');
+  await expect(other.getByRole('heading', { name: '旧状态记录' })).toHaveCount(1);
+  await page.goto('/');
+  await page.evaluate((record) => localStorage.setItem('cloudtyping.history.v1', JSON.stringify([record])), local);
+  let releaseWorkspace!: () => void;
+  const workspaceGate = new Promise<void>((resolve) => { releaseWorkspace = resolve; });
+  await page.route('**/api/workspace', async (route) => { await workspaceGate; await route.continue().catch(() => {}); });
+  let deletionRequests = 0;
+  page.on('request', (request) => { if (request.url().endsWith('/api/history/delete')) deletionRequests++; });
+  await page.goto('/records');
+  await expect(page.getByRole('heading', { name: '旧状态记录' })).toHaveCount(1);
+  await page.getByRole('button', { name: '删除《旧状态记录》' }).click();
+  const confirm = page.getByRole('dialog', { name: '删除记录' });
+  await confirm.getByRole('button', { name: '删除' }).click();
+  await expect(confirm.getByRole('alert')).toHaveText('记录仍在读取，请稍后重试');
+  expect(deletionRequests).toBe(0);
+  await confirm.getByRole('button', { name: '取消' }).click();
+  releaseWorkspace();
+  await page.unroute('**/api/workspace');
+  await page.getByRole('button', { name: '更多' }).click();
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: '练习设置' });
+  await expect(settings.getByText('已同步')).toBeVisible({ timeout: 20_000 });
+  await settings.getByRole('button', { name: '关闭' }).click();
+  await page.getByRole('button', { name: '删除《旧状态记录》' }).click();
+  await confirm.getByRole('button', { name: '删除' }).click();
+  await expect(page.getByRole('heading', { name: '旧状态记录' })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('cloudtyping.history.v1') || '[]').length)).toBe(0);
+  await other.reload();
+  await expect(other.getByRole('heading', { name: '旧状态记录' })).toHaveCount(0);
+  await expect.poll(() => other.evaluate(() => JSON.parse(localStorage.getItem('cloudtyping.history.v1') || '[]').length)).toBe(0);
+  expect((await (await page.request.get('/api/workspace/usage', { headers })).json())).toMatchObject({ count: 2000, aliasTombstones: 1 });
+  expect((await (await page.request.post('/api/workspace/compact', { headers, data: { generation: 1 } })).json())).toMatchObject({ removed: 2, generation: 2 });
+  const id = 'new-after-cleanup';
+  expect((await page.request.post('/api/workspace/sync', { headers, data: { generation: 2, items: [{ kind: 'favorite', id, updatedAt: Date.now(), baseRevision: 0, value: { articleId: id } }] } })).ok()).toBe(true);
+  expect((await (await page.request.get('/api/workspace/usage', { headers })).json())).toMatchObject({ count: 2000 });
+  await device.close();
+});

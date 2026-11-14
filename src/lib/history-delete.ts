@@ -1,22 +1,37 @@
 import { deleteLocalHistory } from '../hooks/usePractice';
 import { api } from './api';
 import type { PracticeRecord, WorkspaceItem } from './models';
-import { stableRecordId } from './records';
-import { applyAuthoritativeRecordDeletions, deleteGuestConflict, deleteWorkspaceValue, isWorkspaceItem } from './workspace';
+import { legacyConflictId, normalizeWorkspaceRecord, stableRecordId } from './records';
+import { applyAuthoritativeRecordDeletions, deleteGuestConflict, deleteWorkspaceValue, isWorkspaceItem, readWorkspace } from './workspace';
 
 const attemptId = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const needsLegacyMarker = (record: PracticeRecord) => !!record.legacyWorkspaceId && !record.legacyIdConflict && record.legacyProof === undefined &&
+  !!record.legacyLocalIds?.some((id) => id !== stableRecordId(record));
+const recordIds = (record: PracticeRecord) => [stableRecordId(record), ...(record.legacyIdConflict ? [] : needsLegacyMarker(record) ? [legacyConflictId(record)] : record.legacyLocalIds ?? [])];
 export async function deletePracticeRecords(ownerId: string | null, records: PracticeRecord[]) {
   if (!records.length || records.length > 100) throw new Error('请选择 1 至 100 条记录');
   if (records.some((record) => record.legacyDeletionBlocked)) throw new Error('记录标识冲突，请先导出并检查本机资料');
-  const ids = [...new Set(records.flatMap((record) => [stableRecordId(record), ...(record.legacyIdConflict ? [] : record.legacyLocalIds ?? [])]))];
+  const ids = [...new Set(records.flatMap(recordIds))];
   if (ids.length > 200 || ids.some((id) => !id || id.length > 200 || /[\p{Cc}\p{Cf}]/u.test(id))) throw new Error('记录标识无效');
   const expectedOnlineIds = [...new Set(records.filter((record) => record.localOnly !== true && !!record.recordId && attemptId.test(record.recordId)).map(stableRecordId))];
-  const legacyPairs = records.flatMap((record) => record.legacyWorkspaceId && !record.legacyIdConflict ? (record.legacyLocalIds ?? []).filter((alias) => alias !== stableRecordId(record)).map((alias) => ({ id: stableRecordId(record), alias, ...(record.legacyProof && { proof: record.legacyProof }) })) : []);
-  const localConflicts = [...new Set(records.filter((record) => record.legacyIdConflict).map(stableRecordId))];
+  const legacyPairs = records.flatMap((record) => record.legacyWorkspaceId && !record.legacyIdConflict && !needsLegacyMarker(record) ? (record.legacyLocalIds ?? []).filter((alias) => alias !== stableRecordId(record)).map((alias) => ({ id: stableRecordId(record), alias, ...(record.legacyProof && { proof: record.legacyProof }) })) : []);
+  const localConflicts = [...new Set(records.flatMap((record) => record.legacyIdConflict ? [stableRecordId(record)] : needsLegacyMarker(record) ? [legacyConflictId(record)] : []))];
   if (legacyPairs.length > 100) throw new Error('旧记录标识无效');
+  let expectedRevisions: Array<{ id: string; revision: number }> = [];
+  if (ownerId && records.some((record) => record.legacyLocalIds?.length)) {
+    const workspace = await readWorkspace(ownerId);
+    const byId = new Map(workspace.filter((item) => item.kind === 'record').map((item) => [item.id, item]));
+    for (const record of records.filter((entry) => entry.legacyLocalIds?.length && !entry.legacyIdConflict)) {
+      const stored = byId.get(stableRecordId(record));
+      const current = stored && normalizeWorkspaceRecord(stored);
+      if (current && legacyConflictId(current) !== legacyConflictId(record)) throw new Error('记录已更新，请重新选择后删除');
+    }
+    const protectedIds = new Set(records.filter((record) => record.legacyLocalIds?.length).flatMap(recordIds));
+    expectedRevisions = [...protectedIds].map((id) => ({ id, revision: byId.get(id)?.serverRevision ?? 0 }));
+  }
   if (ownerId || expectedOnlineIds.length) {
     const result = await api<{ ok: boolean; generation?: number; items?: WorkspaceItem[] }>('/api/history/delete', {
-      method: 'POST', headers: { 'X-Workspace-Owner': ownerId ?? 'guest' }, body: { ids, expectedOnlineIds, ...(legacyPairs.length && { legacyPairs }), ...(localConflicts.length && { localConflicts }) },
+      method: 'POST', headers: { 'X-Workspace-Owner': ownerId ?? 'guest' }, body: { ids, expectedOnlineIds, ...(legacyPairs.length && { legacyPairs }), ...(localConflicts.length && { localConflicts }), ...(expectedRevisions.length && { expectedRevisions }) },
     });
     if (!result.ok) throw new Error('删除结果无法确认，请重试');
     if (ownerId) {

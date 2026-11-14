@@ -192,4 +192,36 @@ describe('history deletion and score withdrawal', () => {
     expect(bobItem.localConflict).toBeUndefined();
     expect((await post('/api/workspace/sync', { generation: 1, items: [] }, bob.headers)).statusCode).toBe(200);
   });
+
+  it('does not delete an unrelated active alias that appeared before legacy deletion', async () => {
+    const alice = await register('alice');
+    const legacy = { ownerId: alice.id, language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: now, typed: '山' };
+    const alias = stableRecordId(legacy);
+    const unrelated = { ...legacy, recordId: alias, typed: '海' };
+    const created = await post('/api/workspace/sync', { generation: 1, items: [
+      { kind: 'record', id: 'old-cloud-id', updatedAt: now, baseRevision: 0, value: legacy },
+      { kind: 'record', id: alias, updatedAt: now, baseRevision: 0, value: unrelated },
+    ] }, alice.headers);
+    expect(created.statusCode).toBe(200);
+    const deleted = await post('/api/history/delete', { ids: ['old-cloud-id', alias], legacyPairs: [{ id: 'old-cloud-id', alias, proof: {} }] }, alice.headers);
+    expect(deleted.statusCode).toBe(409);
+    const items = (await app.inject({ url: '/api/workspace', headers: alice.headers })).json().items;
+    expect(items).toHaveLength(2);
+    expect(items.find((item: { id: string }) => item.id === alias)).toMatchObject({ value: unrelated });
+    expect(items.find((item: { id: string }) => item.id === 'old-cloud-id')).toMatchObject({ value: legacy });
+  });
+
+  it('checks legacy record revisions inside the deletion transaction and permits a safe retry', async () => {
+    const alice = await register('alice');
+    const legacy = { ownerId: alice.id, language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: now, typed: '山' };
+    const alias = stableRecordId(legacy);
+    const value = { ...legacy, recordId: alias };
+    expect((await post('/api/workspace/sync', { generation: 1, items: [{ kind: 'record', id: alias, updatedAt: now, baseRevision: 0, value }] }, alice.headers)).statusCode).toBe(200);
+    expect((await post('/api/history/delete', { ids: [alias], expectedRevisions: [{ id: alias, revision: 0 }] }, alice.headers)).statusCode).toBe(409);
+    expect((await post('/api/history/delete', { ids: [alias] }, alice.headers)).statusCode).toBe(409);
+    expect((await app.inject({ url: '/api/workspace', headers: alice.headers })).json().items[0]).toMatchObject({ id: alias, value });
+    const request = { ids: [alias], expectedRevisions: [{ id: alias, revision: 1 }] };
+    expect((await post('/api/history/delete', request, alice.headers)).statusCode).toBe(200);
+    expect((await post('/api/history/delete', request, alice.headers)).statusCode).toBe(200);
+  });
 });

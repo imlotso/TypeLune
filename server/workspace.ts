@@ -253,11 +253,20 @@ export function createWorkspaceStore(db: Database.Database) {
   // Called inside the history deletion transaction so score withdrawal and the
   // tombstones either both commit or neither does. Registry entries survive
   // compaction and reject any later upload of the same record ID.
-  const deleteRecords = (owner: string, ids: string[], time: number, legacyPairs: Array<{ id: string; alias: string; proof?: LegacyRecordProof }> = [], localConflicts: string[] = []) => {
+  const deleteRecords = (owner: string, ids: string[], time: number, legacyPairs: Array<{ id: string; alias: string; proof?: LegacyRecordProof }> = [], localConflicts: string[] = [], expectedRevisions: Array<{ id: string; revision: number }> = []) => {
+    const revisions = new Map(expectedRevisions.map(({ id, revision }) => [id, revision]));
+    for (const id of ids) {
+      const previous = readItem.get(owner, 'record', id) as { value: string | null; revision: number } | undefined;
+      // Retried deletions are safe after the first transaction committed.
+      if (previous?.value === null || (!previous && deletedRecord.get(owner, id))) continue;
+      if ((revisions.has(id) && revisions.get(id) !== (previous?.revision ?? 0)) ||
+        (/^guest-[0-9a-f]{16}$/u.test(id) && previous?.value && !revisions.has(id))) throw new WorkspaceConflictError();
+    }
     for (const { id, alias, proof } of legacyPairs) {
       const source = readItem.get(owner, 'record', id) as { value: string | null } | undefined;
       const existingAlias = readItem.get(owner, 'record', alias) as { value: string | null } | undefined;
-      if (!source?.value || existingAlias?.value) continue;
+      if (existingAlias?.value) throw new WorkspaceConflictError();
+      if (!source?.value) continue;
       const value: unknown = JSON.parse(source.value);
       if (!value || typeof value !== 'object' || Array.isArray(value) || (value as { recordId?: unknown }).recordId !== undefined) continue;
       const candidate = { ...value, ownerId: owner } as PracticeRecord & { localSyncGeneration?: number };
