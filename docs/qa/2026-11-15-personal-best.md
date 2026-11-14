@@ -6,4 +6,4 @@
 
 游客比较基于本机记录。账号结果读取服务器历史全部分页并合并本机工作区；若分页或同步失败，显示基于已读取记录，不能把结果理解成完整历史。个人最佳与公开榜单、复核和服务端认证是不同概念。
 
-交互思路参考 [Monkeytype 的个人最佳模块](https://github.com/monkeytypegame/monkeytype/blob/3aa6c2e448d3d13084daac678070ca9734b77ba1/frontend/src/ts/test/result-pb.ts)，比较规则按本项目的逐行长文、中文口径和文章快照重新实现。历史删除及删除后的重新计算仍依赖 D03 完成。
+交互思路参考 [Monkeytype 的个人最佳模块](https://github.com/monkeytypegame/monkeytype/blob/3aa6c2e448d3d13084daac678070ca9734b77ba1/frontend/src/ts/test/result-pb.ts)，比较规则按本项目的逐行长文、中文口径和文章快照重新实现。历史删除及删除后的重新计算已在[后续阶段](2026-11-15-history-deletion.md)接入并验证。

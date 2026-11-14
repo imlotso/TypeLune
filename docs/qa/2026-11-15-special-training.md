@@ -4,4 +4,4 @@
 - 素材为本项目自编的固定短行及常用词组；相同语言和类型产生相同内容和版本标识。专项独立于公共长文，不修改任何公共文章的原文、来源或历史快照。
 - 专项使用 `custom: true` 的个人文章快照，复用逐行输入、现有计时、错误处理、草稿、个人历史及账号同步；不请求公共文章挑战，也没有提交排行榜入口。专项历史和个人最佳按语言、类型、正文版本和既有条件区分。
 - 从进行中的练习打开专项前使用现有暂停和草稿保存流程；保存失败不切换。取消选择后原练习仍可继续。
-- 浏览器验证了原草稿保留、实际练习、历史记录、无公共上榜入口、账号两设备同步，以及[桌面日间](screenshots/special-training-desktop-light.png)和[手机夜间](screenshots/special-training-mobile-dark.png)界面；真实系统输入法及最终全站回归仍待完成。
+- 浏览器验证了原草稿保留、实际练习、历史记录、无公共上榜入口、账号两设备同步，以及[桌面日间](screenshots/special-training-desktop-light.png)和[手机夜间](screenshots/special-training-mobile-dark.png)界面；复用的逐行输入已通过[Linux Fcitx5 拼音](2026-11-15-system-ime.md)实测，其他系统输入法及最终全站回归仍待完成。
