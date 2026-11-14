@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Clock } from '@phosphor-icons/react/Clock';
 import type { Difficulty, Language } from '../data/articles';
 import { recordMistakes } from '../lib/analysis';
+import { emptyHistoryFilters, filterPracticeRecords, type HistoryFilters } from '../lib/history-filter';
 import type { ArticleSnapshot, PracticeRecord } from '../lib/models';
 import { readableCharacter } from '../lib/practice-lines';
 import { splitCharacters } from '../lib/scoring';
@@ -81,21 +82,36 @@ function RecordDetail({ record, onClose, onReplay, onContinue }: {
 }
 
 export function RecordsView({ records, onReplay, onContinue }: Props) {
-  const [language, setLanguage] = useState<Language | ''>('');
+  const [filters, setFilters] = useState<HistoryFilters>(emptyHistoryFilters);
+  const [limit, setLimit] = useState(20);
   const [selected, setSelected] = useState<PracticeRecord>();
-  const filtered = records.filter((record) => !language || record.language === language).sort((a, b) => b.finishedAt - a.finishedAt);
+  const filtered = filterPracticeRecords(records, filters);
+  const setFilter = <K extends keyof HistoryFilters>(key: K, value: HistoryFilters[K]) => {
+    setFilters((current) => ({ ...current, [key]: value })); setLimit(20);
+  };
 
   return <section className="content-panel records feature-panel">
     <div className="content-heading"><h1><Clock size={25} aria-hidden="true" /> 我的记录</h1></div>
     <div className="feature-toolbar">
       <div className="segmented feature-segments" role="group" aria-label="记录语言">
-        <button aria-pressed={language === ''} onClick={() => setLanguage('')}>全部</button>
-        <button aria-pressed={language === 'zh'} onClick={() => setLanguage('zh')}>中文</button>
-        <button aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>English</button>
+        <button aria-pressed={filters.language === ''} onClick={() => setFilter('language', '')}>全部</button>
+        <button aria-pressed={filters.language === 'zh'} onClick={() => setFilter('language', 'zh')}>中文</button>
+        <button aria-pressed={filters.language === 'en'} onClick={() => setFilter('language', 'en')}>English</button>
       </div>
     </div>
-    {!filtered.length ? <p className="empty-state">暂无记录</p> : <ul className="feature-list">
-      {filtered.map((record, index) => {
+    <details className="record-filters">
+      <summary>筛选</summary>
+      <div className="feature-form record-filter-grid">
+        <label>文章<input type="search" value={filters.query} onChange={(event) => setFilter('query', event.target.value)} /></label>
+        <label>开始日期<input type="date" value={filters.from} onChange={(event) => setFilter('from', event.target.value)} /></label>
+        <label>结束日期<input type="date" value={filters.to} onChange={(event) => setFilter('to', event.target.value)} /></label>
+        <label>模式<select value={filters.mode} onChange={(event) => setFilter('mode', event.target.value as HistoryFilters['mode'])}><option value="">全部</option><option value="timed">限时</option><option value="article">整篇</option></select></label>
+        <label>时长（分钟）<input type="number" min="1" max="60" step="1" value={filters.minutes} onChange={(event) => setFilter('minutes', event.target.value)} /></label>
+        <label>严格纠错<select value={filters.strict} onChange={(event) => setFilter('strict', event.target.value as HistoryFilters['strict'])}><option value="">全部</option><option value="yes">开启</option><option value="no">关闭</option></select></label>
+      </div>
+    </details>
+    {!filtered.length ? <p className="empty-state">{records.length ? '没有匹配的记录' : '暂无记录'}</p> : <ul className="feature-list">
+      {filtered.slice(0, limit).map((record, index) => {
         const date = new Date(record.finishedAt);
         const title = recordTitle(record);
         return <li className="feature-row" key={record.recordId ?? `${record.finishedAt}-${index}`}>
@@ -115,6 +131,7 @@ export function RecordsView({ records, onReplay, onContinue }: Props) {
         </li>;
       })}
     </ul>}
+    {limit < filtered.length && <div className="feature-actions"><button type="button" className="outline-button" onClick={() => setLimit((current) => current + 20)}>加载更多</button></div>}
     {selected && <RecordDetail record={selected} onClose={() => setSelected(undefined)} onReplay={onReplay} onContinue={onContinue} />}
   </section>;
 }

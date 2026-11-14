@@ -25,7 +25,7 @@
 | C05 | 待完善 | `9e0e5a8` | 已有显式导入、冲突保护、个人成绩隔离、云端核对及可选清理；待与历史删除和后续数据模型整体回归，见 [说明](2026-11-15-guest-import.md)。 |
 | D01 | 待完善 | — | `/admin` 有入口，主要前台视图由组件状态切换，缺稳定路由。 |
 | D02 | 待完善 | `6cb2ae2` | 公开接口只返回三个功能开关；前台提示并限制注册／游客上榜，游客新练习关闭时直接本机开始。已有在线练习可恢复，待最终整体回归。 |
-| D03 | 待完善 | — | 已有历史详情及部分去重，缺全面筛选、删除和成绩撤回。 |
+| D03 | 待完善 | 本阶段 | 已有文章、日期、语言、模式、时长与严格纠错组合筛选及分批加载；删除、成绩撤回和跨设备一致性仍待实现，见 [说明](2026-11-15-history-filters.md)。 |
 | D04 | 待完善 | — | 有部分成绩和复核状态，缺统一状态与公开处理说明。 |
 | D05 | 待完善 | — | 草稿有恢复成绩入口；历史详情尚无对应入口。 |
 | D06 | 待完善 | `a77e3e9` | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
@@ -40,7 +40,7 @@
 | F01 | 待完善 | — | 已有 7/30 天概览；缺完整趋势、组合筛选及覆盖范围。 |
 | F02 | 未实现 | — | 缺活动日历、连续天数、目标及账号统计时区。 |
 | F03 | 未实现 | — | 旧记录无过程采样；缺有界持久化采样及稳定性计算。 |
-| F04 | 待完善 | 本阶段 | 已有成绩卡预览、真实 PNG 下载及剪贴板复制，默认隐藏昵称和文章标题；待跨浏览器及最终回归，见 [说明](2026-11-15-share-card.md)。 |
+| F04 | 待完善 | `9cad713` | 已有成绩卡预览、真实 PNG 下载及剪贴板复制，默认隐藏昵称和文章标题；待跨浏览器及最终回归，见 [说明](2026-11-15-share-card.md)。 |
 | G01 | 后置未实施 | — | 快速测试及定量练习不在本次默认实施范围。 |
 | G02 | 后置未实施 | — | 慢词识别不在本次默认实施范围。 |
 | G03 | 后置未实施 | — | 完整过程回放不在本次默认实施范围。 |
@@ -144,3 +144,6 @@
 | 成绩分享卡 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；76 个测试文件、433 项通过；构建继续提示客户端包大于 500 kB。 |
 | 成绩分享卡 | `npx playwright test e2e/share-card.e2e.ts e2e/personal-best.e2e.ts` | 4 项通过，包含真实 PNG 下载与剪贴板图片复制，以及个人最佳比较回归。 |
 | 成绩分享卡 | 隔离测试服务实际页面 | 已查看[手机日间预览](screenshots/share-dialog-mobile-light.png)、[桌面夜间预览](screenshots/share-dialog-desktop-dark.png)及[浅色成品](screenshots/share-card-light.png)、[夜间成品](screenshots/share-card-dark.png)。 |
+| 历史筛选 | `npx vitest run tests/history-filter.test.ts tests/history-filter-ui.test.tsx tests/feature-views.test.tsx`；`npm run typecheck`、`npm run build` | 均通过；定向测试 11 项通过。 |
+| 历史筛选 | `npx playwright test e2e/history-filter.e2e.ts` | 1 项通过；此前一次定向运行因测试定位器未匹配嵌套选项文本超时，改用可访问角色后通过。 |
+| 历史筛选 | 隔离测试服务实际页面 | 已查看[桌面夜间](screenshots/history-filters-desktop-dark.png)及[手机日间](screenshots/history-filters-mobile-light.png)。 |
