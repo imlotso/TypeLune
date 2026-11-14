@@ -30,7 +30,9 @@ import { RankingView } from './components/RankingView';
 import { RecordsView } from './components/RecordsView';
 import { SettingsDialog } from './components/SettingsDialog';
 import { StatsView } from './components/StatsView';
+import { SiteInfoView } from './components/SiteInfoView';
 import { articles, type Difficulty, type Language } from './data/articles';
+import { infoLabels, type InfoPage } from './data/site-content';
 import { continuationDraftId, discardSavedDraft, draftAwaitingStart, localHistory, practiceDraftId, readDraft, readDrafts, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
 import { api, ApiError, type User } from './lib/api';
@@ -40,7 +42,7 @@ import { scoreTyping, splitCharacters } from './lib/scoring';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
 import { deleteWorkspaceValue, DraftDeletedError, isWorkspaceDraftDeleted, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
 
-type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback';
+type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback' | InfoPage;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
 const languageNames: Record<Language, string> = { zh: '中文', en: 'English' };
@@ -691,9 +693,12 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {view === 'mistakes' && <MistakesView records={records} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} />}
         {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
+        {(view === 'help' || view === 'about' || view === 'privacy' || view === 'terms') && <SiteInfoView page={view} onFeedback={() => navigate('feedback')} />}
       </div>
     </RoomBackground>
-    {!focused && <footer className="site-footer"><button className="text-button" disabled={!authReady} onClick={() => navigate('feedback')}>功能反馈</button></footer>}
+    {!focused && <footer className="site-footer"><button className="text-button" disabled={!authReady} onClick={() => navigate('feedback')}>功能反馈</button>
+      {(Object.keys(infoLabels) as InfoPage[]).map((page) => <button key={page} className="text-button" disabled={!authReady} onClick={() => navigate(page)}>{infoLabels[page]}</button>)}
+    </footer>}
     {showCustom && <Dialog title="自定义练习文字" onClose={() => setShowCustom(false)}>
       <label className="custom-editor">练习文字<textarea aria-label="自定义文章内容" value={customDraft} maxLength={20000} onChange={(event) => setCustomDraft(event.target.value)} /></label>
       {customError && <p className="form-error" role="alert">{customError}</p>}

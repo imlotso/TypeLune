@@ -84,6 +84,8 @@ openssl rand -hex 32
 
 将生成的随机值填入 `.env` 的 `CODE_SECRET`，填写 `SITE_DOMAIN`，然后按需填写 SMTP 和管理员邮箱。切勿提交 `.env` 或泄露密钥。
 
+`VITE_SITE_OPERATOR`、`VITE_SITE_CONTACT_EMAIL`、`VITE_PRIVACY_VERSION`、`VITE_PRIVACY_EFFECTIVE_DATE`、`VITE_TERMS_VERSION` 和 `VITE_TERMS_EFFECTIVE_DATE` 是公开的构建配置，可在 `.env` 中填写后重新构建；日期使用 `YYYY-MM-DD`。留空时页面会明确显示信息未配置或政策为草案，联系入口仍可使用站内反馈。政策与帮助内容在 `src/data/site-content.ts` 维护，更新内容或配置后需重新构建。不要在这些公开变量中填写密码或其他密钥。
+
 ```bash
 docker compose up -d --build
 docker compose logs -f app

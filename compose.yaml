@@ -1,6 +1,14 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_SITE_OPERATOR: ${VITE_SITE_OPERATOR:-}
+        VITE_SITE_CONTACT_EMAIL: ${VITE_SITE_CONTACT_EMAIL:-}
+        VITE_PRIVACY_VERSION: ${VITE_PRIVACY_VERSION:-}
+        VITE_PRIVACY_EFFECTIVE_DATE: ${VITE_PRIVACY_EFFECTIVE_DATE:-}
+        VITE_TERMS_VERSION: ${VITE_TERMS_VERSION:-}
+        VITE_TERMS_EFFECTIVE_DATE: ${VITE_TERMS_EFFECTIVE_DATE:-}
     restart: unless-stopped
     environment:
       CODE_SECRET: ${CODE_SECRET:?请在 .env 中配置至少 32 位的 CODE_SECRET}
