@@ -3,12 +3,15 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AccountUser } from './account';
 import { WorkspaceLimitError, type createWorkspaceStore } from './workspace';
+import { legacyProofStatuses, type LegacyRecordProof } from '../src/lib/records';
 
 const recordId = z.string().min(1).max(200).regex(/^[^\p{Cc}\p{Cf}]+$/u);
 const requestBody = z.strictObject({ ids: z.array(recordId).min(1).max(200), expectedOnlineIds: z.array(recordId).max(100).optional().default([]),
-  legacyPairs: z.array(z.strictObject({ id: recordId, alias: z.string().regex(/^guest-[0-9a-f]{16}$/u) })).max(100).optional().default([]) })
+  legacyPairs: z.array(z.strictObject({ id: recordId, alias: z.string().regex(/^guest-[0-9a-f]{16}$/u), proof: z.strictObject({
+    localOnly: z.boolean().optional(), status: z.enum(legacyProofStatuses).optional(), localSyncGeneration: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+  }).optional() })).max(100).optional().default([]) })
   .refine(({ ids, expectedOnlineIds, legacyPairs }) => new Set(ids).size === ids.length && new Set(expectedOnlineIds).size === expectedOnlineIds.length &&
-    expectedOnlineIds.every((id) => ids.includes(id)) && new Set(legacyPairs.map((pair) => pair.alias)).size === legacyPairs.length &&
+    expectedOnlineIds.every((id) => ids.includes(id)) && new Set(legacyPairs.map((pair) => pair.alias)).size === legacyPairs.length && new Set(legacyPairs.map((pair) => pair.id)).size === legacyPairs.length &&
     legacyPairs.every(({ id, alias }) => id !== alias && ids.includes(id) && ids.includes(alias)));
 type Dependencies = { db: Database.Database; now: () => number; workspace: ReturnType<typeof createWorkspaceStore>;
   userFor: (request: FastifyRequest) => AccountUser | undefined;
@@ -23,7 +26,7 @@ export function registerHistoryDeletion(app: FastifyInstance, { db, now, workspa
   const owned = db.prepare('SELECT id,finished_at,published FROM challenges WHERE id=? AND owner=?');
   const receipt = db.prepare('SELECT 1 FROM history_deletion_receipts WHERE owner=? AND id=?');
   const erase = db.prepare('DELETE FROM challenges WHERE id=? AND owner=? AND finished_at IS NOT NULL');
-  const withdraw = db.transaction((owner: string, userId: string | undefined, ids: string[], expectedOnlineIds: string[], legacyPairs: Array<{ id: string; alias: string }>) => {
+  const withdraw = db.transaction((owner: string, userId: string | undefined, ids: string[], expectedOnlineIds: string[], legacyPairs: Array<{ id: string; alias: string; proof?: LegacyRecordProof }>) => {
     const challenges = ids.map((id) => owned.get(id, owner) as { id: string; finished_at: number | null; published: number } | undefined);
     if (challenges.some((item) => item && item.finished_at === null)) return 'active' as const;
     const found = new Set(challenges.filter((item): item is NonNullable<typeof item> => !!item).map((item) => item.id));

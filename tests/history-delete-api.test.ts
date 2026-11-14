@@ -113,8 +113,9 @@ describe('history deletion and score withdrawal', () => {
   });
   it('deletes a verified legacy pair at full quota and refuses a forged quota exemption', async () => {
     const alice = await register('alice');
-    const legacy = { ownerId: alice.id, language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: now };
-    const alias = stableRecordId(legacy);
+    const legacy = { ownerId: alice.id, language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: now, status: 'finished', localOnly: false };
+    const proof = { status: 'review', localOnly: true, localSyncGeneration: 1 };
+    const alias = stableRecordId({ ...legacy, ...proof });
     for (let batch = 0; batch < 20; batch++) {
       const items = Array.from({ length: 100 }, (_, index) => {
         const id = `full-${batch * 100 + index}`;
@@ -126,7 +127,8 @@ describe('history deletion and score withdrawal', () => {
     }
     const forged = 'guest-0000000000000000';
     expect((await post('/api/history/delete', { ids: ['old-cloud-id', forged], legacyPairs: [{ id: 'old-cloud-id', alias: forged }] }, alice.headers)).statusCode).toBe(413);
-    const removed = await post('/api/history/delete', { ids: ['old-cloud-id', alias], legacyPairs: [{ id: 'old-cloud-id', alias }] }, alice.headers);
+    expect((await post('/api/history/delete', { ids: ['old-cloud-id', alias, forged], legacyPairs: [{ id: 'old-cloud-id', alias, proof }, { id: 'old-cloud-id', alias: forged }] }, alice.headers)).statusCode).toBe(400);
+    const removed = await post('/api/history/delete', { ids: ['old-cloud-id', alias], legacyPairs: [{ id: 'old-cloud-id', alias, proof }] }, alice.headers);
     expect(removed.statusCode).toBe(200);
     expect(removed.json().items.map((item: { id: string }) => item.id).sort()).toEqual([alias, 'old-cloud-id'].sort());
     const usage = (await app.inject({ url: '/api/workspace/usage', headers: alice.headers })).json();

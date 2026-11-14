@@ -7,7 +7,7 @@ import { isPresetList } from '../src/lib/practice-settings';
 import { isPaceSettings } from '../src/lib/pace';
 import { isStatisticsTimeZone } from '../src/lib/long-term-stats';
 import { isProcessTrace, type ProcessTrace } from '../src/lib/process-trace';
-import { stableRecordId } from '../src/lib/records';
+import { stableRecordId, type LegacyRecordProof } from '../src/lib/records';
 import type { PracticeRecord } from '../src/lib/models';
 
 export const syncBodyLimit = 4 * 1024 * 1024;
@@ -243,14 +243,16 @@ export function createWorkspaceStore(db: Database.Database) {
   // Called inside the history deletion transaction so score withdrawal and the
   // tombstones either both commit or neither does. Registry entries survive
   // compaction and reject any later upload of the same record ID.
-  const deleteRecords = (owner: string, ids: string[], time: number, legacyPairs: Array<{ id: string; alias: string }> = []) => {
-    for (const { id, alias } of legacyPairs) {
+  const deleteRecords = (owner: string, ids: string[], time: number, legacyPairs: Array<{ id: string; alias: string; proof?: LegacyRecordProof }> = []) => {
+    for (const { id, alias, proof } of legacyPairs) {
       const source = readItem.get(owner, 'record', id) as { value: string | null } | undefined;
       const existingAlias = readItem.get(owner, 'record', alias) as { value: string | null } | undefined;
       if (!source?.value || existingAlias?.value) continue;
       const value: unknown = JSON.parse(source.value);
       if (!value || typeof value !== 'object' || Array.isArray(value) || (value as { recordId?: unknown }).recordId !== undefined) continue;
-      if (stableRecordId({ ...value, ownerId: owner } as PracticeRecord) !== alias) continue;
+      const candidate = { ...value, ownerId: owner } as PracticeRecord & { localSyncGeneration?: number };
+      if (proof) { delete candidate.localOnly; delete candidate.status; delete candidate.localSyncGeneration; Object.assign(candidate, proof); }
+      if (stableRecordId(candidate) !== alias) continue;
       db.prepare('INSERT OR IGNORE INTO workspace_legacy_record_aliases(user_id,alias_id,source_id) VALUES (?,?,?)').run(owner, alias, id);
     }
     for (const id of ids) {

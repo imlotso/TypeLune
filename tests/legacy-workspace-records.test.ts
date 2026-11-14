@@ -31,11 +31,23 @@ it('does not silently merge ambiguous local copies or an alias used by a differe
 });
 
 it('does not trust persisted compatibility metadata as an instruction to delete other IDs', () => {
-  const forged = { ...legacy, recordId: 'actual', legacyLocalIds: ['unrelated'], legacyWorkspaceId: true, legacyIdConflict: true };
+  const forged = { ...legacy, recordId: 'actual', legacyLocalIds: ['unrelated'], legacyWorkspaceId: true, legacyIdConflict: true, legacyProof: { status: 'review' } };
   localStorage.setItem('cloudtyping.history.v1', JSON.stringify([forged]));
   expect(localHistory()[0]).not.toHaveProperty('legacyLocalIds');
   expect(localHistory()[0]).not.toHaveProperty('legacyIdConflict');
+  expect(localHistory()[0]).not.toHaveProperty('legacyProof');
   const cloud = normalizeWorkspaceRecord({ kind: 'record', id: 'actual', updatedAt: 1000, value: forged })!;
   expect(cloud).not.toHaveProperty('legacyLocalIds');
   expect(cloud).not.toHaveProperty('legacyWorkspaceId');
+  expect(cloud).not.toHaveProperty('legacyProof');
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([{ ...legacy, status: 'unexpected-secret-value' }]));
+  expect(localHistory()[0].legacyProof).toBeUndefined();
+});
+
+it('retains bounded local metadata for server-side alias verification', () => {
+  const local = { ...legacy, status: 'review', localOnly: true, localSyncGeneration: 1 };
+  const cloud = { ...legacy, status: 'finished', localOnly: false };
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([local]));
+  const [merged] = mergePracticeRecords(localHistory(), [], [normalizeWorkspaceRecord({ ...item('old-cloud-id'), value: cloud })!]);
+  expect(merged).toMatchObject({ recordId: 'old-cloud-id', legacyLocalIds: [stableRecordId(local)], legacyProof: { status: 'review', localOnly: true, localSyncGeneration: 1 } });
 });

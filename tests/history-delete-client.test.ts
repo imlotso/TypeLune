@@ -36,7 +36,7 @@ it('retires both the workspace ID and a matching id-less local copy', async () =
   const fetcher = vi.fn(async (_url: string, options?: RequestInit) => {
     const body = JSON.parse(String(options?.body));
     expect(body.ids).toEqual(['old-cloud-id', alias]);
-    expect(body.legacyPairs).toEqual([{ id: 'old-cloud-id', alias }]);
+    expect(body.legacyPairs).toEqual([{ id: 'old-cloud-id', alias, proof: {} }]);
     return new Response(JSON.stringify({ ok: true, generation: 1, items: body.ids.map((id: string) => ({ kind: 'record', id, deleted: true, updatedAt: 2000, serverRevision: 1 })) }));
   });
   vi.stubGlobal('fetch', fetcher);

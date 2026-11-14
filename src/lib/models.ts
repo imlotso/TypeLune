@@ -2,6 +2,7 @@ import type { ArticleSource, Difficulty, Language } from '../data/articles';
 import type { BackgroundConfig } from './background';
 import type { ServerScoreStatus } from './score-status';
 import type { ProcessTrace } from './process-trace';
+import type { LegacyRecordProof } from './records';
 
 export type PracticeMode = 'timed' | 'article';
 export type MistakeStatus = 'mastered' | 'ignored';
@@ -38,7 +39,7 @@ export type PracticeRecord = {
   article?: ArticleSnapshot; typed?: string; offset?: number; total?: number; correct?: number; articleTotal?: number;
   mode?: PracticeMode; strict?: boolean; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; paceTarget?: number; processTrace?: ProcessTrace;
   // Read-time compatibility metadata; never treated as a verified score.
-  legacyLocalIds?: string[]; legacyWorkspaceId?: boolean; legacyIdConflict?: boolean;
+  legacyLocalIds?: string[]; legacyWorkspaceId?: boolean; legacyIdConflict?: boolean; legacyProof?: LegacyRecordProof;
 };
 export type SavedPractice = {
   id: string; article: ArticleSnapshot; typed: string; elapsedMs: number; backspaces: number;

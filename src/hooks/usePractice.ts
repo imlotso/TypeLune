@@ -3,7 +3,7 @@ import type { Difficulty, Language } from '../data/articles';
 import { api, ApiError } from '../lib/api';
 import { catalogSnapshotKey, compareDraftProgress, sameCompletedDraftProgress, sameDraftSnapshot, snapshotKey, type ArticleSnapshot, type MistakeSample, type PracticeMode, type PracticeRecord, type SavedPractice } from '../lib/models';
 import { scoreTyping, splitCharacters, type Score } from '../lib/scoring';
-import { stableRecordId } from '../lib/records';
+import { legacyRecordProof, stableRecordId } from '../lib/records';
 import { resultRecoveryAvailability } from '../lib/result-recovery';
 import { isLocalAccountBlocked, readWorkspaceGeneration } from '../lib/workspace';
 import { appendProcessSample, initialProcessTrace, isProcessTrace, type ProcessTrace } from '../lib/process-trace';
@@ -140,9 +140,10 @@ function completeLegacySnapshot(record: History) {
     ['zh', 'en'].includes(item.language as string) && ['beginner', 'intermediate', 'advanced'].includes(item.difficulty as string) && typeof item.custom === 'boolean';
 }
 function normalizeLegacyRecord(stored: History): History {
-  const { legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, ...record } = stored;
+  const { legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, legacyProof: _proof, ...record } = stored;
   const recordId = record.recordId || stableRecordId(record);
-  const legacy = record.recordId ? {} : { legacyLocalIds: [recordId] };
+  const proof = legacyRecordProof(record);
+  const legacy = record.recordId ? {} : { legacyLocalIds: [recordId], ...(proof && { legacyProof: proof }) };
   if (completeLegacySnapshot(record)) return record.recordId ? record : { ...record, recordId, ...legacy };
   const { article, ...summary } = record;
   if (!article || typeof article !== 'object' || Array.isArray(article) || typeof article.id !== 'string' || typeof article.title !== 'string' || typeof article.text !== 'string') {

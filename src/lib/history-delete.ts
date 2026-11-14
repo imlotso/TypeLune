@@ -11,7 +11,7 @@ export async function deletePracticeRecords(ownerId: string | null, records: Pra
   const ids = [...new Set(records.flatMap((record) => [stableRecordId(record), ...(record.legacyLocalIds ?? [])]))];
   if (ids.length > 200 || ids.some((id) => !id || id.length > 200 || /[\p{Cc}\p{Cf}]/u.test(id))) throw new Error('记录标识无效');
   const expectedOnlineIds = [...new Set(records.filter((record) => record.localOnly !== true && !!record.recordId && attemptId.test(record.recordId)).map(stableRecordId))];
-  const legacyPairs = records.flatMap((record) => record.legacyWorkspaceId ? (record.legacyLocalIds ?? []).filter((alias) => alias !== stableRecordId(record)).map((alias) => ({ id: stableRecordId(record), alias })) : []);
+  const legacyPairs = records.flatMap((record) => record.legacyWorkspaceId ? (record.legacyLocalIds ?? []).filter((alias) => alias !== stableRecordId(record)).map((alias) => ({ id: stableRecordId(record), alias, ...(record.legacyProof && { proof: record.legacyProof }) })) : []);
   if (legacyPairs.length > 100) throw new Error('旧记录标识无效');
   if (ownerId || expectedOnlineIds.length) {
     const result = await api<{ ok: boolean; generation?: number; items?: WorkspaceItem[] }>('/api/history/delete', {

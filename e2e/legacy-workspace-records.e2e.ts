@@ -9,17 +9,19 @@ test('deduplicates and deletes id-less legacy copies across devices without revi
   const ownerId = (await registered.json()).user.id as string;
   const legacy = { ownerId, language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: Date.now() - 1000, typed: '山',
     article: { id: 'old-article', title: '旧版山海', text: '山海', language: 'zh' as const, difficulty: 'beginner' as const, custom: true } };
-  const alias = stableRecordId(legacy); const headers = { 'X-Workspace-Owner': ownerId, 'X-Workspace-Protocol': '2' };
-  const created = await page.request.post('/api/workspace/sync', { headers, data: { generation: 1, items: [{ kind: 'record', id: 'old-cloud-id', updatedAt: Date.now(), baseRevision: 0, value: legacy }] } });
+  const local = { ...legacy, status: 'review', localOnly: true, localSyncGeneration: 1 };
+  const cloud = { ...legacy, status: 'finished', localOnly: false };
+  const alias = stableRecordId(local); const headers = { 'X-Workspace-Owner': ownerId, 'X-Workspace-Protocol': '2' };
+  const created = await page.request.post('/api/workspace/sync', { headers, data: { generation: 1, items: [{ kind: 'record', id: 'old-cloud-id', updatedAt: Date.now(), baseRevision: 0, value: cloud }] } });
   expect(created.ok()).toBe(true);
   await page.goto('/');
-  await page.evaluate((record) => localStorage.setItem('cloudtyping.history.v1', JSON.stringify([record])), legacy);
+  await page.evaluate((record) => localStorage.setItem('cloudtyping.history.v1', JSON.stringify([record])), local);
   await page.getByRole('button', { name: '我的记录', exact: true }).click();
   await expect(page.getByRole('heading', { name: '旧版山海' })).toHaveCount(1);
   const device = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
   expect((await device.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
   const other = await device.newPage(); await other.goto('/');
-  await other.evaluate((record) => localStorage.setItem('cloudtyping.history.v1', JSON.stringify([record])), legacy);
+  await other.evaluate((record) => localStorage.setItem('cloudtyping.history.v1', JSON.stringify([record])), local);
   await other.goto('/records');
   await expect(other.getByRole('heading', { name: '旧版山海' })).toHaveCount(1);
   await page.getByRole('button', { name: '删除《旧版山海》' }).click();
@@ -36,7 +38,7 @@ test('deduplicates and deletes id-less legacy copies across devices without revi
   const compacted = await page.request.post('/api/workspace/compact', { headers, data: { generation: 1 } });
   expect((await compacted.json()).generation).toBe(2);
   for (const id of [alias, 'old-cloud-id']) {
-    const stale = await page.request.post('/api/workspace/sync', { headers, data: { generation: 2, items: [{ kind: 'record', id, updatedAt: Date.now(), baseRevision: 0, value: { ...legacy, ...(id === alias && { recordId: alias }) } }] } });
+    const stale = await page.request.post('/api/workspace/sync', { headers, data: { generation: 2, items: [{ kind: 'record', id, updatedAt: Date.now(), baseRevision: 0, value: { ...cloud, ...(id === alias && { recordId: alias }) } }] } });
     expect(stale.status()).toBe(409);
   }
   await device.close();
