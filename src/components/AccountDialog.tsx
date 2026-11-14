@@ -4,8 +4,9 @@ import { isValidDisplayName, isValidPassword, isValidUsername, passwordRule, use
 import { Dialog } from './Dialog';
 import { PasswordField } from './PasswordField';
 import { AccountAvatar } from './AccountAvatar';
+import { EmailChangeForm } from './EmailChangeForm';
 
-type Props = { user: User; onClose: () => void; onUpdate: (user: User) => void; onSignedOut: () => void };
+type Props = { user: User; onClose: () => void; onUpdate: (user: User) => void; onSignedOut: (message: string) => void };
 
 export function AccountDialog({ user, onClose, onUpdate, onSignedOut }: Props) {
   const [username, setUsername] = useState(user.username);
@@ -16,6 +17,10 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut }: Props) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [visibility, setVisibility] = useState({ username: 0, email: 0, password: 0 });
+  const closeSection = (area: keyof typeof visibility, open: boolean) => {
+    if (!open) setVisibility((current) => ({ ...current, [area]: current[area] + 1 }));
+  };
   const [message, setMessage] = useState<{ area: 'profile' | 'username' | 'password'; text: string; error: boolean }>();
   const feedback = (area: 'profile' | 'username' | 'password') => message?.area === area &&
     <p className={message.error ? 'form-error' : 'form-notice'} role={message.error ? 'alert' : 'status'}>{message.text}</p>;
@@ -49,13 +54,13 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut }: Props) {
     setBusy(true);
     try {
       await api('/api/account/password', { method: 'POST', headers: { 'X-Workspace-Owner': user.id }, body: { currentPassword, newPassword, confirmPassword } });
-      onSignedOut();
+      onSignedOut('密码已更新，请重新登录');
     } catch (problem) { setMessage({ area: 'password', text: (problem as Error).message, error: true }); }
     finally { setBusy(false); }
   }
 
   return <Dialog title="账号设置" onClose={onClose} dismissible={!busy}>
-    <p className="account-email"><AccountAvatar avatar={user.avatar} size={32} /> <span>邮箱：{user.email}</span></p>
+    <p className="account-email"><AccountAvatar avatar={user.avatar} size={32} /> <span>用户名：{user.username}<br />邮箱：{user.email}</span></p>
     <form className="auth-form" onSubmit={saveProfile}>
       <label>公开昵称<input value={displayName} required onChange={(event) => setDisplayName(event.target.value)} /></label>
       <label>头像<select value={avatar ?? ''} onChange={(event) => setAvatar((event.target.value || null) as User['avatar'])}>
@@ -64,18 +69,19 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut }: Props) {
       <button className="outline-button" disabled={busy}>保存资料</button>
       {feedback('profile')}
     </form>
-    <form className="auth-form" onSubmit={saveUsername}>
+    <details className="account-section" onToggle={(event) => closeSection('username', event.currentTarget.open)}><summary>更改用户名</summary><form className="auth-form" onSubmit={saveUsername}>
       <label>用户名<input value={username} autoComplete="username" required onChange={(event) => setUsername(event.target.value)} /></label>
-      <PasswordField label="当前密码（用户名）" toggleLabel="当前密码（用户名）" value={usernamePassword} autoComplete="current-password" required onChange={(event) => setUsernamePassword(event.target.value)} />
+      <PasswordField key={visibility.username} label="当前密码（用户名）" toggleLabel="当前密码（用户名）" value={usernamePassword} autoComplete="current-password" required onChange={(event) => setUsernamePassword(event.target.value)} />
       <button className="outline-button" disabled={busy}>保存用户名</button>
       {feedback('username')}
-    </form>
-    <form className="auth-form" onSubmit={changePassword}>
-      <PasswordField label="当前密码" toggleLabel="当前密码" value={currentPassword} autoComplete="current-password" required onChange={(event) => setCurrentPassword(event.target.value)} />
-      <PasswordField label="新密码" toggleLabel="新密码" value={newPassword} autoComplete="new-password" required onChange={(event) => setNewPassword(event.target.value)} />
-      <PasswordField label="确认新密码" toggleLabel="确认新密码" value={confirmPassword} autoComplete="new-password" required onChange={(event) => setConfirmPassword(event.target.value)} />
+    </form></details>
+    <details className="account-section" onToggle={(event) => closeSection('email', event.currentTarget.open)}><summary>更换邮箱</summary><EmailChangeForm ownerId={user.id} busy={busy} setBusy={setBusy} onSignedOut={onSignedOut} visibilityVersion={visibility.email} /></details>
+    <details className="account-section" onToggle={(event) => closeSection('password', event.currentTarget.open)}><summary>修改密码</summary><form className="auth-form" onSubmit={changePassword}>
+      <PasswordField key={`current-${visibility.password}`} label="当前密码" toggleLabel="当前密码" value={currentPassword} autoComplete="current-password" required onChange={(event) => setCurrentPassword(event.target.value)} />
+      <PasswordField key={`new-${visibility.password}`} label="新密码" toggleLabel="新密码" value={newPassword} autoComplete="new-password" required onChange={(event) => setNewPassword(event.target.value)} />
+      <PasswordField key={`confirm-${visibility.password}`} label="确认新密码" toggleLabel="确认新密码" value={confirmPassword} autoComplete="new-password" required onChange={(event) => setConfirmPassword(event.target.value)} />
       <button className="primary-button" disabled={busy}>修改密码</button>
       {feedback('password')}
-    </form>
+    </form></details>
   </Dialog>;
 }

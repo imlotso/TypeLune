@@ -14,8 +14,9 @@ import { AdminAccessError, createAdminAudit, migrateAdministration, registerAdmi
 import { createCatalogStore, registerCatalogRoutes } from './catalog';
 import { createSiteSettings, registerSiteSettingsRoutes } from './site-settings';
 import { createSmtpSettings, type Mailer, type SmtpConfiguration, type SmtpDelivery } from './smtp';
-import { isValidPassword, isValidUsername } from '../src/lib/account-validation';
+import { isValidEmail, isValidPassword, isValidUsername } from '../src/lib/account-validation';
 import { migrateAccounts, registerAccountRoutes, type AccountUser } from './account';
+import { registerAccountEmailRoutes } from './account-email';
 
 export type { Mailer } from './smtp';
 export type AppOptions = {
@@ -65,7 +66,6 @@ const claimMatches = (challenge: Challenge, header: string | string[] | undefine
   !challenge.claim_id || header === `${challenge.claim_id}:${challenge.claim_version}`;
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
-const emailPattern = /^[^\s@]{1,64}@[^\s@.]+(?:\.[^\s@.]+)+$/;
 const isValidDuration = (duration: number) => Number.isInteger(duration) && duration >= 60 && duration <= 3600 && duration % 60 === 0;
 const durationMs = ({ mode, duration }: Pick<Challenge, 'mode' | 'duration'>) => mode === 'article' ? 24 * 60 * 60_000 : duration * 1000;
 const isPracticeMode = (mode: unknown): mode is PracticeMode => mode === 'timed' || mode === 'article';
@@ -220,9 +220,11 @@ export async function createApp(options: AppOptions) {
   const accountMatches = (request: FastifyRequest, user: User) =>
     expectedAccount(request) === undefined || expectedAccount(request) === user.id;
   const publicUser = (user: User) => ({ id: user.id, username: user.username, email: user.email, isAdmin: user.role === 'admin', displayName: user.display_name || user.username, avatar: user.avatar || null });
-  registerAccountRoutes(app, { db, userFor, accountMatches, publicUser, clearSession: (request, reply) => {
+  const clearAccountSession = (request: FastifyRequest, reply: FastifyReply) => {
     if (expectedAccount(request) === undefined) reply.clearCookie('session', cookieOptions);
-  } });
+  };
+  registerAccountRoutes(app, { db, userFor, accountMatches, publicUser, clearSession: clearAccountSession });
+  registerAccountEmailRoutes(app, { db, now, codeSecret, mailer: smtp.mailer, userFor, accountMatches, clearSession: clearAccountSession });
   const startSession = (reply: FastifyReply, user: User) => {
     const token = randomBytes(32).toString('base64url');
     const inserted = db.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) SELECT ?,id,? FROM users WHERE id=? AND password_hash=? AND auth_version=? AND disabled_at IS NULL')
@@ -306,7 +308,7 @@ export async function createApp(options: AppOptions) {
     const email = cleanEmail(body.email);
     const purpose = body.purpose;
     if (purpose === 'register' && !siteSettings.read().settings.registrationEnabled) return invalid(reply, '当前已关闭注册', 403);
-    if (!emailPattern.test(email) || email.length > 254 || !['register', 'login', 'reset'].includes(String(purpose))) return invalid(reply, '请输入有效邮箱');
+    if (!isValidEmail(email) || !['register', 'login', 'reset'].includes(String(purpose))) return invalid(reply, '请输入有效邮箱');
     const previous = db.prepare('SELECT created_at FROM email_codes WHERE email = ? AND purpose = ?').get(email, purpose) as { created_at: number } | undefined;
     if (previous && now() - previous.created_at < 60_000) return invalid(reply, '请稍后再获取验证码', 429);
     const mailer = smtp.mailer();
@@ -314,14 +316,14 @@ export async function createApp(options: AppOptions) {
     const existingUser = db.prepare('SELECT disabled_at FROM users WHERE email = ?').get(email) as { disabled_at: number | null } | undefined;
     const eligible = purpose === 'register' ? !existingUser : !!existingUser && existingUser.disabled_at === null;
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-    const codeHash = getCodeHash(email, String(purpose), code);
+    // Deliver the same kind of message to every valid address so SMTP errors and
+    // response timing do not disclose whether the account exists. Ineligible
+    // requests receive an unusable code, even if account state later changes.
+    const codeHash = eligible ? getCodeHash(email, String(purpose), code) : randomBytes(32).toString('hex');
     const issuedAt = now();
     db.prepare(`INSERT INTO email_codes(email,purpose,code_hash,created_at,expires_at,attempts) VALUES (?,?,?,?,?,0)
       ON CONFLICT(email,purpose) DO UPDATE SET code_hash=excluded.code_hash,created_at=excluded.created_at,expires_at=excluded.expires_at,attempts=0`)
       .run(email, purpose, codeHash, issuedAt, issuedAt + 10 * 60_000);
-    // Record the same cooldown even when no message is sent, so resending cannot
-    // reveal whether the address belongs to an account.
-    if (!eligible) return { ok: true };
     try { await mailer.sendCode(email, code, String(purpose)); }
     catch {
       db.prepare('DELETE FROM email_codes WHERE email = ? AND purpose = ? AND code_hash = ?').run(email, purpose, codeHash);
@@ -337,7 +339,7 @@ export async function createApp(options: AppOptions) {
     const username = typeof body.username === 'string' ? body.username.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const code = typeof body.code === 'string' ? body.code : '';
-    if (!emailPattern.test(email) || email.length > 254 || !isValidUsername(username) || !isValidPassword(password)) return invalid(reply, '用户名需为 3–24 位字母、数字、下划线或连字符，密码为 10–128 位');
+    if (!isValidEmail(email) || !isValidUsername(username) || !isValidPassword(password)) return invalid(reply, '用户名需为 3–24 位字母、数字、下划线或连字符，密码为 10–128 位');
     if (db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(email, username)) return invalid(reply, '账号信息不可用，请检查后重试', 409);
     if (!verifyCode(email, 'register', code, false)) return invalid(reply, '验证码错误或已过期');
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
@@ -394,6 +396,7 @@ export async function createApp(options: AppOptions) {
       if (!changed) return false;
       db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM email_codes WHERE email = ?').run(email);
+      db.prepare('DELETE FROM account_email_codes WHERE user_id = ?').run(user.id);
       return true;
     }).immediate();
     if (!reset) return invalid(reply, '邮箱、验证码或新密码不正确');

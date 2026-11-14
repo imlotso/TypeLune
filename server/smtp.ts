@@ -88,7 +88,7 @@ async function createSmtpTransport(config: SmtpConfiguration, source: SmtpSource
 const defaultDelivery: SmtpDelivery = {
   async verify(config, source) { await (await createSmtpTransport(config, source)).verify(); },
   async sendCode(config, source, email, code, purpose) {
-    const label = purpose === 'register' ? '注册' : purpose === 'reset' ? '重设密码' : '登录';
+    const label = purpose === 'register' ? '注册' : purpose === 'reset' ? '重设密码' : purpose === 'change-email' ? '更换邮箱' : '登录';
     await (await createSmtpTransport(config, source)).sendMail({
       from: config.from, to: email, subject: `云打字练习 · ${label}验证码`,
       text: `你的${label}验证码是 ${code}，10 分钟内有效。请勿将验证码告诉他人。`,

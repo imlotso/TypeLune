@@ -80,6 +80,7 @@ export function registerAccountRoutes(app: FastifyInstance, { db, userFor, accou
       db.prepare('UPDATE users SET password_hash=?,auth_version=auth_version+1 WHERE id=?').run(hash, current.id);
       db.prepare('DELETE FROM sessions WHERE user_id=?').run(current.id);
       db.prepare('DELETE FROM email_codes WHERE email=?').run(current.email);
+      db.prepare('DELETE FROM account_email_codes WHERE user_id=?').run(current.id);
       return {};
     }).immediate();
     if ('error' in result) return fail(reply, result.error, result.status);

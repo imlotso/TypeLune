@@ -14,5 +14,19 @@ it('applies the same resend cooldown whether a login email exists or not', async
     expect((await send()).statusCode).toBe(200);
     expect((await send()).statusCode).toBe(429);
   }
-  expect(messages.map((message) => message.email)).toEqual(['reader@example.test', 'reader@example.test']);
+  expect(messages.map((message) => message.email)).toEqual(['reader@example.test', 'reader@example.test', 'unknown@example.test']);
+  expect((await app.inject({ method: 'POST', url: '/api/auth/login-code', payload: { email: 'unknown@example.test', code: messages.at(-1)!.code } })).statusCode).toBe(401);
+});
+
+it('does not reveal account existence through a mail delivery error', async () => {
+  let fail = false; const messages: Array<{ code: string }> = [];
+  app = await createApp({ databasePath: ':memory:', mailer: { async sendCode(_email, code) { if (fail) throw new Error('delivery failure'); messages.push({ code }); } } });
+  await app.inject({ method: 'POST', url: '/api/auth/code', payload: { email: 'reader@example.test', purpose: 'register' } });
+  await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'reader', email: 'reader@example.test', password: 'a-long-password', code: messages[0].code } });
+  fail = true;
+  for (const email of ['reader@example.test', 'unknown@example.test']) {
+    const response = await app.inject({ method: 'POST', url: '/api/auth/code', payload: { email, purpose: 'login' } });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: '邮件发送失败，请稍后再试' });
+  }
 });
