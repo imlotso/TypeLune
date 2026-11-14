@@ -4,11 +4,11 @@ import type { User } from '../lib/api';
 import { AccountAvatar } from './AccountAvatar';
 
 type Props = {
-  user: User; disabled: boolean; onAccount: () => void; onRecords: () => void; onFeedback: () => void;
+  user: User; disabled: boolean; onAccount: () => void; onRecords: () => void; onData: () => void; onFeedback: () => void;
   onLogout: () => void; onAdministration?: () => void;
 };
 
-export function AccountMenu({ user, disabled, onAccount, onRecords, onFeedback, onLogout, onAdministration }: Props) {
+export function AccountMenu({ user, disabled, onAccount, onRecords, onData, onFeedback, onLogout, onAdministration }: Props) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -36,6 +36,7 @@ export function AccountMenu({ user, disabled, onAccount, onRecords, onFeedback, 
     }}>
       <button role="menuitem" tabIndex={-1} onClick={() => choose(onAccount)}>账号设置</button>
       <button role="menuitem" tabIndex={-1} onClick={() => choose(onRecords)}>我的记录</button>
+      <button role="menuitem" tabIndex={-1} onClick={() => choose(onData)}>个人数据</button>
       <button role="menuitem" tabIndex={-1} onClick={() => choose(onFeedback)}>我的反馈</button>
       {onAdministration && <button role="menuitem" tabIndex={-1} onClick={() => choose(onAdministration)}>返回后台</button>}
       <button role="menuitem" tabIndex={-1} onClick={() => choose(onLogout)}>退出登录</button>

@@ -26,6 +26,7 @@ import { EnglishSpeed } from './components/EnglishSpeed';
 import { FeedbackView, newFeedbackDraft, type FeedbackDraft } from './components/FeedbackView';
 import { MistakesView } from './components/MistakesView';
 import { PracticeLines } from './components/PracticeLines';
+import { PersonalDataView } from './components/PersonalDataView';
 import { RankingView } from './components/RankingView';
 import { RecordsView } from './components/RecordsView';
 import { SettingsDialog } from './components/SettingsDialog';
@@ -42,7 +43,7 @@ import { scoreTyping, splitCharacters } from './lib/scoring';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
 import { deleteWorkspaceValue, DraftDeletedError, isWorkspaceDraftDeleted, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
 
-type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback' | InfoPage;
+type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback' | 'data' | InfoPage;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
 const languageNames: Record<Language, string> = { zh: '中文', en: 'English' };
@@ -632,7 +633,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
           </div>}
         </div>
         <button className="theme-button" disabled={!!user && !workspace.settingsReady} aria-label={theme === 'dark' ? '切换至日间模式' : '切换至夜间模式'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={20} /> : <MoonStars size={20} />}<span>{theme === 'dark' ? '日间' : '夜间'}</span></button>
-        {user ? <AccountMenu user={user} disabled={!canChangeAccount} onAccount={() => void afterPark(() => setShowAccount(true))} onRecords={() => navigate('history')} onFeedback={() => navigate('feedback')}
+        {user ? <AccountMenu user={user} disabled={!canChangeAccount} onAccount={() => void afterPark(() => setShowAccount(true))} onRecords={() => navigate('history')} onData={() => navigate('data')} onFeedback={() => navigate('feedback')}
           onLogout={() => void changeAccount()} onAdministration={onAdministration ? () => void afterPark(onAdministration) : undefined} /> : <button className="account-button" disabled={!canChangeAccount} onClick={() => void changeAccount()}>登录</button>}
       </nav>
     </header>}
@@ -693,6 +694,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {view === 'mistakes' && <MistakesView records={records} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} />}
         {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
+        {view === 'data' && user && <PersonalDataView user={user} />}
         {(view === 'help' || view === 'about' || view === 'privacy' || view === 'terms') && <SiteInfoView page={view} onFeedback={() => navigate('feedback')} />}
       </div>
     </RoomBackground>

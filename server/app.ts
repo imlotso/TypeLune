@@ -956,10 +956,28 @@ export async function createApp(options: AppOptions) {
     const user = userFor(request);
     if (!user) return invalid(reply, '请先登录', 401);
     if (!accountMatches(request, user)) return invalid(reply, '登录账号已变更', 403);
+    const query = request.query as Record<string, unknown>;
+    const paged = query.limit !== undefined || query.cursor !== undefined;
+    const limitText = query.limit === undefined ? '100' : query.limit;
+    if (typeof limitText !== 'string' || !/^(?:[1-9]\d?|100)$/.test(limitText)) return invalid(reply, '分页参数无效');
+    const limit = Number(limitText);
+    let cursor: { time: number; id: string } | undefined;
+    if (query.cursor !== undefined) {
+      if (typeof query.cursor !== 'string' || !/^[A-Za-z0-9_-]{1,1024}$/.test(query.cursor)) return invalid(reply, '分页参数无效');
+      try {
+        const value: unknown = JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8'));
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return invalid(reply, '分页参数无效');
+        const candidate = value as Record<string, unknown>;
+        if (!Number.isSafeInteger(candidate.time) || (candidate.time as number) < 0 || typeof candidate.id !== 'string' || !candidate.id || candidate.id.length > 200 || /[\p{Cc}\p{Cf}]/u.test(candidate.id)) return invalid(reply, '分页参数无效');
+        cursor = { time: candidate.time as number, id: candidate.id };
+      } catch { return invalid(reply, '分页参数无效'); }
+    }
     const rows = db.prepare(`SELECT id AS recordId,language,difficulty,duration,correct,total,accuracy,speed,status,elapsed_ms AS elapsedMs,backspaces,errors,
       finished_at AS finishedAt,article_metadata AS metadata,target,typed,mode,strict
-      FROM challenges WHERE owner=? AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 100`).all(`u:${user.id}`) as Array<{
-        metadata: string | null; target: string; typed: string | null; mode: PracticeMode; strict: number;
+      FROM challenges WHERE owner=@owner AND finished_at IS NOT NULL
+        AND (@beforeTime IS NULL OR finished_at<@beforeTime OR (finished_at=@beforeTime AND id<@beforeId))
+      ORDER BY finished_at DESC,id DESC LIMIT @limit`).all({ owner: `u:${user.id}`, beforeTime: cursor?.time ?? null, beforeId: cursor?.id ?? null, limit }) as Array<{
+        recordId: string; finishedAt: number; metadata: string | null; target: string; typed: string | null; mode: PracticeMode; strict: number;
       }>;
     const entries = rows.map(({ metadata, target, typed, mode, strict, ...summary }) => {
       if (!metadata || typed === null) return summary;
@@ -967,7 +985,9 @@ export async function createApp(options: AppOptions) {
       return { ...summary, article, typed, offset: 0, articleTotal: splitCharacters(target).length, mode, strict: !!strict };
     });
     reply.header('Cache-Control', 'no-store');
-    return { entries };
+    const last = rows.at(-1);
+    const nextCursor = rows.length === limit && last ? Buffer.from(JSON.stringify({ time: last.finishedAt, id: last.recordId })).toString('base64url') : null;
+    return paged ? { entries, nextCursor } : { entries };
   });
 
   if (options.staticRoot && existsSync(options.staticRoot)) {

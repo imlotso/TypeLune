@@ -81,6 +81,7 @@ it('opens an account menu without signing out and restores focus on Escape', asy
   const menu = screen.getByRole('menu');
   expect(within(menu).getByRole('menuitem', { name: '账号设置' })).toBeTruthy();
   expect(within(menu).getByRole('menuitem', { name: '我的记录' })).toBeTruthy();
+  expect(within(menu).getByRole('menuitem', { name: '个人数据' })).toBeTruthy();
   expect(within(menu).getByRole('menuitem', { name: '退出登录' })).toBeTruthy();
   expect(requests).not.toContain('/api/auth/logout');
   fireEvent.keyDown(menu, { key: 'Escape' });
