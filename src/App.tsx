@@ -33,6 +33,7 @@ import { PracticeLines } from './components/PracticeLines';
 import { PersonalDataView } from './components/PersonalDataView';
 import { PersonalBestComparison } from './components/PersonalBestComparison';
 import { PaceIndicator } from './components/PaceIndicator';
+import { ProcessChart } from './components/ProcessChart';
 import { PresetsDialog } from './components/PresetsDialog';
 import { SettingsTransferDialog } from './components/SettingsTransferDialog';
 import { ShareCardDialog } from './components/ShareCardDialog';
@@ -1118,6 +1119,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       </div>
       {result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? (hasUnloadedLocalHistory() ? 'partial' : 'local') :
         historyCheckedFor !== result.recordId ? 'loading' : historyError || !workspace.cloudLoaded || workspace.syncState !== 'synced' || hasUnloadedLocalHistory() ? 'partial' : 'complete'} />}
+      {result.record && <ProcessChart trace={result.record.processTrace} language={result.record.language} />}
       {result.record && (result.record.mistakesTruncated || (result.record.mistakes?.length ?? 0) >= 500) && <p className="feature-muted" role="status">错字样本可能不完整</p>}
       {roundDrillAvailable && <div className="round-mistake-actions">
         <label>重复次数<input type="number" min={1} max={10} step={1} value={mistakeRepeats} aria-invalid={!roundDrill} onChange={(event) => setMistakeRepeats(event.target.value)} /></label>

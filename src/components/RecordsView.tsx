@@ -10,6 +10,7 @@ import { splitCharacters } from '../lib/scoring';
 import { useScoreStatus } from '../hooks/useScoreStatus';
 import { ScoreStatusView, scoreStatusText } from './ScoreStatusView';
 import { Dialog } from './Dialog';
+import { ProcessChart } from './ProcessChart';
 
 type Props = {
   records: PracticeRecord[];
@@ -78,6 +79,7 @@ function RecordDetail({ record, ownerId, onClose, onReplay, onContinue, recovery
         {record.errors != null && <div><dt>错误</dt><dd>{record.errors}</dd></div>}
         {record.backspaces != null && <div><dt>退格</dt><dd>{record.backspaces}</dd></div>}
       </dl>
+      <ProcessChart trace={record.processTrace} language={record.language} />
       {!!mistakes.length && <details className="feature-details" open>
         <summary>误输记录 · {mistakes.length}</summary>
         <ol className="feature-scroll">

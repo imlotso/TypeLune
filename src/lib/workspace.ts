@@ -4,6 +4,7 @@ import { isBackgroundConfig } from './background';
 import { isPresetList } from './practice-settings';
 import { isPaceSettings } from './pace';
 import { isStatisticsTimeZone } from './long-term-stats';
+import { isProcessTrace } from './process-trace';
 
 const databaseName = 'cloudtyping-workspace';
 const itemStore = 'items';
@@ -95,6 +96,9 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
   if (!isObject(payload)) return false;
   if ((kind === 'draft' || kind === 'record') && payload.mistakesTruncated !== undefined && typeof payload.mistakesTruncated !== 'boolean') return false;
   if ((kind === 'draft' || kind === 'record') && payload.paceTarget !== undefined && (typeof payload.paceTarget !== 'number' || !Number.isFinite(payload.paceTarget) || payload.paceTarget <= 0 || payload.paceTarget > 18_000_000)) return false;
+  if ((kind === 'draft' || kind === 'record') && payload.processTrace !== undefined && !isProcessTrace(payload.processTrace)) return false;
+  if (kind === 'draft' && payload.processErrorEvents !== undefined && (!Number.isSafeInteger(payload.processErrorEvents) || (payload.processErrorEvents as number) < 0 || (payload.processErrorEvents as number) > 10_000_000 ||
+    (isProcessTrace(payload.processTrace) && (payload.processErrorEvents as number) < payload.processTrace.samples.at(-1)!.errors))) return false;
   switch (kind) {
     case 'background': return isBackgroundConfig(payload);
     case 'favorite': return payload.articleId === id;

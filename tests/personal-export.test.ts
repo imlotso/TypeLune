@@ -46,3 +46,12 @@ it('retains a local legacy draft copy for recovery even when its workspace item 
   expect(exported.data.localRecoveryCopies?.drafts[0]).toMatchObject({ id: 'draft-1', typed: '原' });
   expect(JSON.stringify(exported)).not.toContain('secret-recovery-material');
 });
+
+it('exports validated process observations and excludes unknown trace data', () => {
+  const processTrace = { version: 1 as const, intervalMs: 5000, missing: false, compacted: false, samples: [{ time: 0, progress: 0, correct: 0, errors: 0 }, { time: 5000, progress: 1, correct: 1, errors: 0 }] };
+  const record = { recordId: 'sample', language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: 10, processTrace };
+  const bad = { ...record, recordId: 'bad', processTrace: { ...processTrace, token: 'trace-secret' } };
+  const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false }, local: [], legacyDrafts: [], localHistory: [record, bad], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
+  expect(exported.data.records.find((item) => item.recordId === 'sample')?.processTrace).toEqual(processTrace);
+  expect(JSON.stringify(exported)).not.toContain('trace-secret');
+});

@@ -1,4 +1,5 @@
 import type { PracticeRecord } from './models';
+import { isProcessTrace } from './process-trace';
 
 function canonicalRecord(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalRecord);
@@ -27,7 +28,8 @@ export function mergePracticeRecords(local: PracticeRecord[], remote: PracticeRe
     if (!previous) { entries.set(key, record); continue; }
     const rich = [record, previous].find((entry) => entry.article && entry.typed != null);
     const mistakes = [record, previous].find((entry) => entry.mistakes?.length)?.mistakes;
-    entries.set(key, { ...previous, ...record, ...(rich && { article: rich.article, typed: rich.typed, offset: rich.offset, articleTotal: rich.articleTotal }), ...(mistakes && { mistakes }) });
+    const processTrace = [record, previous].find((entry) => isProcessTrace(entry.processTrace))?.processTrace;
+    entries.set(key, { ...previous, ...record, ...(rich && { article: rich.article, typed: rich.typed, offset: rich.offset, articleTotal: rich.articleTotal }), ...(mistakes && { mistakes }), ...(processTrace && { processTrace }) });
   }
   return [...entries].map(([key, record]) => onlineRecords.has(key) ? { ...record, localOnly: false } : record).sort((a, b) => b.finishedAt - a.finishedAt);
 }

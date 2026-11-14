@@ -6,6 +6,7 @@ import { isBackgroundConfig, type BackgroundConfig } from '../src/lib/background
 import { isPresetList } from '../src/lib/practice-settings';
 import { isPaceSettings } from '../src/lib/pace';
 import { isStatisticsTimeZone } from '../src/lib/long-term-stats';
+import { isProcessTrace, type ProcessTrace } from '../src/lib/process-trace';
 
 export const syncBodyLimit = 4 * 1024 * 1024;
 export const recoveryIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -57,8 +58,8 @@ const schemas = {
     recoveryRequestId: z.string().regex(recoveryIdPattern).optional(),
     recoveryMarker: z.string().regex(recoveryIdPattern).optional(),
     recoveryBaseVersion: integer(Number.MAX_SAFE_INTEGER).optional(),
-    progressVersion: integer(Number.MAX_SAFE_INTEGER).optional(),
-  }),
+    progressVersion: integer(Number.MAX_SAFE_INTEGER).optional(), processTrace: z.custom<ProcessTrace>(isProcessTrace).optional(), processErrorEvents: integer(10_000_000).optional(),
+  }).refine((value) => value.processErrorEvents === undefined || !value.processTrace || value.processErrorEvents >= value.processTrace.samples.at(-1)!.errors),
   record: z.object({
     language, difficulty, duration, speed: z.number().min(0).max(18_000_000), accuracy: z.number().min(0).max(100),
     finishedAt: timestamp, status: z.string().max(40).optional(),
@@ -66,7 +67,7 @@ const schemas = {
     recordId: id.optional(), ownerId: id.nullable().optional(), localOnly: z.boolean().optional(),
     article: snapshot.optional(), typed: stats.typed.optional(), offset: stats.offset.optional(),
     total: integer(30_000).optional(), correct: integer(30_000).optional(), articleTotal: integer(30_000).optional(),
-    mode: mode.optional(), strict: z.boolean().optional(), mistakes, mistakesTruncated: z.boolean().optional(), paceTarget: z.number().positive().max(18_000_000).optional(),
+    mode: mode.optional(), strict: z.boolean().optional(), mistakes, mistakesTruncated: z.boolean().optional(), paceTarget: z.number().positive().max(18_000_000).optional(), processTrace: z.custom<ProcessTrace>(isProcessTrace).optional(),
   }),
   settings: z.object({
     minutes: z.number().int().min(1).max(60), mode, strict: z.boolean(), autoPause: z.boolean(),
@@ -186,6 +187,7 @@ export function createWorkspaceStore(db: Database.Database) {
       let mergedValue = value;
       if (!deleted && previous?.value && value && typeof value === 'object' && !Array.isArray(value)) {
         const before = JSON.parse(previous.value) as Record<string, unknown>;
+        const incoming = value as Record<string, unknown>;
         if (kind === 'settings') {
           mergedValue = { ...before, ...value };
           if (Array.isArray(before.presets) && 'presets' in value && Array.isArray(value.presets)) {
@@ -197,7 +199,12 @@ export function createWorkspaceStore(db: Database.Database) {
           }
         } else if (kind === 'record' || kind === 'draft') {
           mergedValue = { ...value, ...(before.mistakesTruncated === true && !('mistakesTruncated' in value) && { mistakesTruncated: true }),
-            ...(before.paceTarget !== undefined && !('paceTarget' in value) && { paceTarget: before.paceTarget }) };
+            ...(before.paceTarget !== undefined && !('paceTarget' in value) && { paceTarget: before.paceTarget }),
+            ...(isProcessTrace(before.processTrace) && !('processTrace' in value) && { processTrace: kind === 'draft' &&
+              (before.typed !== incoming.typed || before.elapsedMs !== incoming.elapsedMs) ? { ...before.processTrace, missing: true } : before.processTrace }),
+            ...(kind === 'draft' && typeof before.processErrorEvents === 'number' && !('processErrorEvents' in value) && {
+              processErrorEvents: Math.max(before.processErrorEvents, isProcessTrace(incoming.processTrace) ? incoming.processTrace.samples.at(-1)!.errors : 0),
+            }) };
         }
       }
       const serialized = deleted ? null : JSON.stringify(mergedValue);

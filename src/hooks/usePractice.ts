@@ -6,6 +6,7 @@ import { scoreTyping, splitCharacters, type Score } from '../lib/scoring';
 import { stableRecordId } from '../lib/records';
 import { resultRecoveryAvailability } from '../lib/result-recovery';
 import { isLocalAccountBlocked, readWorkspaceGeneration } from '../lib/workspace';
+import { appendProcessSample, initialProcessTrace, isProcessTrace, type ProcessTrace } from '../lib/process-trace';
 
 export type PracticePhase = 'ready' | 'starting' | 'running' | 'pausing' | 'paused' | 'resuming' | 'restoring' | 'finishing' | 'finished';
 type RoundConfig = { articleId: string; title: string; text: string; language: Language; difficulty: Difficulty; duration: number; custom: boolean; ownerId: string | null; article?: ArticleSnapshot; mode?: PracticeMode; strict?: boolean };
@@ -27,7 +28,7 @@ export type PracticeResult = { score: Score; recordId?: string; record?: Practic
 type Attempt = RoundConfig & {
   id?: string; recordId: string; revision: number; legacy?: boolean; target: string;
   offline: boolean; elapsedMs: number; startedAt: number | null; suspicious: boolean;
-  backspaces: number; nextCheckpointMs: number; offset?: number; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; paceTarget?: number; pendingStart?: boolean;
+  backspaces: number; nextCheckpointMs: number; offset?: number; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; paceTarget?: number; pendingStart?: boolean; processTrace?: ProcessTrace; processErrorEvents?: number;
   recoveryId?: string; recoveryKey?: string; claimId?: string; claimVersion?: number; recoveryRequestId?: string; recoveryMarker?: string; progressVersion?: number; recoveryBaseVersion?: number; progressFingerprint?: string; personalOnly?: boolean;
 };
 export type PracticeDraft = Omit<Attempt, 'startedAt' | 'nextCheckpointMs'> & { version: 1; typed: string; completed?: boolean; early?: boolean; savedAt?: number; leaseOwner?: string | null; leaseAt?: number; localSyncGeneration?: number };
@@ -192,6 +193,9 @@ export function readDrafts(ownerId?: string | null): PracticeDraft[] {
     const valid = candidates.filter((data) => (ownerId === undefined || (data.ownerId ?? null) === ownerId) && data.version === 1 && ['zh', 'en'].includes(data.language) && ['beginner', 'intermediate', 'advanced'].includes(data.difficulty) && validDuration(data.duration) && typeof data.target === 'string' && !!data.target && data.target.length <= 30000 && typeof data.typed === 'string' && splitCharacters(data.typed).length <= splitCharacters(data.target).length && typeof data.articleId === 'string' && typeof data.title === 'string' && Number.isFinite(data.elapsedMs) && data.elapsedMs >= 0 && data.elapsedMs <= durationLimit(data) && Number.isInteger(data.backspaces) && data.backspaces >= 0 && (data.paceTarget === undefined || validPaceTarget(data.paceTarget)) && (data.id === undefined || (typeof data.id === 'string' && validAttemptId(data.id))));
     return valid.sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0)).map((data) => {
       data.recordId = legacyRecordId(data);
+      if (!isProcessTrace(data.processTrace)) data.processTrace = undefined;
+      if (!Number.isSafeInteger(data.processErrorEvents) || data.processErrorEvents! < 0 || data.processErrorEvents! > 10_000_000) data.processErrorEvents = data.processTrace?.samples.at(-1)?.errors;
+      if (data.processTrace) data.processErrorEvents = Math.max(data.processErrorEvents ?? 0, data.processTrace.samples.at(-1)!.errors);
       if (!Number.isSafeInteger(data.revision) || data.revision < 0) data.revision = 0;
       if (typeof data.ownerId !== 'string') data.ownerId = null;
       data.typed = boundedPrefix(splitCharacters(data.typed), splitCharacters(data.target).length).join('');
@@ -259,8 +263,19 @@ export function discardSavedDraft(saved: SavedPractice): boolean {
 function elapsedTime(attempt: Attempt) {
   return Math.min(durationLimit(attempt), attempt.elapsedMs + (attempt.startedAt === null ? 0 : Math.max(0, performance.now() - attempt.startedAt)));
 }
-function progressFingerprint(attempt: Pick<Attempt, 'backspaces' | 'offset' | 'suspicious' | 'mistakes' | 'mistakesTruncated' | 'paceTarget'>, typed: string, elapsed: number) {
-  return JSON.stringify([typed, elapsed, attempt.backspaces, attempt.offset ?? 0, !!attempt.suspicious, attempt.mistakes ?? [], !!attempt.mistakesTruncated, attempt.paceTarget]);
+function processPoint(attempt: Attempt, typed: string, elapsed: number) {
+  const offset = attempt.offset ?? 0;
+  const input = splitCharacters(typed).slice(offset);
+  const expected = splitCharacters(attempt.target).slice(offset);
+  return { time: Math.round(elapsed), progress: input.length, correct: input.reduce((count, character, index) => count + Number(character === expected[index]), 0), errors: attempt.processErrorEvents ?? 0 };
+}
+function sampleProcess(attempt: Attempt, typed: string, elapsed: number, force: boolean) {
+  const trace = attempt.processTrace;
+  if (!trace || (!force && elapsed - trace.samples.at(-1)!.time < trace.intervalMs)) return;
+  attempt.processTrace = appendProcessSample(trace, processPoint(attempt, typed, elapsed), force);
+}
+function progressFingerprint(attempt: Pick<Attempt, 'backspaces' | 'offset' | 'suspicious' | 'mistakes' | 'mistakesTruncated' | 'paceTarget' | 'processTrace' | 'processErrorEvents'>, typed: string, elapsed: number) {
+  return JSON.stringify([typed, elapsed, attempt.backspaces, attempt.offset ?? 0, !!attempt.suspicious, attempt.mistakes ?? [], !!attempt.mistakesTruncated, attempt.paceTarget, attempt.processTrace, attempt.processErrorEvents]);
 }
 function saveDraft(attempt: Attempt, typed: string, owner: string, completed = false, early = false) {
   if (isLocalAccountBlocked(attempt.ownerId)) return false;
@@ -304,7 +319,7 @@ function recordResult(attempt: Attempt, result: PracticeResult, typed: string): 
     accuracy: result.score.accuracy, finishedAt: Date.now(), status: result.status, elapsedMs: Math.round(result.elapsedMs), backspaces: result.backspaces, errors: result.errors,
     recordId: result.attemptId ?? attempt.recordId, ownerId: attempt.ownerId, localOnly: result.offline, article: articleSnapshot(attempt, attempt.target), typed,
     offset: attempt.offset ?? 0, total: result.score.total, correct: result.score.correct, articleTotal: result.articleTotal,
-    mode: attempt.mode ?? 'timed', strict: !!attempt.strict, mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }), ...(validPaceTarget(attempt.paceTarget) && { paceTarget: attempt.paceTarget }),
+    mode: attempt.mode ?? 'timed', strict: !!attempt.strict, mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }), ...(validPaceTarget(attempt.paceTarget) && { paceTarget: attempt.paceTarget }), ...(attempt.processTrace && { processTrace: attempt.processTrace }),
   };
 }
 
@@ -318,6 +333,7 @@ function workspaceDraft(attempt: Attempt, typed: string): SavedPractice {
     recoveryBaseVersion: attempt.recoveryRequestId ? attempt.recoveryBaseVersion : undefined,
     progressVersion: attempt.progressVersion, personalOnly: attempt.personalOnly, offline: attempt.offline,
     ownerId: attempt.ownerId, savedAt: Date.now(), mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }), ...(validPaceTarget(attempt.paceTarget) && { paceTarget: attempt.paceTarget }), suspicious: attempt.suspicious,
+    ...(attempt.processTrace && { processTrace: attempt.processTrace, processErrorEvents: attempt.processErrorEvents ?? 0 }),
   };
 }
 export function savedPracticeFromLegacy(draft: PracticeDraft): SavedPractice {
@@ -339,6 +355,8 @@ function attemptFromSaved(saved: SavedPractice, typed: string, revision = 0): At
     claimVersion: saved.claimVersion, progressVersion: saved.progressVersion, recoveryBaseVersion: saved.progressVersion, personalOnly: saved.personalOnly, recordId: saved.recordId, revision, offline,
     elapsedMs: Math.min(durationLimit(saved), Math.max(0, saved.elapsedMs)), startedAt: null, nextCheckpointMs: saved.elapsedMs + 5000,
     backspaces: saved.backspaces, suspicious: !!saved.suspicious, offset: Math.min(saved.offset, splitCharacters(typed).length), mistakes: [...(saved.mistakes ?? []).slice(0, mistakeLimit)], mistakesTruncated: saved.mistakesTruncated || (saved.mistakes?.length ?? 0) > mistakeLimit, paceTarget: validPaceTarget(saved.paceTarget) ? saved.paceTarget : undefined,
+    processTrace: isProcessTrace(saved.processTrace) ? saved.processTrace : undefined,
+    processErrorEvents: Math.max(Number.isSafeInteger(saved.processErrorEvents) && saved.processErrorEvents! >= 0 && saved.processErrorEvents! <= 10_000_000 ? saved.processErrorEvents! : 0, isProcessTrace(saved.processTrace) ? saved.processTrace.samples.at(-1)!.errors : 0),
   };
 }
 
@@ -351,7 +369,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   const ownerToken = useRef(uniqueId());
   const [draft] = useState<PracticeDraft | null>(() => initialDraft && leaseTaken(initialDraft, ownerToken.current) && !initialDraft.completed ? { ...initialDraft, id: undefined, recoveryId: undefined, recoveryKey: undefined, claimId: undefined, claimVersion: undefined, recoveryRequestId: undefined, recoveryMarker: undefined, progressVersion: 0, recoveryBaseVersion: undefined, personalOnly: true, recordId: uniqueId(), revision: 0, offline: true, legacy: false, leaseOwner: null, leaseAt: 0 } : initialDraft);
   const wasForked = !!draft && !!initialDraft && draft.recordId !== initialDraft.recordId;
-  const restoredAttempt: Attempt | null = draft ? { ...draft, recoveryBaseVersion: draft.recoveryBaseVersion ?? draft.progressVersion, progressFingerprint: progressFingerprint(draft, draft.typed, draft.elapsedMs), startedAt: null, nextCheckpointMs: draft.elapsedMs + 5000 } : null;
+  const restoredAttempt: Attempt | null = draft ? { ...draft, processTrace: isProcessTrace(draft.processTrace) ? draft.processTrace : undefined, recoveryBaseVersion: draft.recoveryBaseVersion ?? draft.progressVersion, progressFingerprint: progressFingerprint(draft, draft.typed, draft.elapsedMs), startedAt: null, nextCheckpointMs: draft.elapsedMs + 5000 } : null;
   const initialPhase: PracticePhase = draft ? (draft.completed || (draft.id && !draft.offline) ? 'restoring' : 'paused') : 'ready';
   const [phase, setPhase] = useState<PracticePhase>(initialPhase);
   const phaseRef = useRef<PracticePhase>(initialPhase);
@@ -462,6 +480,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
 
   const settle = (attempt: Attempt, final: PracticeResult, typed: string) => {
     final = { ...final, recordId: final.attemptId ?? attempt.recordId };
+    sampleProcess(attempt, typed, final.elapsedMs, true);
     const entry = recordResult(attempt, final, typed);
     final = { ...final, record: entry };
     const recordId = final.attemptId ?? attempt.recordId;
@@ -482,6 +501,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
         ...attempt, id: undefined, recoveryId: undefined, recoveryKey: undefined, claimId: undefined, claimVersion: undefined, recoveryRequestId: undefined, recoveryMarker: undefined, progressVersion: 0, recoveryBaseVersion: undefined, progressFingerprint: undefined, personalOnly: true, recordId: nextRecordId(recordId), revision: 0, legacy: false,
         offline: true, elapsedMs: 0, startedAt: null, nextCheckpointMs: 5000,
         suspicious: false, backspaces: 0, offset: nextOffset, mistakes: [], mistakesTruncated: false,
+        processTrace: initialProcessTrace({ time: 0, progress: 0, correct: 0, errors: 0 }), processErrorEvents: 0,
       };
       if (!isDeleted(next)) {
         const existing = storedDraft(next.recordId);
@@ -713,7 +733,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     const previous = attemptRef.current;
     if (previous && phaseRef.current === 'running' && !await park()) return;
     if (previous !== attemptRef.current || !mounted.current || (saved.ownerId ?? null) !== liveConfig.current.ownerId) return;
-    const attempt: Attempt = { ...saved, pendingStart: false, recoveryBaseVersion: saved.recoveryBaseVersion ?? saved.progressVersion, startedAt: null, nextCheckpointMs: saved.elapsedMs + 5000 };
+    const attempt: Attempt = { ...saved, processTrace: isProcessTrace(saved.processTrace) ? saved.processTrace : undefined, pendingStart: false, recoveryBaseVersion: saved.recoveryBaseVersion ?? saved.progressVersion, startedAt: null, nextCheckpointMs: saved.elapsedMs + 5000 };
     bindAttempt(attempt, saved.typed);
     if (isDeleted(attempt)) {
       if (saved.completed) { attempt.offline = true; attempt.personalOnly = true; setResult(localResult(attempt, attempt.elapsedMs, saved.typed)); setCurrentPhase('finished'); }
@@ -745,6 +765,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       if (phaseRef.current === 'running') {
         ++startRequest.current;
         const used = elapsedTime(attempt);
+        sampleProcess(attempt, typedRef.current, used, true);
         composing.current = false; setRaw(typedRef.current);
         attempt.elapsedMs = used; attempt.startedAt = null; clearTimer(); setElapsedMs(used); setCurrentPhase('paused');
         persist(attempt, true);
@@ -811,6 +832,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     const attempt = attemptRef.current;
     if (!attempt || !['running', 'paused'].includes(phaseRef.current)) return;
     const used = elapsedTime(attempt);
+    sampleProcess(attempt, typedRef.current, used, true);
     attempt.elapsedMs = used; attempt.startedAt = null;
     clearTimer(); setCurrentPhase('finishing'); setElapsedMs(used);
     const value = typedRef.current;
@@ -841,6 +863,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       if (!attempt || phaseRef.current !== 'running') return;
       const used = elapsedTime(attempt);
       setElapsedMs(used);
+      sampleProcess(attempt, typedRef.current, used, false);
       if (used >= durationLimit(attempt)) { void finish(false); return; }
       if (attempt.id && !attempt.offline && used >= attempt.nextCheckpointMs) {
         attempt.nextCheckpointMs = used + 5000;
@@ -868,6 +891,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       text: settings.text, recordId: clientId ?? uniqueId(), recoveryId: clientId, recoveryKey, claimId, claimVersion: claimId ? 1 : undefined, revision: 0, target: settings.text, offline: true, personalOnly: guestBlocked || undefined, pendingStart: !!clientId && !!claimId,
       elapsedMs: 0, startedAt: performance.now(), suspicious: pendingSuspicious.current,
       backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [], paceTarget: validPaceTarget(settings.paceTarget) ? settings.paceTarget : undefined,
+      processTrace: initialProcessTrace({ time: 0, progress: 0, correct: 0, errors: 0 }), processErrorEvents: 0,
     };
     const originalRecordId = attempt.recordId;
     pendingSuspicious.current = false;
@@ -940,7 +964,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       return;
     }
     if (offline && !custom) setFeedback(personalOnly ? guestPracticeDisabledMessage : '在线练习不可用，已转为个人练习。');
-    const attempt: Attempt = { articleId, title, language, difficulty, duration, custom, ownerId, article, mode, strict, text: testTarget, id, recordId: id || uniqueId(), revision: 0, target: testTarget, offline, personalOnly, elapsedMs: 0, startedAt: performance.now(), suspicious: false, backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [], paceTarget: validPaceTarget(config.paceTarget) ? config.paceTarget : undefined };
+    const attempt: Attempt = { articleId, title, language, difficulty, duration, custom, ownerId, article, mode, strict, text: testTarget, id, recordId: id || uniqueId(), revision: 0, target: testTarget, offline, personalOnly, elapsedMs: 0, startedAt: performance.now(), suspicious: false, backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [], paceTarget: validPaceTarget(config.paceTarget) ? config.paceTarget : undefined, processTrace: initialProcessTrace({ time: 0, progress: 0, correct: 0, errors: 0 }), processErrorEvents: 0 };
     parked.current = false; lastBackspaceKey.current = -Infinity;
     attemptRef.current = attempt; setTarget(testTarget); setCurrentPhase('running'); persist(attempt, true); beginClock();
     if (liveConfig.current.autoPause && document.visibilityState === 'hidden') void pause();
@@ -952,6 +976,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     if (!attempt || phaseRef.current !== 'running') return false;
     const used = elapsedTime(attempt);
     if (used >= durationLimit(attempt)) { void finish(false); return false; }
+    sampleProcess(attempt, typedRef.current, used, true);
     composing.current = false; setRaw(typedRef.current);
     attempt.elapsedMs = used; attempt.startedAt = null; setElapsedMs(used); clearTimer(); setCurrentPhase('pausing'); persist(attempt, true);
     if (pendingStart.current?.attempt === attempt) await pendingStart.current.promise;
@@ -1000,6 +1025,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     }
     if (!isCurrent(attempt, 'resuming')) return;
     lastBackspaceKey.current = -Infinity;
+    if (!attempt.processTrace) attempt.processTrace = initialProcessTrace(processPoint(attempt, typedRef.current, attempt.elapsedMs), true);
     attempt.startedAt = performance.now(); attempt.nextCheckpointMs = attempt.elapsedMs + 5000;
     setCurrentPhase('running'); setRestored(false); persist(attempt, true); beginClock();
     if (liveConfig.current.autoPause && document.visibilityState === 'hidden') void pause();
@@ -1106,7 +1132,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     const offset = continuationOffset(saved.strict, Math.min(saved.offset, characters.length), characters, expected);
     const attempt = attemptFromSaved({
       ...saved, attemptId: undefined, recoveryId: undefined, recoveryKey: undefined, claimId: undefined, claimVersion: undefined, recoveryRequestId: undefined, recoveryMarker: undefined, progressVersion: 0, personalOnly: true, recordId: fresh ? saved.recordId : uniqueId(), offline: true, offset: fresh ? saved.offset : offset, elapsedMs: 0,
-      backspaces: 0, mistakes: [], suspicious: false,
+      backspaces: 0, mistakes: [], suspicious: false, processTrace: initialProcessTrace({ time: 0, progress: 0, correct: 0, errors: 0 }), processErrorEvents: 0,
     }, typed);
     bindAttempt(attempt, typed);
     if (!fresh) setFeedback(local ? '原进度正在其他标签页使用，已另存。' : '已从云端草稿新建个人练习。');
@@ -1154,6 +1180,8 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       const actual = next[index];
       if (actual === expected[index]) continue;
       if (!deleting && actual !== previous[index]) {
+        if ((attempt.processErrorEvents ?? 0) < 10_000_000) attempt.processErrorEvents = (attempt.processErrorEvents ?? 0) + 1;
+        else if (attempt.processTrace) attempt.processTrace = { ...attempt.processTrace, missing: true };
         if (mistakes.length < mistakeLimit && actual.length <= 200 && expected[index].length <= 200) mistakes.push({ position: index, expected: expected[index], actual });
         else attempt.mistakesTruncated = true;
       }

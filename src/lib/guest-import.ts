@@ -2,6 +2,7 @@ import { clearLocalPractice, readDrafts, savedPracticeFromLegacy } from '../hook
 import { api } from './api';
 import { stableRecordId } from './records';
 import { localPracticeNeedsRecovery } from './local-practice-generation';
+import { isProcessTrace } from './process-trace';
 import { cleanPracticePreset } from './practice-settings';
 import { compareDraftProgress, type ArticleSnapshot, type PracticeRecord, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models';
 import { allowGuestWorkspace, blockGuestWorkspace, clearLocalWorkspace, importWorkspaceValue, isLocalAccountBlocked, isWorkspaceItem, ownsGuestWorkspaceBlock, readBlockedWorkspace, readWorkspace, sameWorkspaceValue, workspaceSettings } from './workspace';
@@ -28,6 +29,7 @@ function cleanDraft(value: SavedPractice, ownerId: string): SavedPractice {
     ...(value.mistakes && { mistakes: value.mistakes.map(({ position, expected, actual }) => ({ position, expected, actual })) }),
     ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }),
     ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }),
+    ...(isProcessTrace(value.processTrace) && { processTrace: value.processTrace }), ...(Number.isSafeInteger(value.processErrorEvents) && value.processErrorEvents! >= 0 && value.processErrorEvents! <= 10_000_000 && { processErrorEvents: value.processErrorEvents }),
     ...(value.suspicious !== undefined && { suspicious: value.suspicious }) };
 }
 function cleanRecord(value: PracticeRecord, ownerId: string, recordId: string): PracticeRecord {
@@ -37,7 +39,7 @@ function cleanRecord(value: PracticeRecord, ownerId: string, recordId: string): 
     ...(value.offset !== undefined && { offset: value.offset }), ...(value.total !== undefined && { total: value.total }), ...(value.correct !== undefined && { correct: value.correct }),
     ...(value.articleTotal !== undefined && { articleTotal: value.articleTotal }), ...(value.mode !== undefined && { mode: value.mode }), ...(value.strict !== undefined && { strict: value.strict }),
     ...(value.mistakes && { mistakes: value.mistakes.map(({ position, expected, actual }) => ({ position, expected, actual })) }),
-    ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }), ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }) };
+    ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }), ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }), ...(isProcessTrace(value.processTrace) && { processTrace: value.processTrace }) };
 }
 function cleanSettings(value: ReaderSettings): ReaderSettings {
   const { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme } = value;

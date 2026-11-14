@@ -4,6 +4,7 @@ import type { BackgroundConfig } from './background';
 import { mergeWorkspaceItems, workspaceSettings } from './workspace';
 import { cleanPracticePreset } from './practice-settings';
 import { stableRecordId } from './records';
+import { isProcessTrace } from './process-trace';
 
 export type FeedbackExport = { id: string; category: string; title: string; description: string; status: string; createdAt: number; updatedAt: number;
   article?: { id: string; title: string; snapshotKey: string; position?: string | null; wrongText?: string | null };
@@ -31,13 +32,13 @@ function record(value: PracticeRecord): PracticeRecord {
     ...(value.offset !== undefined && { offset: value.offset }), ...(value.total !== undefined && { total: value.total }),
     ...(value.correct !== undefined && { correct: value.correct }), ...(value.articleTotal !== undefined && { articleTotal: value.articleTotal }),
     ...(value.mode !== undefined && { mode: value.mode }), ...(value.strict !== undefined && { strict: value.strict }),
-    ...(value.mistakes && { mistakes: mistakes(value.mistakes) }), ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }), ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }) };
+    ...(value.mistakes && { mistakes: mistakes(value.mistakes) }), ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }), ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }), ...(isProcessTrace(value.processTrace) && { processTrace: value.processTrace }) };
 }
 function draft(value: SavedPractice) {
   return { id: value.id, recordId: value.recordId, article: article(value.article), typed: value.typed, elapsedMs: value.elapsedMs,
     backspaces: value.backspaces, duration: value.duration, mode: value.mode, strict: value.strict, offset: value.offset,
     offline: value.offline, savedAt: value.savedAt, ...(value.mistakes && { mistakes: mistakes(value.mistakes) }), ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }), ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }),
-    ...(value.personalOnly !== undefined && { personalOnly: value.personalOnly }) };
+    ...(value.personalOnly !== undefined && { personalOnly: value.personalOnly }), ...(isProcessTrace(value.processTrace) && { processTrace: value.processTrace }), ...(Number.isSafeInteger(value.processErrorEvents) && value.processErrorEvents! >= 0 && value.processErrorEvents! <= 10_000_000 && { processErrorEvents: value.processErrorEvents }) };
 }
 function settings(value: ReaderSettings) {
   return { minutes: value.minutes, mode: value.mode, strict: value.strict, autoPause: value.autoPause, fontSize: value.fontSize,

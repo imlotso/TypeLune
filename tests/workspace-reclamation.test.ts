@@ -124,4 +124,28 @@ describe('workspace deletion and reclamation protocol', () => {
     expect(oldClient.json().items[0].value).toMatchObject({ minutes: 10, statisticsTimezone: 'Asia/Shanghai', dailyGoalMinutes: 30 });
   });
 
+  it('validates process traces and preserves them when older clients update a draft or record', async () => {
+    const article = { id: 'private', title: '短文', text: '山海', language: 'zh', difficulty: 'beginner', custom: true };
+    const draft = { id: 'draft-trace', recordId: 'round-trace', article, typed: '山', elapsedMs: 5000, backspaces: 0, duration: 300, mode: 'timed', strict: false, offset: 0, offline: true, savedAt: now };
+    const record = { recordId: 'round-trace', language: 'zh', difficulty: 'beginner', duration: 300, speed: 10, accuracy: 90, finishedAt: now };
+    const processTrace = { version: 1, intervalMs: 5000, missing: false, compacted: false, samples: [{ time: 0, progress: 0, correct: 0, errors: 0 }, { time: 5000, progress: 1, correct: 1, errors: 0 }] };
+    const created = await sync(1, [
+      { kind: 'draft', id: draft.id, updatedAt: now, baseRevision: 0, value: { ...draft, processTrace, processErrorEvents: 0 } },
+      { kind: 'record', id: record.recordId, updatedAt: now, baseRevision: 0, value: { ...record, processTrace } },
+    ]);
+    expect(created.statusCode).toBe(200);
+    expect(created.json().items.every((entry: { value: { processTrace?: unknown } }) => entry.value.processTrace)).toBe(true);
+    const revisions = new Map(created.json().items.map((entry: { id: string; serverRevision: number }) => [entry.id, entry.serverRevision]));
+    const invalid = { ...processTrace, samples: [processTrace.samples[1], processTrace.samples[0]] };
+    expect((await sync(1, [{ kind: 'record', id: record.recordId, updatedAt: now + 1, baseRevision: revisions.get(record.recordId), value: { ...record, processTrace: invalid } }])).statusCode).toBe(400);
+    const updated = await sync(1, [
+      { kind: 'draft', id: draft.id, updatedAt: now + 1, baseRevision: revisions.get(draft.id), value: { ...draft, typed: '山海', elapsedMs: 10000 } },
+      { kind: 'record', id: record.recordId, updatedAt: now + 1, baseRevision: revisions.get(record.recordId), value: { ...record, speed: 11 } },
+    ]);
+    expect(updated.statusCode).toBe(200);
+    const entries = new Map(updated.json().items.map((entry: { id: string; value: unknown }) => [entry.id, entry.value]));
+    expect(entries.get(draft.id)).toMatchObject({ processTrace: { ...processTrace, missing: true }, processErrorEvents: 0 });
+    expect(entries.get(record.recordId)).toMatchObject({ processTrace });
+  });
+
 });

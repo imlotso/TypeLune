@@ -37,9 +37,9 @@
 | E06 | 待完善 | `1026bb0` | 计时、速度和准确率已可独立隐藏并同步；结果及专注模式回归通过，待最终整体验收，见 [说明](2026-11-15-live-indicators.md)。 |
 | E07 | 待完善 | — | 已有错字专项，缺独立数字、标点与词组素材。 |
 | E08 | 待完善 | `d130c2e` | 已有独立版本化设置文件、严格校验、预览及确认导入；待与后续新增设置整体回归，见 [说明](2026-11-15-presets-settings-transfer.md)。 |
-| F01 | 待完善 | `e35e0e9`、本阶段 | 已有更长日期、组合筛选、同条件趋势、分页、覆盖／缺失用时提示及账号时区；最终回归仍待完成，见[说明](2026-11-15-long-term-statistics.md)。 |
-| F02 | 待完善 | 本阶段 | 已有活动日历、连续天数、可选目标及账号同步时区；最终全站回归仍待完成，见[说明](2026-11-15-activity-calendar.md)。 |
-| F03 | 未实现 | — | 旧记录无过程采样；缺有界持久化采样及稳定性计算。 |
+| F01 | 待完善 | `e35e0e9`、`7c43938` | 已有更长日期、组合筛选、同条件趋势、分页、覆盖／缺失用时提示及账号时区；最终回归仍待完成，见[说明](2026-11-15-long-term-statistics.md)。 |
+| F02 | 待完善 | `7c43938` | 已有活动日历、连续天数、可选目标及账号同步时区；最终全站回归仍待完成，见[说明](2026-11-15-activity-calendar.md)。 |
+| F03 | 待完善 | 本阶段 | 已有有界过程采样、错误分布、稳定性计算和双设备草稿恢复；真实系统输入法与最终全站回归仍待完成，见[说明](2026-11-15-process-trace.md)。 |
 | F04 | 待完善 | `9cad713` | 已有成绩卡预览、真实 PNG 下载及剪贴板复制，默认隐藏昵称和文章标题；待跨浏览器及最终回归，见 [说明](2026-11-15-share-card.md)。 |
 | G01 | 后置未实施 | — | 快速测试及定量练习不在本次默认实施范围。 |
 | G02 | 后置未实施 | — | 慢词识别不在本次默认实施范围。 |
@@ -184,3 +184,10 @@
 | 长期统计 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；93 个测试文件、477 项通过；构建仍提示客户端包大于 500 kB。 |
 | 长期统计 | `npx playwright test e2e/long-term-stats.e2e.ts e2e/history-delete.e2e.ts` | 6 项通过，含完整分页去重、条件分组、图表跳转、缺失用时和删除后重算。 |
 | 活动日历 | 初次浏览器检查 | 两项因“日历设置”测试定位器匹配到保存按钮而失败；改用精确标签后两项通过。 |
+| 活动日历 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；95 个测试文件、488 项通过；构建仍提示客户端包大于 500 kB。 |
+| 活动日历 | `npx playwright test e2e/activity-calendar.e2e.ts e2e/long-term-stats.e2e.ts e2e/guest-import.e2e.ts` | 6 项通过，包含两设备时区与目标同步、日期边界和导出；单元测试另覆盖夏令时和跨午夜。 |
+| 活动日历 | `docker build -t typing-upgrade-ci:local .`；`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker` | 容器替换和 SQLite 备份恢复后统计时区、目标及既有附件保留。 |
+| 过程采样 | 一次 `npm test` | 发现图中微小的坐标数字与已有成绩数字重复，导致一个恢复测试定位失败；已移除难辨的坐标文字，改在图例中显示可读的最高值。 |
+| 过程采样 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；98 个测试文件、500 项通过；构建仍提示客户端包大于 500 kB。 |
+| 过程采样 | `npx playwright test e2e/process-trace.e2e.ts e2e/recovery.e2e.ts e2e/mistake-training.e2e.ts` | 9 项通过；图例调整后过程采样流程单独重跑通过。包含两设备同步、成绩恢复及个人专项回归。 |
+| 过程采样 | 隔离测试服务实际页面 | 已查看[桌面日间结果](screenshots/process-trace-desktop-light.png)与[手机夜间详情](screenshots/process-trace-mobile-dark.png)。 |

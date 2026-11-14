@@ -1,0 +1,50 @@
+import { expect, test } from './fixtures';
+
+test('keeps observed process samples across two devices and in the saved result', async ({ page, browser, baseURL, clientIp }, testInfo) => {
+  const username = 'trace_member'; const email = `${username}@example.test`; const password = 'trace-password-123';
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  expect((await page.request.post('/api/auth/register', { data: { username, email, password, code } })).ok()).toBe(true);
+  await page.goto('/');
+  await page.getByRole('textbox', { name: '当前行输入' }).fill('我错');
+  await page.waitForTimeout(5200);
+  await page.getByRole('button', { name: '暂停练习' }).click();
+  await expect(page.getByRole('button', { name: '继续练习' })).toBeEnabled();
+  await expect.poll(async () => (await (await page.request.get('/api/workspace')).json()).items.some((item: { kind: string; value?: { typed?: string; processTrace?: { samples: unknown[] } } }) => item.kind === 'draft' && item.value?.typed === '我错' && (item.value.processTrace?.samples.length ?? 0) >= 2), { timeout: 15000 }).toBe(true);
+  const other = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
+  expect((await other.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
+  const reader = await other.newPage(); await reader.goto('/');
+  await reader.getByRole('button', { name: '更多' }).click();
+  await reader.getByRole('button', { name: '草稿箱' }).click();
+  await reader.getByRole('button', { name: '继续《背影》' }).click();
+  await expect(reader.getByRole('button', { name: '继续练习' })).toBeEnabled();
+  await reader.getByRole('button', { name: '继续练习' }).click();
+  await reader.getByRole('textbox', { name: '当前行输入' }).fill('我与父');
+  await reader.waitForTimeout(5200);
+  await reader.getByRole('button', { name: '暂停练习' }).click();
+  await expect(reader.getByRole('button', { name: '继续练习' })).toBeEnabled();
+  await reader.getByRole('button', { name: '结束练习' }).click();
+  await reader.getByRole('dialog').getByRole('button', { name: '结束并查看成绩' }).click();
+  const result = reader.getByRole('dialog', { name: '练习成绩' });
+  await expect(result.getByRole('img', { name: '练习过程速度和错误分布' })).toBeVisible();
+  await result.locator('.process-chart').scrollIntoViewIfNeeded();
+  await reader.screenshot({ path: testInfo.outputPath('process-desktop-light.png') });
+  await expect.poll(async () => {
+    const items = (await (await other.request.get('/api/workspace')).json()).items;
+    return items.some((item: { kind: string; value?: { processTrace?: { samples: Array<{ time: number; errors: number }> } } }) => {
+      const samples = item.value?.processTrace?.samples;
+      return item.kind === 'record' && !!samples && samples.length >= 3 && samples.at(-1)!.errors >= 1 && samples.every((sample, index) => !index || sample.time > samples[index - 1].time);
+    });
+  }, { timeout: 15000 }).toBe(true);
+  await result.getByRole('button', { name: '关闭' }).click();
+  await reader.getByRole('button', { name: '切换至夜间模式' }).click();
+  await reader.setViewportSize({ width: 390, height: 844 });
+  await reader.getByRole('button', { name: '更多' }).click();
+  await reader.getByRole('button', { name: '我的记录', exact: true }).click();
+  await reader.getByRole('button', { name: '《背影》详情' }).first().click();
+  const detail = reader.getByRole('dialog', { name: '练习详情' });
+  await expect(detail.getByRole('img', { name: '练习过程速度和错误分布' })).toBeVisible();
+  await detail.locator('.process-chart').scrollIntoViewIfNeeded();
+  await reader.screenshot({ path: testInfo.outputPath('process-mobile-dark.png') });
+  await other.close();
+});

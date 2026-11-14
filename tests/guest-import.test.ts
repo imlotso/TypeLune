@@ -132,3 +132,15 @@ it('imports the chosen guest statistics time zone and goal as settings', async (
   await importGuestItems('alice', plan, false);
   expect((await readWorkspace('alice'))[0].value).toMatchObject({ statisticsTimezone: 'Asia/Shanghai', dailyGoalMinutes: 25 });
 });
+
+it('retains validated process observations during a guest import', async () => {
+  const processTrace = { version: 1 as const, intervalMs: 5000, missing: false, compacted: false, samples: [{ time: 0, progress: 0, correct: 0, errors: 0 }, { time: 5000, progress: 1, correct: 1, errors: 1 }] };
+  const draft: SavedPractice = { id: 'draft-trace', recordId: 'trace', article, typed: '山', elapsedMs: 5000, backspaces: 0, duration: 300, mode: 'timed', strict: false, offset: 0, offline: true, ownerId: null, savedAt: 5000, processTrace, processErrorEvents: 1 };
+  await putWorkspaceValue(null, 'draft', draft.id, draft);
+  await putWorkspaceValue(null, 'record', 'trace', { recordId: 'trace', language: 'zh', difficulty: 'beginner', duration: 300, speed: 12, accuracy: 100, finishedAt: 5000, processTrace });
+  const plan = await collectGuestImport('alice');
+  await importGuestItems('alice', plan, false);
+  const values = await readWorkspace('alice');
+  expect(values.find((item) => item.kind === 'draft')?.value).toMatchObject({ processTrace, processErrorEvents: 1 });
+  expect(values.find((item) => item.kind === 'record')?.value).toMatchObject({ processTrace });
+});

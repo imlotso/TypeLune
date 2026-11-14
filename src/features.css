@@ -558,3 +558,15 @@
 .activity-records { list-style: none; margin: 6px 0; padding: 0; }
 .activity-records .text-button { max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; text-align: left; overflow-wrap: anywhere; }
 .activity-settings .feature-form { margin-top: 12px; }
+
+.process-chart { margin: 14px 0; padding: 14px; border: 1px solid var(--typing-border); border-radius: 14px; background: var(--typing-row); }
+.process-chart h3 { margin: 0 0 8px; font-size: 15px; }
+.process-chart-heading, .process-chart-legend { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: var(--typing-muted); font-size: 12px; }
+.process-chart-heading strong { color: var(--typing-text); font-size: 15px; }
+.process-chart-plot { display: block; width: 100%; height: auto; margin: 8px 0 2px; }
+.process-axis { stroke: var(--typing-border); stroke-width: 1; }
+.process-speed-line { fill: none; stroke: #8570ca; stroke-width: 2.5; stroke-linejoin: round; }
+.process-speed-point { fill: #8570ca; }
+.process-error-bar { fill: #dc8d9d; opacity: .7; }
+.process-chart details { margin-top: 10px; color: var(--typing-muted); font-size: 12px; }
+.process-chart details p { line-height: 1.6; }
