@@ -140,9 +140,16 @@ test('deletes a matched legacy record with an unknown old status while the works
   await confirm.getByRole('button', { name: '删除' }).click();
   await expect(confirm.getByRole('alert')).toHaveText('记录仍在读取，请稍后重试');
   expect(deletionRequests).toBe(0);
-  await confirm.getByRole('button', { name: '取消' }).click();
+  const readComplete = page.waitForResponse((response) => response.url().endsWith('/api/workspace') && response.ok());
   releaseWorkspace();
   await page.unroute('**/api/workspace');
+  await readComplete;
+  await expect.poll(async () => {
+    await confirm.getByRole('button', { name: '删除' }).click();
+    return confirm.getByRole('alert').innerText();
+  }, { timeout: 20_000 }).toBe('记录已更新，请重新选择后删除');
+  expect(deletionRequests).toBe(0);
+  await confirm.getByRole('button', { name: '取消' }).click();
   await page.getByRole('button', { name: '更多' }).click();
   await page.getByRole('button', { name: '设置', exact: true }).click();
   const settings = page.getByRole('dialog', { name: '练习设置' });

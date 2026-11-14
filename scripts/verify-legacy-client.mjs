@@ -32,6 +32,7 @@ try {
   const failure = await rejected;
   if ((await failure.json()).code !== 'SYNC_CLIENT_UPDATE_REQUIRED') throw new Error('wrong failure code');
   await expect(settings.getByText(/同步版本过旧/)).toBeVisible();
+  await settings.getByText(/同步版本过旧/).scrollIntoViewIfNeeded();
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('cloudtyping.history.v1') || '[]'));
   if (kept.length !== 1 || kept[0].typed !== '山') throw new Error('legacy local record was lost');
   if (process.env.TYPING_LEGACY_SCREENSHOT) await page.screenshot({ path: process.env.TYPING_LEGACY_SCREENSHOT });

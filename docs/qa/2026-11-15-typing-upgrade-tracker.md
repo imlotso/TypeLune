@@ -12,20 +12,20 @@
 | A06 | 待完善 | `4af0e6b`、`226f2a9`、`32a9f48` | 已增加分邮箱、用途冷却和一致的发送错误响应，并移除开发终端验证码日志；真实邮件投递尚待验收。 |
 | A07 | 已实现且通过验收 | `d30b251` | 会话列表、设备撤销、当前设备即时退出和旧会话迁移已通过接口及两设备浏览器检查。 |
 | A08 | 已实现且通过验收 | `8ce5874` | 独立昵称、内置头像、旧账号迁移及榜单当前昵称／提交快照已通过检查。 |
-| A09 | 待完善 | `a926668` | 已有导出入口、密码确认、事务删除、审计匿名化和最后管理员保护；待最终全量回归与旧客户端兼容检查。 |
-| B01 | 待完善 | `d26f532` | 已有页脚、帮助、联系及可维护的政策草案；运营主体、联系邮箱和正式生效日期待提供，稳定路由及后续功能说明待完善。 |
+| A09 | 待完善 | `a926668` | 已有导出入口、密码确认、事务删除、审计匿名化和最后管理员保护；极旧标签页可能在本机清理后再次写入，见 C04。 |
+| B01 | 待完善 | `d26f532`、`55f7eea` | 已有页脚、帮助、联系、独立地址及可维护的政策草案；运营主体、联系邮箱和正式政策版本及生效日期待提供。 |
 | B02 | 已实现且通过验收 | `0705057` | 反馈、截图、游客登录交接、重试去重和访问控制已通过接口、浏览器及容器持久化检查。 |
 | B03 | 已实现且通过验收 | `0705057`、`66f1778` | 筛选、公开回复、内部备注、状态、审计及版本冲突处理已通过接口和浏览器检查。 |
 | B04 | 已实现且通过验收 | `0705057`、`7a4bd23` | 个人列表、详情、状态变化、补充及独立详情地址已通过权限和浏览器检查。 |
 | B05 | 已实现且通过验收 | `0705057` | 公开文章纠错关联文章和快照，后台可定位，私人正文不自动上传；已通过接口和页面检查。 |
 | C01 | 已实现且通过验收 | `bfdaa46` | 同步错误、待处理数量、云端项目数、最近成功时间、部分失败及重试已通过检查。 |
-| C02 | 待完善 | `7cb5379`、`58fcff1`、`575d48a`、`d113ad3` | 已有按类型管理、代次／修订检查和标记整理；经核验的旧记录关联标记不占普通配额，特殊元数据及旧客户端交替回归仍有边界，见[分类管理](2026-11-15-capacity-management.md)、[旧记录](2026-11-15-legacy-workspace-records.md)及[协议](2026-11-15-workspace-protocol.md)。 |
+| C02 | 待完善 | `7cb5379`、`58fcff1`、`575d48a`、`d113ad3`、`01997fa`、`1c1fa87` | 已有按类型管理、代次／修订检查和标记整理；上一版客户端拒绝不安全写入已实测，无法唯一匹配的旧数据及其他旧版本仍有边界，见[分类管理](2026-11-15-capacity-management.md)、[旧记录](2026-11-15-legacy-workspace-records.md)及[协议](2026-11-15-workspace-protocol.md)。 |
 | C03 | 已实现且通过验收 | `e6dac69`、`575d48a`、`2ec14ec` | JSON／CSV、分页、缺失项、冲突副本及认证材料排除已通过接口和两设备浏览器检查，见[说明](2026-11-15-personal-export.md)。 |
-| C04 | 待完善 | `a0eeb01`、`47e1d10`、`575d48a` | 已有账号隔离清理、旧版独立资料检查、本机导出及退出前后并发核对；极旧标签页跨存储的最终竞态与全站回归仍待验收，见[说明](2026-11-15-local-cleanup-safety.md)。 |
+| C04 | 待完善 | `a0eeb01`、`47e1d10`、`575d48a` | 已有账号隔离清理、旧版独立资料检查、本机导出及退出前后并发核对；极旧标签页跨存储的最终竞态仍存在，见[说明](2026-11-15-local-cleanup-safety.md)。 |
 | C05 | 已实现且通过验收 | `9e0e5a8` | 显式导入、冲突保护、个人成绩隔离、重试去重、云端核对和可选清理已通过检查，见[说明](2026-11-15-guest-import.md)。 |
 | D01 | 待完善 | `55f7eea`、`780d58b`、`ff0ca0c`、`7a4bd23`、`bfb2ff5`、`fffd9d5` | 主要页面与详情已有独立地址；支持 Navigation API 的浏览器可保护外部同源历史条目，不支持时仍使用保守回退，见[页面](2026-11-15-main-routes.md)、[文章](2026-11-15-article-routes.md)、[记录](2026-11-15-record-routes.md)、[反馈](2026-11-15-feedback-routes.md)、[账号](2026-11-15-account-route.md)。 |
 | D02 | 已实现且通过验收 | `6cb2ae2` | 前台开关联动、获取失败重试和服务端最终限制已通过浏览器及接口检查；已有在线进度可恢复。 |
-| D03 | 待完善 | `e20806e`、`673152d`、`80c3e2b`、`575d48a`、`d113ad3` | 已有筛选、删除及成绩撤回，旧版无 ID 云／本机记录按唯一内容匹配并保护两个标识；歧义、特殊元数据和总体回归仍待处理，见[筛选](2026-11-15-history-filters.md)、[删除](2026-11-15-history-deletion.md)、[旧记录](2026-11-15-legacy-workspace-records.md)。 |
+| D03 | 待完善 | `e20806e`、`673152d`、`80c3e2b`、`575d48a`、`d113ad3`、`01997fa`、`1c1fa87` | 已有筛选、删除、成绩撤回和旧记录事务修订检查；极少数摘要 ID 再次被占用的边界仍会阻止误删，见[筛选](2026-11-15-history-filters.md)、[删除](2026-11-15-history-deletion.md)、[旧记录](2026-11-15-legacy-workspace-records.md)。 |
 | D04 | 已实现且通过验收 | `da1103e`、`9bf9670` | 结果和历史展示服务端提交、审核、榜单状态及可公开说明；恢复原因和刷新更新已通过检查，见[说明](2026-11-15-score-status.md)。 |
 | D05 | 已实现且通过验收 | `9bf9670` | 历史详情复用本机及账号同步草稿的恢复流程，权限、租约和不可恢复原因已通过检查，见[说明](2026-11-15-history-recovery.md)。 |
 | D06 | 已实现且通过验收 | `a77e3e9` | 未保存修改、TXT 覆盖、保存失败和删除说明已验证，既有草稿快照保留。 |
@@ -216,3 +216,14 @@
 | 最终浏览器回归 | `npm run test:e2e` | 111 项通过；覆盖游客、普通账号、管理员、桌面与手机视口、日夜模式、资料与反馈、同步、历史、练习和分享。SMTP 邮箱为测试服务；真实 Linux 拼音另见[记录](2026-11-15-system-ime.md)。 |
 | 最终容器回归 | `docker build -t typing-upgrade-ci:local .`；`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker` | 容器启动、所有权、暂停恢复、反馈附件、统计设置、旧记录标记、卷替换和 SQLite 备份恢复通过。 |
 | 最新预览 | 隔离本机服务与浏览器 | [桌面日间](screenshots/preview-current-desktop.png)与[手机夜间](screenshots/preview-current-mobile-dark.png)已检查；预览使用临时数据库且未配置真实 SMTP。 |
+| 旧记录冲突与客户端能力 | `npx vitest run tests/history-delete-api.test.ts tests/history-delete-client.test.ts tests/personal-export.test.ts tests/legacy-workspace-records.test.ts` | 36 项通过，覆盖满额、跨账号、伪造标记、普通同前缀 ID、游客和旧版同步拒绝。 |
+| 旧记录冲突与客户端能力 | `npx playwright test e2e/legacy-workspace-records.e2e.ts e2e/history-delete.e2e.ts e2e/workspace-reclamation.e2e.ts e2e/personal-export.e2e.ts` | 9 项通过，包括多设备删除、离线、整理后防复活及本机导出。 |
+| 上一版前端 | `TYPING_LEGACY_TEST_URL=http://127.0.0.1:4210 node scripts/verify-legacy-client.mjs` | 使用 `809de62` 的实际浏览器构建及隔离测试服务，收到 426、显示更新提示且保留本机记录，见[方法](2026-11-15-legacy-workspace-records.md)和[截图](screenshots/legacy-client-sync-warning.png)。 |
+| 冲突修复后全量回归 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；104 个测试文件、538 项单元测试，Sites 4 项通过。构建保留客户端包大于 500 kB 的提示。 |
+| 冲突修复后浏览器回归 | `npm run test:e2e` | 112 项通过；真实 Linux Fcitx5 拼音另行实测通过，其他系统输入法未实测。 |
+| 冲突修复后容器回归 | `docker build -t typing-upgrade-ci:local .`；`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker` | 最新镜像构建和容器、持久卷、SQLite 备份恢复通过。此前一次构建期间因 `/var` 临时空间不足导致 SQLite `SQLITE_FULL`；隔离卷探针与后续重试通过，未清理其他项目容器或数据。 |
+| 满额旧状态 | `npx vitest run tests/history-delete-api.test.ts tests/history-delete-client.test.ts tests/legacy-workspace-records.test.ts tests/personal-export.test.ts` | 39 项通过，覆盖旧状态、事务修订、并发占用和幂等重试。 |
+| 满额旧状态 | `npx playwright test e2e/legacy-workspace-records.e2e.ts e2e/history-delete.e2e.ts` | 7 项通过，包含 2,000 项满额、未读取时拒绝删除、两设备传播和整理后恢复新增。首次针对新用例运行时发现云端未读取完即删除导致容量错误；已修复并复测。另一次测试因启动前未重新构建而主动中断。 |
+| 最新自动化回归 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 通过；104 个测试文件、541 项单元测试及 Sites 4 项通过。构建仍提示客户端包大于 500 kB。 |
+| 最新浏览器回归 | `npm run test:e2e -- --output /tmp/typing-full-e2e-final-1c1fa` | 113 项通过。此前一次全量运行时并行的定向测试清理了共用的 Playwright 临时目录，导致 1 项在关闭浏览器时出现跟踪文件 `ENOENT`；已中断该轮并隔离输出后全量重跑。 |
+| 最新容器与系统输入法 | `docker build -t typing-upgrade-ci:local .`；`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker`；`TYPING_XVFB_BINARY=<临时解包的 Xvfb> scripts/verify-system-ime.sh` | 容器持久卷和备份恢复通过；Linux Fcitx5 真实拼音组合、计时、采样、跨行退格及暂停恢复通过。Windows、macOS 和手机系统输入法未实测。 |
