@@ -1,7 +1,8 @@
-import { defaultSettings, sameDraftSnapshot, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models';
+import { defaultPace, defaultSettings, sameDraftSnapshot, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models';
 import { themeStorageKey } from './theme';
 import { isBackgroundConfig } from './background';
 import { isPresetList } from './practice-settings';
+import { isPaceSettings } from './pace';
 
 const databaseName = 'cloudtyping-workspace';
 const itemStore = 'items';
@@ -92,6 +93,7 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
   if (deleted) return true;
   if (!isObject(payload)) return false;
   if ((kind === 'draft' || kind === 'record') && payload.mistakesTruncated !== undefined && typeof payload.mistakesTruncated !== 'boolean') return false;
+  if ((kind === 'draft' || kind === 'record') && payload.paceTarget !== undefined && (typeof payload.paceTarget !== 'number' || !Number.isFinite(payload.paceTarget) || payload.paceTarget <= 0 || payload.paceTarget > 18_000_000)) return false;
   switch (kind) {
     case 'background': return isBackgroundConfig(payload);
     case 'favorite': return payload.articleId === id;
@@ -109,6 +111,7 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
       [payload.fontSize, payload.lineHeight, payload.visibleLines].every(isNumber) &&
       ['showTimer', 'showSpeed', 'showAccuracy'].every((key) => payload[key] === undefined || typeof payload[key] === 'boolean') &&
       (payload.presets === undefined || isPresetList(payload.presets)) &&
+      (payload.pace === undefined || isPaceSettings(payload.pace)) &&
       (payload.mistakeStates === undefined || (isObject(payload.mistakeStates) && Object.keys(payload.mistakeStates).length <= 2000 &&
         Object.entries(payload.mistakeStates).every(([key, state]) => key.length > 0 && key.length <= 512 && (state === 'mastered' || state === 'ignored'))));
     default: return false;
@@ -123,7 +126,7 @@ function comparable(value: unknown): unknown {
 export function sameWorkspaceValue(kind: WorkspaceKind, a: unknown, b: unknown) {
   const normalize = (value: unknown) => kind === 'settings' && isObject(value) ? { ...value,
     showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false, showAccuracy: value.showAccuracy !== false,
-    mistakeStates: value.mistakeStates ?? {}, presets: value.presets ?? [] } : value;
+    mistakeStates: value.mistakeStates ?? {}, presets: value.presets ?? [], pace: value.pace ?? defaultPace } : value;
   return JSON.stringify(comparable(normalize(a))) === JSON.stringify(comparable(normalize(b)));
 }
 function samePayload(a: WorkspaceItem, b: WorkspaceItem) {

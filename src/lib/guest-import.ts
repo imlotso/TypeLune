@@ -26,6 +26,7 @@ function cleanDraft(value: SavedPractice, ownerId: string): SavedPractice {
     offline: true, personalOnly: true, ownerId, savedAt: value.savedAt,
     ...(value.mistakes && { mistakes: value.mistakes.map(({ position, expected, actual }) => ({ position, expected, actual })) }),
     ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }),
+    ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }),
     ...(value.suspicious !== undefined && { suspicious: value.suspicious }) };
 }
 function stableRecordId(value: PracticeRecord) {
@@ -42,13 +43,14 @@ function cleanRecord(value: PracticeRecord, ownerId: string, recordId: string): 
     ...(value.offset !== undefined && { offset: value.offset }), ...(value.total !== undefined && { total: value.total }), ...(value.correct !== undefined && { correct: value.correct }),
     ...(value.articleTotal !== undefined && { articleTotal: value.articleTotal }), ...(value.mode !== undefined && { mode: value.mode }), ...(value.strict !== undefined && { strict: value.strict }),
     ...(value.mistakes && { mistakes: value.mistakes.map(({ position, expected, actual }) => ({ position, expected, actual })) }),
-    ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }) };
+    ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }), ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }) };
 }
 function cleanSettings(value: ReaderSettings): ReaderSettings {
   const { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme } = value;
   return { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme,
     showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false, showAccuracy: value.showAccuracy !== false,
-    ...(value.mistakeStates && { mistakeStates: value.mistakeStates }), ...(value.presets && { presets: value.presets.map(cleanPracticePreset) }) };
+    ...(value.mistakeStates && { mistakeStates: value.mistakeStates }), ...(value.presets && { presets: value.presets.map(cleanPracticePreset) }),
+    ...(value.pace && { pace: { enabled: value.pace.enabled, source: value.pace.source, customSpeed: value.pace.customSpeed } }) };
 }
 
 function guestLegacyData() {

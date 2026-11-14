@@ -33,3 +33,21 @@ it('validates version, fields, ranges and duplicate preset IDs before applying a
   expect(() => parsePracticeSettings(JSON.stringify({ ...valid, presets: [{ ...preset, text: 'private content' }] }))).toThrow();
   expect(preset.reading).toBeUndefined();
 });
+
+it('reads older version 1 files without a pace field as disabled pace', () => {
+  const preset = makePracticePreset('p1', '旧预设', defaultSettings, 'zh', 'beginner', false);
+  const old = JSON.parse(exportPracticeSettings({ ...defaultSettings, presets: [preset] }, 'zh', 'beginner'));
+  delete old.settings.pace; delete old.presets[0].pace;
+  const parsed = parsePracticeSettings(JSON.stringify(old));
+  expect(parsed.settings.pace.enabled).toBe(false);
+  expect(parsed.presets[0].pace?.enabled).toBe(false);
+});
+
+it('round-trips pace settings in both the current configuration and named presets', () => {
+  const pace = { enabled: true, source: 'best' as const, customSpeed: 80 };
+  const settings = { ...defaultSettings, pace };
+  const preset = makePracticePreset('p1', '配速', settings, 'en', 'intermediate', true);
+  const parsed = parsePracticeSettings(exportPracticeSettings({ ...settings, presets: [preset] }, 'en', 'intermediate'));
+  expect(parsed.settings.pace).toEqual(pace);
+  expect(parsed.presets[0].pace).toEqual(pace);
+});

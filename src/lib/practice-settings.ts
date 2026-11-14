@@ -1,7 +1,8 @@
 import type { Difficulty, Language } from '../data/articles';
-import type { PracticeMode, PracticePreset, PresetReading, ReaderSettings } from './models';
+import { defaultPace, type PaceSettings, type PracticeMode, type PracticePreset, type PresetReading, type ReaderSettings } from './models';
+import { isPaceSettings } from './pace';
 
-export type PortablePracticeSettings = { language: Language; difficulty: Difficulty; mode: PracticeMode; minutes: number; strict: boolean; autoPause: boolean } & PresetReading;
+export type PortablePracticeSettings = { language: Language; difficulty: Difficulty; mode: PracticeMode; minutes: number; strict: boolean; autoPause: boolean; pace: PaceSettings } & PresetReading;
 export type PracticeSettingsFile = { format: 'typing-practice-settings'; version: 1; exportedAt: string; settings: PortablePracticeSettings; presets: PracticePreset[] };
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const keysOnly = (value: Record<string, unknown>, keys: string[]) => Object.keys(value).every((key) => keys.includes(key));
@@ -17,11 +18,11 @@ function isReading(value: unknown, exact: boolean): value is PresetReading {
     ['showTimer', 'showSpeed', 'showAccuracy'].every((key) => typeof value[key] === 'boolean');
 }
 export function isPracticePreset(value: unknown, exact = false): value is PracticePreset {
-  if (!isObject(value) || (exact && !keysOnly(value, ['id', 'name', 'language', 'difficulty', 'mode', 'minutes', 'strict', 'autoPause', 'reading']))) return false;
+  if (!isObject(value) || (exact && !keysOnly(value, ['id', 'name', 'language', 'difficulty', 'mode', 'minutes', 'strict', 'autoPause', 'pace', 'reading']))) return false;
   return typeof value.id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(value.id) && typeof value.name === 'string' &&
     value.name.trim().length > 0 && value.name.length <= 60 && !/[\p{Cc}\p{Cf}]/u.test(value.name) && language(value.language) && difficulty(value.difficulty) &&
     mode(value.mode) && minutes(value.minutes) && typeof value.strict === 'boolean' && typeof value.autoPause === 'boolean' &&
-    (value.reading === undefined || isReading(value.reading, exact));
+    (value.pace === undefined || isPaceSettings(value.pace)) && (value.reading === undefined || isReading(value.reading, exact));
 }
 export function isPresetList(value: unknown, exact = false): value is PracticePreset[] {
   return Array.isArray(value) && value.length <= 50 && value.every((preset) => isPracticePreset(preset, exact)) && new Set(value.map((preset) => preset.id)).size === value.length;
@@ -32,13 +33,14 @@ function reading(settings: ReaderSettings): PresetReading {
 }
 export function makePracticePreset(id: string, name: string, settings: ReaderSettings, selectedLanguage: Language, selectedDifficulty: Difficulty, includeReading: boolean): PracticePreset {
   const preset: PracticePreset = { id, name: name.trim(), language: selectedLanguage, difficulty: selectedDifficulty, mode: settings.mode, minutes: settings.minutes,
-    strict: settings.strict, autoPause: settings.autoPause, ...(includeReading && { reading: reading(settings) }) };
+    strict: settings.strict, autoPause: settings.autoPause, pace: { ...(settings.pace ?? defaultPace) }, ...(includeReading && { reading: reading(settings) }) };
   if (!isPracticePreset(preset, true)) throw new Error('预设名称或设置无效');
   return preset;
 }
 export function cleanPracticePreset(value: PracticePreset): PracticePreset {
   const { id, name, language: selectedLanguage, difficulty: selectedDifficulty, mode: selectedMode, minutes: selectedMinutes, strict, autoPause } = value;
   return { id, name, language: selectedLanguage, difficulty: selectedDifficulty, mode: selectedMode, minutes: selectedMinutes, strict, autoPause,
+    ...(value.pace && { pace: { enabled: value.pace.enabled, source: value.pace.source, customSpeed: value.pace.customSpeed } }),
     ...(value.reading && { reading: { fontSize: value.reading.fontSize, lineHeight: value.reading.lineHeight, visibleLines: value.reading.visibleLines,
       showTimer: value.reading.showTimer, showSpeed: value.reading.showSpeed, showAccuracy: value.reading.showAccuracy } }) };
 }
@@ -58,7 +60,7 @@ export function applyPresetAction(presets: PracticePreset[], action: PresetActio
 export function exportPracticeSettings(settings: ReaderSettings, selectedLanguage: Language, selectedDifficulty: Difficulty): string {
   const presets = (settings.presets ?? []).map(cleanPracticePreset);
   const value: PracticeSettingsFile = { format: 'typing-practice-settings', version: 1, exportedAt: new Date().toISOString(),
-    settings: { language: selectedLanguage, difficulty: selectedDifficulty, mode: settings.mode, minutes: settings.minutes, strict: settings.strict, autoPause: settings.autoPause, ...reading(settings) }, presets };
+    settings: { language: selectedLanguage, difficulty: selectedDifficulty, mode: settings.mode, minutes: settings.minutes, strict: settings.strict, autoPause: settings.autoPause, pace: { ...(settings.pace ?? defaultPace) }, ...reading(settings) }, presets };
   const text = JSON.stringify(value, null, 2);
   parsePracticeSettings(text);
   return text;
@@ -71,9 +73,11 @@ export function parsePracticeSettings(text: string): PracticeSettingsFile {
   const readingValue = settings ? Object.fromEntries(readingKeys.map((key) => [key, settings[key]])) : undefined;
   if (!isObject(value) || !keysOnly(value, ['format', 'version', 'exportedAt', 'settings', 'presets']) || value.format !== 'typing-practice-settings' || value.version !== 1 ||
     typeof value.exportedAt !== 'string' || !Number.isFinite(Date.parse(value.exportedAt)) || !settings ||
-    !keysOnly(settings, ['language', 'difficulty', 'mode', 'minutes', 'strict', 'autoPause', ...readingKeys]) ||
+    !keysOnly(settings, ['language', 'difficulty', 'mode', 'minutes', 'strict', 'autoPause', 'pace', ...readingKeys]) ||
     !language(settings.language) || !difficulty(settings.difficulty) || !mode(settings.mode) || !minutes(settings.minutes) ||
-    typeof settings.strict !== 'boolean' || typeof settings.autoPause !== 'boolean' || !isReading(readingValue, true) ||
+    typeof settings.strict !== 'boolean' || typeof settings.autoPause !== 'boolean' || (settings.pace !== undefined && !isPaceSettings(settings.pace)) || !isReading(readingValue, true) ||
     !isPresetList(value.presets, true)) throw new Error('设置文件版本或内容无效');
-  return value as PracticeSettingsFile;
+  const parsed = value as unknown as PracticeSettingsFile;
+  return { ...parsed, settings: { ...parsed.settings, pace: { ...(parsed.settings.pace ?? defaultPace) } },
+    presets: parsed.presets.map((preset) => ({ ...preset, pace: { ...(preset.pace ?? defaultPace) } })) };
 }

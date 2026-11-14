@@ -4,8 +4,8 @@ export type PersonalComparison = { previousBest: number | null; personalBest: nu
   sampleCount: number; averageSpeed: number | null; speedDifference: number | null; averageAccuracy: number | null; accuracyDifference: number | null };
 const round = (value: number) => Math.sign(value) * Math.round((Math.abs(value) + 1e-9) * 100) / 100;
 
-export function comparePersonalBest(current: PracticeRecord, history: PracticeRecord[]): PersonalComparison | null {
-  if (!current.recordId || !current.article || !Number.isFinite(current.speed) || !Number.isFinite(current.accuracy)) return null;
+export function matchingPracticeHistory(current: PracticeRecord, history: PracticeRecord[]): PracticeRecord[] {
+  if (!current.recordId || !current.article) return [];
   const mode = current.mode ?? 'timed';
   const matching = history.filter((record) => record.recordId !== current.recordId && record.language === current.language && record.difficulty === current.difficulty &&
     (record.mode ?? 'timed') === mode && (mode === 'article' || record.duration === current.duration) && !!record.strict === !!current.strict &&
@@ -16,7 +16,12 @@ export function comparePersonalBest(current: PracticeRecord, history: PracticeRe
     const id = record.recordId ?? `${record.finishedAt}:${record.language}:${record.duration}:${record.speed}:${record.accuracy}`;
     if (!unique.has(id)) unique.set(id, record);
   }
-  const all = [...unique.values()].sort((a, b) => b.finishedAt - a.finishedAt || (b.recordId ?? '').localeCompare(a.recordId ?? ''));
+  return [...unique.values()].sort((a, b) => b.finishedAt - a.finishedAt || (b.recordId ?? '').localeCompare(a.recordId ?? ''));
+}
+
+export function comparePersonalBest(current: PracticeRecord, history: PracticeRecord[]): PersonalComparison | null {
+  if (!current.recordId || !current.article || !Number.isFinite(current.speed) || !Number.isFinite(current.accuracy)) return null;
+  const all = matchingPracticeHistory(current, history);
   const previousBest = all.length ? all.reduce((best, record) => Math.max(best, record.speed), 0) : null;
   const recent = all.slice(0, 10);
   const rawSpeed = recent.length ? recent.reduce((sum, record) => sum + record.speed, 0) / recent.length : null;

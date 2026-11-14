@@ -5,6 +5,7 @@ import { exportPracticeSettings, parsePracticeSettings, type PracticeSettingsFil
 import { Dialog } from './Dialog';
 
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
+const paceName = (pace: PracticeSettingsFile['settings']['pace'], language: Language) => !pace.enabled ? '关' : pace.source === 'custom' ? `${pace.customSpeed} ${language === 'zh' ? '字/分' : 'WPM'}` : pace.source === 'last' ? '上次成绩' : '个人最佳';
 
 export function SettingsTransferDialog({ settings, language, difficulty, onImport, onClose }: { settings: ReaderSettings; language: Language; difficulty: Difficulty;
   onImport: (file: PracticeSettingsFile) => Promise<void>; onClose: () => void }) {
@@ -53,8 +54,9 @@ export function SettingsTransferDialog({ settings, language, difficulty, onImpor
         <p>{file.settings.language === 'zh' ? '中文' : 'English'} · {difficultyNames[file.settings.difficulty]} · {file.settings.mode === 'article' ? `整篇 · 限时默认 ${file.settings.minutes} 分钟` : `限时 ${file.settings.minutes} 分钟`}{file.settings.strict ? ' · 严格纠错' : ''}</p>
         <p>自动暂停：{file.settings.autoPause ? '开' : '关'} · 字号 {file.settings.fontSize} · 行距 {file.settings.lineHeight} · 可见 {file.settings.visibleLines} 行</p>
         <p>实时指标：计时{file.settings.showTimer ? '开' : '关'}、速度{file.settings.showSpeed ? '开' : '关'}、准确率{file.settings.showAccuracy ? '开' : '关'}</p>
+        <p>配速：{paceName(file.settings.pace, file.settings.language)}</p>
         <p>预设：{file.presets.length} 项</p>
-        {!!file.presets.length && <ul>{file.presets.map((preset) => <li key={preset.id}>{preset.name} · {preset.language === 'zh' ? '中文' : 'English'} · {difficultyNames[preset.difficulty]} · {preset.mode === 'article' ? `整篇 · 限时默认 ${preset.minutes} 分钟` : `${preset.minutes} 分钟`} · {preset.strict ? '严格纠错' : '非严格'} · 自动暂停{preset.autoPause ? '开' : '关'}{preset.reading && ` · 字号 ${preset.reading.fontSize} · 行距 ${preset.reading.lineHeight} · ${preset.reading.visibleLines} 行 · 计时${preset.reading.showTimer ? '开' : '关'}、速度${preset.reading.showSpeed ? '开' : '关'}、准确率${preset.reading.showAccuracy ? '开' : '关'}`}</li>)}</ul>}
+        {!!file.presets.length && <ul>{file.presets.map((preset) => <li key={preset.id}>{preset.name} · {preset.language === 'zh' ? '中文' : 'English'} · {difficultyNames[preset.difficulty]} · {preset.mode === 'article' ? `整篇 · 限时默认 ${preset.minutes} 分钟` : `${preset.minutes} 分钟`} · {preset.strict ? '严格纠错' : '非严格'} · 自动暂停{preset.autoPause ? '开' : '关'}{preset.pace && ` · 配速 ${paceName(preset.pace, preset.language)}`}{preset.reading && ` · 字号 ${preset.reading.fontSize} · 行距 ${preset.reading.lineHeight} · ${preset.reading.visibleLines} 行 · 计时${preset.reading.showTimer ? '开' : '关'}、速度${preset.reading.showSpeed ? '开' : '关'}、准确率${preset.reading.showAccuracy ? '开' : '关'}`}</li>)}</ul>}
         <p className="form-error">导入将替换当前练习设置和预设；未完成练习会保存为草稿。</p>
         <button type="button" className="primary-button" disabled={busy} onClick={() => void apply()}>确认导入</button>
       </div>}

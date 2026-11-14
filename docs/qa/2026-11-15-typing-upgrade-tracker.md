@@ -31,12 +31,12 @@
 | D06 | 待完善 | `a77e3e9` | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
 | E01 | 待完善 | `3608105` | 已有条件分组、个人最佳、最近 10 次比较、服务端历史分页及不完整范围提示；记录删除后的重算待 D03 完成，见 [口径](2026-11-15-personal-best.md)。 |
 | E02 | 待完善 | `7b9bd92` | 已有本轮复练、重复次数、状态和筛选、跨设备同步及截断提示；待最终整体回归，见 [说明](2026-11-15-mistake-training.md)。 |
-| E03 | 待完善 | 本阶段 | 已有创建、应用、更新、重命名、删除和账号同步；进行中切换保留草稿，待最终整体回归，见 [说明](2026-11-15-presets-settings-transfer.md)。 |
-| E04 | 未实现 | — | 缺目标配速。 |
+| E03 | 待完善 | `d130c2e` | 已有创建、应用、更新、重命名、删除和账号同步；进行中切换保留草稿，待最终整体回归，见 [说明](2026-11-15-presets-settings-transfer.md)。 |
+| E04 | 待完善 | 本阶段 | 已有自定义／上次／最佳目标、有效时间比较和草稿持久化；待最终整体回归，见 [口径](2026-11-15-target-pace.md)。 |
 | E05 | 待完善 | — | 有 Escape 暂停；缺命令面板和可配置快捷键。 |
 | E06 | 待完善 | `1026bb0` | 计时、速度和准确率已可独立隐藏并同步；结果及专注模式回归通过，待最终整体验收，见 [说明](2026-11-15-live-indicators.md)。 |
 | E07 | 待完善 | — | 已有错字专项，缺独立数字、标点与词组素材。 |
-| E08 | 待完善 | 本阶段 | 已有独立版本化设置文件、严格校验、预览及确认导入；待与后续新增设置整体回归，见 [说明](2026-11-15-presets-settings-transfer.md)。 |
+| E08 | 待完善 | `d130c2e` | 已有独立版本化设置文件、严格校验、预览及确认导入；待与后续新增设置整体回归，见 [说明](2026-11-15-presets-settings-transfer.md)。 |
 | F01 | 待完善 | — | 已有 7/30 天概览；缺完整趋势、组合筛选及覆盖范围。 |
 | F02 | 未实现 | — | 缺活动日历、连续天数、目标及账号统计时区。 |
 | F03 | 未实现 | — | 旧记录无过程采样；缺有界持久化采样及稳定性计算。 |
@@ -130,3 +130,8 @@
 | 预设与设置导入 | 隔离测试服务实际页面 | 已查看[手机预设](screenshots/presets-mobile-light.png)及[桌面夜间设置预览](screenshots/settings-import-desktop-dark.png)。 |
 | 预设与设置导入 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 通过；69 个测试文件、415 项通过。 |
 | 阶段回归 | `npm run test:e2e`；`npx playwright test e2e/personal-best.e2e.ts e2e/presets-settings.e2e.ts` | 完整套件 49 项通过；随后收紧个人最佳不完整范围提示，相关 5 项定向浏览器流程通过。 |
+| 目标配速 | `npx vitest run tests/pace.test.ts tests/pace-practice.test.tsx tests/pace-settings-ui.test.tsx tests/practice-settings-transfer.test.ts tests/workspace-reclamation.test.ts tests/guest-import.test.ts` | 定向测试通过：中英文换算、来源分组、暂停／恢复及旧客户端兼容。 |
+| 目标配速 | `npx playwright test e2e/pace.e2e.ts e2e/presets-settings.e2e.ts` | 6 项通过：暂停冻结、下轮应用、账号同步、上次成绩、无目标继续练习及预设／草稿回归。 |
+| 目标配速 | 隔离测试服务实际页面 | 已查看[手机配速提示](screenshots/pace-mobile-light.png)及[桌面夜间配速设置](screenshots/pace-settings-desktop-dark.png)。 |
+| 目标配速 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；72 个测试文件、423 项通过。 |
+| 目标配速 | `docker build -t typing-upgrade-ci:local .`；`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker` | 容器启动、练习恢复、反馈附件、卷替换及备份恢复通过；脚本未单独验证配速字段。 |

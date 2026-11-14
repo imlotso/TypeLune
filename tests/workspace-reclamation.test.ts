@@ -74,17 +74,24 @@ describe('workspace deletion and reclamation protocol', () => {
 
   it('preserves synchronized mistake states when an older client saves unrelated settings', async () => {
     const settings = { minutes: 5, mode: 'timed', strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light' };
-    const presets = [{ id: 'preset-one', name: '夜读', language: 'zh', difficulty: 'intermediate', mode: 'article', minutes: 5, strict: true, autoPause: true }];
+    const pace = { enabled: true, source: 'custom', customSpeed: 80 };
+    const presets = [{ id: 'preset-one', name: '夜读', language: 'zh', difficulty: 'intermediate', mode: 'article', minutes: 5, strict: true, autoPause: true, pace }];
     const created = await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now, baseRevision: 0,
-      value: { ...settings, mistakeStates: { 'zh:风': 'mastered' }, showSpeed: false, showAccuracy: false, showTimer: true, presets } }]);
+      value: { ...settings, mistakeStates: { 'zh:风': 'mastered' }, showSpeed: false, showAccuracy: false, showTimer: true, presets, pace } }]);
     expect(created.statusCode).toBe(200);
     const revision = created.json().items[0].serverRevision;
     expect((await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now + 1, baseRevision: revision, value: { ...settings, mistakeStates: { 'zh:风': 'invalid' } } }])).statusCode).toBe(400);
     expect((await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now + 1, baseRevision: revision, value: { ...settings, presets: [{ ...presets[0], text: 'private text' }] } }])).statusCode).toBe(400);
     expect((await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now + 1, baseRevision: revision, value: { ...settings, presets: [presets[0], presets[0]] } }])).statusCode).toBe(400);
+    expect((await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now + 1, baseRevision: revision, value: { ...settings, pace: { ...pace, customSpeed: 0 } } }])).statusCode).toBe(400);
     const oldClient = await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: ++now, baseRevision: revision, value: { ...settings, minutes: 10 } }]);
     expect(oldClient.statusCode).toBe(200);
-    expect(oldClient.json().items[0].value).toMatchObject({ minutes: 10, mistakeStates: { 'zh:风': 'mastered' }, showSpeed: false, showAccuracy: false, showTimer: true, presets });
+    expect(oldClient.json().items[0].value).toMatchObject({ minutes: 10, mistakeStates: { 'zh:风': 'mastered' }, showSpeed: false, showAccuracy: false, showTimer: true, presets, pace });
+    const { pace: _pace, ...oldPreset } = presets[0];
+    const renamed = await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: ++now, baseRevision: oldClient.json().items[0].serverRevision,
+      value: { ...settings, presets: [{ ...oldPreset, name: '晨读' }] } }]);
+    expect(renamed.statusCode).toBe(200);
+    expect(renamed.json().items[0].value).toMatchObject({ pace, presets: [{ name: '晨读', pace }] });
   });
 
   it('retains sample truncation through older-client draft and record updates', async () => {
@@ -92,8 +99,8 @@ describe('workspace deletion and reclamation protocol', () => {
     const draft = { id: 'draft', recordId: 'round', article, typed: '山', elapsedMs: 1000, backspaces: 0, duration: 300, mode: 'timed', strict: false, offset: 0, offline: true, savedAt: now };
     const record = { recordId: 'round', language: 'zh', difficulty: 'beginner', duration: 300, speed: 10, accuracy: 90, finishedAt: now };
     const created = await sync(1, [
-      { kind: 'draft', id: draft.id, updatedAt: now, baseRevision: 0, value: { ...draft, mistakesTruncated: true } },
-      { kind: 'record', id: record.recordId, updatedAt: now, baseRevision: 0, value: { ...record, mistakesTruncated: true } },
+      { kind: 'draft', id: draft.id, updatedAt: now, baseRevision: 0, value: { ...draft, mistakesTruncated: true, paceTarget: 60 } },
+      { kind: 'record', id: record.recordId, updatedAt: now, baseRevision: 0, value: { ...record, mistakesTruncated: true, paceTarget: 60 } },
     ]);
     expect(created.statusCode).toBe(200);
     const revisions = new Map(created.json().items.map((entry: { id: string; serverRevision: number }) => [entry.id, entry.serverRevision]));
@@ -102,6 +109,6 @@ describe('workspace deletion and reclamation protocol', () => {
       { kind: 'record', id: record.recordId, updatedAt: now + 1, baseRevision: revisions.get(record.recordId), value: { ...record, speed: 11 } },
     ]);
     expect(updated.statusCode).toBe(200);
-    expect(updated.json().items.every((entry: { value: { mistakesTruncated?: boolean } }) => entry.value.mistakesTruncated === true)).toBe(true);
+    expect(updated.json().items.every((entry: { value: { mistakesTruncated?: boolean; paceTarget?: number } }) => entry.value.mistakesTruncated === true && entry.value.paceTarget === 60)).toBe(true);
   });
 });

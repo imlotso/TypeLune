@@ -52,6 +52,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .status-row > span:last-child { border-right: 0; padding-right: 0; margin-right: 0; }
 .progress-row { display: flex; flex-wrap: wrap; gap: 8px 24px; color: #6a6389; font-size: 14px; margin: 0 0 16px; }
 .progress-row b, .status-row b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.pace-indicator { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 12px; color: var(--typing-text); font-size: 13px; }
 .typing-panel { padding: 18px 20px 12px; background: rgba(255,255,255,.92); border: 1px solid #d5cbef; border-radius: 19px; box-shadow: 0 4px 18px rgba(83, 69, 129, .035); }
 .char-correct { color: #326a52; background: #dff5e6; }
 .char-wrong { color: #ad4052; background: #ffdee3; text-decoration: underline; }

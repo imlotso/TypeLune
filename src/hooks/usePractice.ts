@@ -9,6 +9,7 @@ export type PracticePhase = 'ready' | 'starting' | 'running' | 'pausing' | 'paus
 type RoundConfig = { articleId: string; title: string; text: string; language: Language; difficulty: Difficulty; duration: number; custom: boolean; ownerId: string | null; article?: ArticleSnapshot; mode?: PracticeMode; strict?: boolean };
 export type PracticeConfig = RoundConfig & {
   guestOnlineAllowed?: boolean;
+  paceTarget?: number;
   guardCatalog?: boolean;
   onCatalogStale?: () => void;
   autoPause?: boolean;
@@ -24,7 +25,7 @@ export type PracticeResult = { score: Score; recordId?: string; record?: Practic
 type Attempt = RoundConfig & {
   id?: string; recordId: string; revision: number; legacy?: boolean; target: string;
   offline: boolean; elapsedMs: number; startedAt: number | null; suspicious: boolean;
-  backspaces: number; nextCheckpointMs: number; offset?: number; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; pendingStart?: boolean;
+  backspaces: number; nextCheckpointMs: number; offset?: number; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; paceTarget?: number; pendingStart?: boolean;
   recoveryId?: string; recoveryKey?: string; claimId?: string; claimVersion?: number; recoveryRequestId?: string; recoveryMarker?: string; progressVersion?: number; recoveryBaseVersion?: number; progressFingerprint?: string; personalOnly?: boolean;
 };
 export type PracticeDraft = Omit<Attempt, 'startedAt' | 'nextCheckpointMs'> & { version: 1; typed: string; completed?: boolean; early?: boolean; savedAt?: number; leaseOwner?: string | null; leaseAt?: number; localSyncGeneration?: number };
@@ -59,6 +60,7 @@ function clientRecoveryKey() {
 const leaseTaken = (draft: PracticeDraft, owner: string) => !!draft.leaseOwner && draft.leaseOwner !== owner && typeof draft.leaseAt === 'number' && Date.now() - draft.leaseAt < 15_000;
 export const draftAwaitingStart = (draft: PracticeDraft) => !!draft.pendingStart && leaseTaken(draft, '');
 const validDuration = (seconds: number) => Number.isInteger(seconds) && seconds >= 60 && seconds <= 3600 && seconds % 60 === 0;
+const validPaceTarget = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 18_000_000;
 const durationLimit = (round: Pick<RoundConfig, 'mode' | 'duration'>) => round.mode === 'article' ? articleLimitMs : round.duration * 1000;
 const validAttemptId = (id: string) => /^[\w-]{1,80}$/.test(id);
 const guestPracticeDisabledMessage = '游客在线练习已关闭，已转为本地练习。';
@@ -132,7 +134,7 @@ export function readDrafts(ownerId?: string | null): PracticeDraft[] {
     let legacy: PracticeDraft | null = null;
     try { legacy = JSON.parse(localStorage.getItem(legacyDraftKey) || 'null') as PracticeDraft | null; } catch { /* Other saved attempts can still be recovered. */ }
     if (legacy) candidates.push({ ...legacy, legacy: true });
-    const valid = candidates.filter((data) => (ownerId === undefined || (data.ownerId ?? null) === ownerId) && data.version === 1 && ['zh', 'en'].includes(data.language) && ['beginner', 'intermediate', 'advanced'].includes(data.difficulty) && validDuration(data.duration) && typeof data.target === 'string' && !!data.target && data.target.length <= 30000 && typeof data.typed === 'string' && splitCharacters(data.typed).length <= splitCharacters(data.target).length && typeof data.articleId === 'string' && typeof data.title === 'string' && Number.isFinite(data.elapsedMs) && data.elapsedMs >= 0 && data.elapsedMs <= durationLimit(data) && Number.isInteger(data.backspaces) && data.backspaces >= 0 && (data.id === undefined || (typeof data.id === 'string' && validAttemptId(data.id))));
+    const valid = candidates.filter((data) => (ownerId === undefined || (data.ownerId ?? null) === ownerId) && data.version === 1 && ['zh', 'en'].includes(data.language) && ['beginner', 'intermediate', 'advanced'].includes(data.difficulty) && validDuration(data.duration) && typeof data.target === 'string' && !!data.target && data.target.length <= 30000 && typeof data.typed === 'string' && splitCharacters(data.typed).length <= splitCharacters(data.target).length && typeof data.articleId === 'string' && typeof data.title === 'string' && Number.isFinite(data.elapsedMs) && data.elapsedMs >= 0 && data.elapsedMs <= durationLimit(data) && Number.isInteger(data.backspaces) && data.backspaces >= 0 && (data.paceTarget === undefined || validPaceTarget(data.paceTarget)) && (data.id === undefined || (typeof data.id === 'string' && validAttemptId(data.id))));
     return valid.sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0)).map((data) => {
       data.recordId = legacyRecordId(data);
       if (!Number.isSafeInteger(data.revision) || data.revision < 0) data.revision = 0;
@@ -202,8 +204,8 @@ export function discardSavedDraft(saved: SavedPractice): boolean {
 function elapsedTime(attempt: Attempt) {
   return Math.min(durationLimit(attempt), attempt.elapsedMs + (attempt.startedAt === null ? 0 : Math.max(0, performance.now() - attempt.startedAt)));
 }
-function progressFingerprint(attempt: Pick<Attempt, 'backspaces' | 'offset' | 'suspicious' | 'mistakes' | 'mistakesTruncated'>, typed: string, elapsed: number) {
-  return JSON.stringify([typed, elapsed, attempt.backspaces, attempt.offset ?? 0, !!attempt.suspicious, attempt.mistakes ?? [], !!attempt.mistakesTruncated]);
+function progressFingerprint(attempt: Pick<Attempt, 'backspaces' | 'offset' | 'suspicious' | 'mistakes' | 'mistakesTruncated' | 'paceTarget'>, typed: string, elapsed: number) {
+  return JSON.stringify([typed, elapsed, attempt.backspaces, attempt.offset ?? 0, !!attempt.suspicious, attempt.mistakes ?? [], !!attempt.mistakesTruncated, attempt.paceTarget]);
 }
 function saveDraft(attempt: Attempt, typed: string, owner: string, completed = false, early = false) {
   if (isLocalAccountBlocked(attempt.ownerId)) return false;
@@ -247,7 +249,7 @@ function recordResult(attempt: Attempt, result: PracticeResult, typed: string): 
     accuracy: result.score.accuracy, finishedAt: Date.now(), status: result.status, elapsedMs: Math.round(result.elapsedMs), backspaces: result.backspaces, errors: result.errors,
     recordId: result.attemptId ?? attempt.recordId, ownerId: attempt.ownerId, localOnly: result.offline, article: articleSnapshot(attempt, attempt.target), typed,
     offset: attempt.offset ?? 0, total: result.score.total, correct: result.score.correct, articleTotal: result.articleTotal,
-    mode: attempt.mode ?? 'timed', strict: !!attempt.strict, mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }),
+    mode: attempt.mode ?? 'timed', strict: !!attempt.strict, mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }), ...(validPaceTarget(attempt.paceTarget) && { paceTarget: attempt.paceTarget }),
   };
 }
 
@@ -260,7 +262,7 @@ function workspaceDraft(attempt: Attempt, typed: string): SavedPractice {
     claimVersion: attempt.claimVersion, recoveryMarker: attempt.recoveryMarker,
     recoveryBaseVersion: attempt.recoveryRequestId ? attempt.recoveryBaseVersion : undefined,
     progressVersion: attempt.progressVersion, personalOnly: attempt.personalOnly, offline: attempt.offline,
-    ownerId: attempt.ownerId, savedAt: Date.now(), mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }), suspicious: attempt.suspicious,
+    ownerId: attempt.ownerId, savedAt: Date.now(), mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }), ...(validPaceTarget(attempt.paceTarget) && { paceTarget: attempt.paceTarget }), suspicious: attempt.suspicious,
   };
 }
 export function savedPracticeFromLegacy(draft: PracticeDraft): SavedPractice {
@@ -281,7 +283,7 @@ function attemptFromSaved(saved: SavedPractice, typed: string, revision = 0): At
     id: custom || saved.offset > 0 || saved.personalOnly ? undefined : saved.attemptId, recoveryId: saved.recoveryId, recoveryKey: saved.recoveryKey,
     claimVersion: saved.claimVersion, progressVersion: saved.progressVersion, recoveryBaseVersion: saved.progressVersion, personalOnly: saved.personalOnly, recordId: saved.recordId, revision, offline,
     elapsedMs: Math.min(durationLimit(saved), Math.max(0, saved.elapsedMs)), startedAt: null, nextCheckpointMs: saved.elapsedMs + 5000,
-    backspaces: saved.backspaces, suspicious: !!saved.suspicious, offset: Math.min(saved.offset, splitCharacters(typed).length), mistakes: [...(saved.mistakes ?? []).slice(0, mistakeLimit)], mistakesTruncated: saved.mistakesTruncated || (saved.mistakes?.length ?? 0) > mistakeLimit,
+    backspaces: saved.backspaces, suspicious: !!saved.suspicious, offset: Math.min(saved.offset, splitCharacters(typed).length), mistakes: [...(saved.mistakes ?? []).slice(0, mistakeLimit)], mistakesTruncated: saved.mistakesTruncated || (saved.mistakes?.length ?? 0) > mistakeLimit, paceTarget: validPaceTarget(saved.paceTarget) ? saved.paceTarget : undefined,
   };
 }
 
@@ -803,7 +805,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       articleId, title, language, difficulty, duration, custom, ownerId, article, mode, strict,
       text: settings.text, recordId: clientId ?? uniqueId(), recoveryId: clientId, recoveryKey, claimId, claimVersion: claimId ? 1 : undefined, revision: 0, target: settings.text, offline: true, personalOnly: guestBlocked || undefined, pendingStart: !!clientId && !!claimId,
       elapsedMs: 0, startedAt: performance.now(), suspicious: pendingSuspicious.current,
-      backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [],
+      backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [], paceTarget: validPaceTarget(settings.paceTarget) ? settings.paceTarget : undefined,
     };
     const originalRecordId = attempt.recordId;
     pendingSuspicious.current = false;
@@ -876,7 +878,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       return;
     }
     if (offline && !custom) setFeedback(personalOnly ? guestPracticeDisabledMessage : '在线练习不可用，已转为个人练习。');
-    const attempt: Attempt = { articleId, title, language, difficulty, duration, custom, ownerId, article, mode, strict, text: testTarget, id, recordId: id || uniqueId(), revision: 0, target: testTarget, offline, personalOnly, elapsedMs: 0, startedAt: performance.now(), suspicious: false, backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [] };
+    const attempt: Attempt = { articleId, title, language, difficulty, duration, custom, ownerId, article, mode, strict, text: testTarget, id, recordId: id || uniqueId(), revision: 0, target: testTarget, offline, personalOnly, elapsedMs: 0, startedAt: performance.now(), suspicious: false, backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [], paceTarget: validPaceTarget(config.paceTarget) ? config.paceTarget : undefined };
     parked.current = false; lastBackspaceKey.current = -Infinity;
     attemptRef.current = attempt; setTarget(testTarget); setCurrentPhase('running'); persist(attempt, true); beginClock();
     if (liveConfig.current.autoPause && document.visibilityState === 'hidden') void pause();
@@ -1131,5 +1133,5 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   const draftId = attempt ? practiceDraftId(attempt.recordId) : undefined;
   const canRetryOnline = !!(result?.offline && result.elapsedMs >= 1000 && attempt && recoverableId(attempt));
   const getClaimHeaders = () => attemptRef.current ? practiceClaim(attemptRef.current) : undefined;
-  return { phase, target, raw, typed, elapsedMs, backspaces, feedback, result, restored, mode, strict, duration, offset, draftId, textareaRef, start, pause, resume, retryOnline, recoverForRanking, markRankSubmitted, getClaimHeaders, canRetryOnline, reset, finish, park, releaseParkedLease, loadSaved, loadLegacy, updateTyped, deletePreviousCharacter, onChange, onKeyDown, onCompositionStart, onCompositionEnd, markSuspicious };
+  return { phase, target, raw, typed, elapsedMs, backspaces, feedback, result, restored, mode, strict, duration, offset, paceTarget: attempt?.paceTarget, draftId, textareaRef, start, pause, resume, retryOnline, recoverForRanking, markRankSubmitted, getClaimHeaders, canRetryOnline, reset, finish, park, releaseParkedLease, loadSaved, loadLegacy, updateTyped, deletePreviousCharacter, onChange, onKeyDown, onCompositionStart, onCompositionEnd, markSuspicious };
 }

@@ -1,9 +1,10 @@
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import { difficulties } from '../src/data/articles';
-import type { PracticePreset, WorkspaceItem, WorkspaceKind } from '../src/lib/models';
+import type { PaceSettings, PracticePreset, WorkspaceItem, WorkspaceKind } from '../src/lib/models';
 import { isBackgroundConfig, type BackgroundConfig } from '../src/lib/background';
 import { isPresetList } from '../src/lib/practice-settings';
+import { isPaceSettings } from '../src/lib/pace';
 
 export const syncBodyLimit = 4 * 1024 * 1024;
 export const recoveryIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -46,7 +47,7 @@ const schemas = {
   draft: z.object({
     id, article: snapshot, typed: stats.typed, elapsedMs: stats.elapsedMs, backspaces: stats.backspaces,
     duration, mode, strict: z.boolean(), offset: stats.offset, recordId: id,
-    attemptId: id.optional(), offline: z.boolean(), ownerId: id.nullable().optional(), savedAt: timestamp, mistakes, mistakesTruncated: z.boolean().optional(), suspicious: z.boolean().optional(),
+    attemptId: id.optional(), offline: z.boolean(), ownerId: id.nullable().optional(), savedAt: timestamp, mistakes, mistakesTruncated: z.boolean().optional(), paceTarget: z.number().positive().max(18_000_000).optional(), suspicious: z.boolean().optional(),
     recoveryId: z.string().regex(recoveryIdPattern).optional(),
     recoveryKey: z.string().regex(recoveryKeyPattern).optional(),
     personalOnly: z.boolean().optional(),
@@ -64,7 +65,7 @@ const schemas = {
     recordId: id.optional(), ownerId: id.nullable().optional(), localOnly: z.boolean().optional(),
     article: snapshot.optional(), typed: stats.typed.optional(), offset: stats.offset.optional(),
     total: integer(30_000).optional(), correct: integer(30_000).optional(), articleTotal: integer(30_000).optional(),
-    mode: mode.optional(), strict: z.boolean().optional(), mistakes, mistakesTruncated: z.boolean().optional(),
+    mode: mode.optional(), strict: z.boolean().optional(), mistakes, mistakesTruncated: z.boolean().optional(), paceTarget: z.number().positive().max(18_000_000).optional(),
   }),
   settings: z.object({
     minutes: z.number().int().min(1).max(60), mode, strict: z.boolean(), autoPause: z.boolean(),
@@ -73,6 +74,7 @@ const schemas = {
     mistakeStates: z.record(z.string().min(1).max(512), z.enum(['mastered', 'ignored'])).refine((value) => Object.keys(value).length <= 2000).optional(),
     showTimer: z.boolean().optional(), showSpeed: z.boolean().optional(), showAccuracy: z.boolean().optional(),
     presets: z.custom<PracticePreset[]>((value) => isPresetList(value, true)).optional(),
+    pace: z.custom<PaceSettings>(isPaceSettings).optional(),
   }),
 } satisfies Record<WorkspaceKind, z.ZodType>;
 const item = z.object({
@@ -177,8 +179,19 @@ export function createWorkspaceStore(db: Database.Database) {
       let mergedValue = value;
       if (!deleted && previous?.value && value && typeof value === 'object' && !Array.isArray(value)) {
         const before = JSON.parse(previous.value) as Record<string, unknown>;
-        if (kind === 'settings') mergedValue = { ...before, ...value };
-        else if ((kind === 'record' || kind === 'draft') && before.mistakesTruncated === true && !('mistakesTruncated' in value)) mergedValue = { ...value, mistakesTruncated: true };
+        if (kind === 'settings') {
+          mergedValue = { ...before, ...value };
+          if (Array.isArray(before.presets) && 'presets' in value && Array.isArray(value.presets)) {
+            const previousPresets = new Map(before.presets.filter((preset): preset is Record<string, unknown> => !!preset && typeof preset === 'object' && !Array.isArray(preset) && typeof preset.id === 'string').map((preset) => [preset.id, preset]));
+            (mergedValue as Record<string, unknown>).presets = value.presets.map((preset: Record<string, unknown>) => {
+              const earlier = previousPresets.get(preset.id);
+              return earlier?.pace !== undefined && preset.pace === undefined ? { ...preset, pace: earlier.pace } : preset;
+            });
+          }
+        } else if (kind === 'record' || kind === 'draft') {
+          mergedValue = { ...value, ...(before.mistakesTruncated === true && !('mistakesTruncated' in value) && { mistakesTruncated: true }),
+            ...(before.paceTarget !== undefined && !('paceTarget' in value) && { paceTarget: before.paceTarget }) };
+        }
       }
       const serialized = deleted ? null : JSON.stringify(mergedValue);
       if (kind === 'draft' && !deleted && deletedDraft.get(owner, id)) throw new WorkspaceConflictError();

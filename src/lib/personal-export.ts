@@ -30,18 +30,19 @@ function record(value: PracticeRecord): PracticeRecord {
     ...(value.offset !== undefined && { offset: value.offset }), ...(value.total !== undefined && { total: value.total }),
     ...(value.correct !== undefined && { correct: value.correct }), ...(value.articleTotal !== undefined && { articleTotal: value.articleTotal }),
     ...(value.mode !== undefined && { mode: value.mode }), ...(value.strict !== undefined && { strict: value.strict }),
-    ...(value.mistakes && { mistakes: mistakes(value.mistakes) }), ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }) };
+    ...(value.mistakes && { mistakes: mistakes(value.mistakes) }), ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }), ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }) };
 }
 function draft(value: SavedPractice) {
   return { id: value.id, recordId: value.recordId, article: article(value.article), typed: value.typed, elapsedMs: value.elapsedMs,
     backspaces: value.backspaces, duration: value.duration, mode: value.mode, strict: value.strict, offset: value.offset,
-    offline: value.offline, savedAt: value.savedAt, ...(value.mistakes && { mistakes: mistakes(value.mistakes) }), ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }),
+    offline: value.offline, savedAt: value.savedAt, ...(value.mistakes && { mistakes: mistakes(value.mistakes) }), ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }), ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }),
     ...(value.personalOnly !== undefined && { personalOnly: value.personalOnly }) };
 }
 function settings(value: ReaderSettings) {
   return { minutes: value.minutes, mode: value.mode, strict: value.strict, autoPause: value.autoPause, fontSize: value.fontSize,
     lineHeight: value.lineHeight, visibleLines: value.visibleLines, theme: value.theme, showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false,
-    showAccuracy: value.showAccuracy !== false, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }), ...(value.presets && { presets: value.presets.map(cleanPracticePreset) }) };
+    showAccuracy: value.showAccuracy !== false, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }), ...(value.presets && { presets: value.presets.map(cleanPracticePreset) }),
+    ...(value.pace && { pace: { enabled: value.pace.enabled, source: value.pace.source, customSpeed: value.pace.customSpeed } }) };
 }
 function background(value: BackgroundConfig) {
   return { image: value.image, name: value.name, width: value.width, height: value.height, fit: value.fit,

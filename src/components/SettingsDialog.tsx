@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import type { ReaderSettings, SyncState } from '../lib/models';
+import type { Language } from '../data/articles';
+import { defaultPace, type PaceSettings, type ReaderSettings, type SyncState } from '../lib/models';
 import { Dialog } from './Dialog';
 
 type Props = {
@@ -22,19 +23,24 @@ type Props = {
   hasBackground?: boolean;
   onPresets?: () => void;
   onSettingsTransfer?: () => void;
+  language?: Language;
 };
 
 const syncNames: Record<SyncState, string> = {
   guest: '仅本机', loading: '正在读取', syncing: '同步中', synced: '已同步', error: '同步失败',
 };
 
-export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, syncError, pendingCount, cloudCount, lastSyncedAt, recoveryReason, onRecovery, onSync, isSignedIn, onBackground, hasBackground, onPresets, onSettingsTransfer }: Props) {
+export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, syncError, pendingCount, cloudCount, lastSyncedAt, recoveryReason, onRecovery, onSync, isSignedIn, onBackground, hasBackground, onPresets, onSettingsTransfer, language = 'zh' }: Props) {
   const [invalidMinutes, setInvalidMinutes] = useState<string>();
   const [saveError, setSaveError] = useState('');
   type Indicator = 'showTimer' | 'showSpeed' | 'showAccuracy';
   const [pendingIndicators, setPendingIndicators] = useState<Partial<Record<Indicator, { value: boolean; version: number; settled: boolean }>>>({});
   const sequence = useRef(0);
   const indicatorVersions = useRef<Partial<Record<Indicator, number>>>({});
+  const [pendingPace, setPendingPace] = useState<{ value: PaceSettings; version: number; settled: boolean }>();
+  const [invalidPace, setInvalidPace] = useState<string>();
+  const paceVersion = useRef(0);
+  const pace = pendingPace?.value ?? settings.pace ?? defaultPace;
   const canSetMinutes = !locked && settings.mode === 'timed';
 
   useEffect(() => {
@@ -50,6 +56,9 @@ export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, f
       return next;
     });
   }, [settings.showTimer, settings.showSpeed, settings.showAccuracy, pendingIndicators]);
+  useEffect(() => {
+    if (pendingPace?.settled && JSON.stringify(settings.pace ?? defaultPace) === JSON.stringify(pendingPace.value)) setPendingPace(undefined);
+  }, [settings.pace, pendingPace]);
 
   function change(patch: Partial<ReaderSettings>) {
     setSaveError('');
@@ -73,6 +82,22 @@ export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, f
     };
     try { void Promise.resolve(onChange({ [key]: value })).then(() => finish(false), () => finish(true)); }
     catch { finish(true); }
+  }
+  function changePace(patch: Partial<PaceSettings>) {
+    const value = { ...pace, ...patch }; const version = ++paceVersion.current;
+    setSaveError(''); setPendingPace({ value, version, settled: false });
+    const finish = (failed: boolean) => {
+      if (paceVersion.current !== version) return;
+      setPendingPace(failed ? undefined : { value, version, settled: true });
+      if (failed) setSaveError('设置保存失败');
+    };
+    try { void Promise.resolve(onChange({ pace: value })).then(() => finish(false), () => finish(true)); }
+    catch { finish(true); }
+  }
+  function changePaceSpeed(event: ChangeEvent<HTMLInputElement>) {
+    const { value, valueAsNumber } = event.currentTarget;
+    if (Number.isFinite(valueAsNumber) && valueAsNumber >= 1 && valueAsNumber <= 1000) { setInvalidPace(undefined); changePace({ customSpeed: valueAsNumber }); }
+    else setInvalidPace(value);
   }
 
   function changeMinutes(event: ChangeEvent<HTMLInputElement>) {
@@ -104,6 +129,16 @@ export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, f
         <label className="settings-check"><input type="checkbox" checked={pendingIndicators.showTimer?.value ?? (settings.showTimer !== false)} onChange={(event) => changeIndicator('showTimer', event.target.checked)} />显示计时</label>
         <label className="settings-check"><input type="checkbox" checked={pendingIndicators.showSpeed?.value ?? (settings.showSpeed !== false)} onChange={(event) => changeIndicator('showSpeed', event.target.checked)} />显示速度</label>
         <label className="settings-check"><input type="checkbox" checked={pendingIndicators.showAccuracy?.value ?? (settings.showAccuracy !== false)} onChange={(event) => changeIndicator('showAccuracy', event.target.checked)} />显示准确率</label>
+      </fieldset>
+      <fieldset className="settings-group">
+        <legend>目标配速</legend>
+        <label className="settings-check"><input type="checkbox" checked={pace.enabled} onChange={(event) => changePace({ enabled: event.target.checked })} />启用目标配速</label>
+        {pace.enabled && <>
+          <label>配速来源<select value={pace.source} onChange={(event) => changePace({ source: event.target.value as PaceSettings['source'] })}><option value="custom">自定义</option><option value="last">上次成绩</option><option value="best">个人最佳</option></select></label>
+          {pace.source === 'custom' && <label>目标速度（{language === 'zh' ? '字/分' : 'WPM'}）<input type="number" min={1} max={1000} step="any" value={invalidPace ?? pace.customSpeed} aria-invalid={invalidPace !== undefined} onChange={changePaceSpeed} /></label>}
+          {invalidPace !== undefined && pace.source === 'custom' && <p className="form-error" role="alert">请输入 1–1000 的速度</p>}
+        </>}
+        {locked && <p className="feature-muted">本轮目标保持不变，设置用于下一轮。</p>}
       </fieldset>
       <fieldset className="settings-group">
         <legend>阅读</legend>
