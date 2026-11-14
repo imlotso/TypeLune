@@ -37,6 +37,7 @@ import { ProcessChart } from './components/ProcessChart';
 import { PresetsDialog } from './components/PresetsDialog';
 import { SettingsTransferDialog } from './components/SettingsTransferDialog';
 import { ShareCardDialog } from './components/ShareCardDialog';
+import { SpecialTrainingDialog } from './components/SpecialTrainingDialog';
 import { LogoutDialog } from './components/LogoutDialog';
 import { WorkspaceRecoveryDialog } from './components/WorkspaceRecoveryDialog';
 import { RankingView } from './components/RankingView';
@@ -225,6 +226,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [customDraft, setCustomDraft] = useState('');
   const [customError, setCustomError] = useState('');
   const [showCustom, setShowCustom] = useState(false);
+  const [showSpecialTraining, setShowSpecialTraining] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showPresets, setShowPresets] = useState(false);
@@ -518,7 +520,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       else if (wasFullscreen) setFocused(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !showResult && !showShare && !confirmPractice && !showSettings && !showPresets && !showSettingsTransfer && !showCommands && !showBackground && !showRecovery && !showGuestImport) exitFocus();
+      if (event.key === 'Escape' && !showResult && !showShare && !confirmPractice && !showSettings && !showPresets && !showSettingsTransfer && !showCommands && !showBackground && !showRecovery && !showGuestImport && !showSpecialTraining) exitFocus();
     };
     document.addEventListener('fullscreenchange', fullscreenChange);
     document.addEventListener('keydown', escape);
@@ -526,7 +528,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       document.removeEventListener('fullscreenchange', fullscreenChange);
       document.removeEventListener('keydown', escape);
     };
-  }, [focused, showResult, showShare, confirmPractice, showSettings, showPresets, showSettingsTransfer, showCommands, showBackground, showRecovery, showGuestImport]);
+  }, [focused, showResult, showShare, confirmPractice, showSettings, showPresets, showSettingsTransfer, showCommands, showBackground, showRecovery, showGuestImport, showSpecialTraining]);
 
   function exitFocus() {
     setFocused(false);
@@ -961,7 +963,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       {currentStrict && <span className="count-chip">严格纠错</span>}
     </div>
     <div className="detail-filters">
-      <div className="article-choice"><label className="article-picker"><BookOpen size={24} /><span>选择文章</span><span className="select-wrap"><select value={selectedOption} disabled={locked} onChange={changeArticle} aria-label="选择练习文章">{snapshotOption && <option value="current-snapshot">{selection.title}</option>}{availableArticles.map((article) => <option key={article.id} value={article.id}>{article.title}{article.author ? ` · ${article.author}` : ''}</option>)}</select><CaretDown aria-hidden="true" size={17} /></span></label><button className="text-button custom-button" disabled={locked} onClick={() => { setCustomDraft(selection.id === 'custom' ? text : ''); setCustomError(''); setShowCustom(true); }}>自定义文字</button></div>
+      <div className="article-choice"><label className="article-picker"><BookOpen size={24} /><span>选择文章</span><span className="select-wrap"><select value={selectedOption} disabled={locked} onChange={changeArticle} aria-label="选择练习文章">{snapshotOption && <option value="current-snapshot">{selection.title}</option>}{availableArticles.map((article) => <option key={article.id} value={article.id}>{article.title}{article.author ? ` · ${article.author}` : ''}</option>)}</select><CaretDown aria-hidden="true" size={17} /></span></label><button className="text-button custom-button" disabled={locked} onClick={() => { setCustomDraft(selection.id === 'custom' ? text : ''); setCustomError(''); setShowCustom(true); }}>自定义文字</button><button className="text-button custom-button" disabled={!canCommand} onClick={() => void afterPark(() => setShowSpecialTraining(true))}>专项练习</button></div>
       <div className="difficulty-picker"><span>难度：</span><div className="segmented difficulty-switch" role="group" aria-label="选择难度">{(['beginner', 'intermediate', 'advanced'] as const).map((item) => <button key={item} disabled={locked} aria-pressed={difficulty === item} onClick={() => changeDifficulty(item)}>{difficultyNames[item]}</button>)}</div></div>
     </div>
   </>;
@@ -1079,6 +1081,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       {customError && <p className="form-error" role="alert">{customError}</p>}
       <div className="result-actions"><span className="custom-count">{splitCharacters(customDraft).length} / 20000 字符</span><button className="primary-button" onClick={useCustomText}>使用这段文字</button></div>
     </Dialog>}
+    {showSpecialTraining && <SpecialTrainingDialog language={language} onClose={() => setShowSpecialTraining(false)} onSelect={(article) => { setShowSpecialTraining(false); selectArticle(article); }} />}
     {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) { window.history.replaceState(null, '', '/'); currentPath.current = '/'; } }} onLogin={onUser} registrationEnabled={site.features?.registrationEnabled} />}
     {view === 'account' && user && <AccountDialog user={user} onClose={() => navigate(accountReturn.current)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} onGuardChange={setAccountGuard} />}
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}

@@ -570,3 +570,5 @@
 .process-error-bar { fill: #dc8d9d; opacity: .7; }
 .process-chart details { margin-top: 10px; color: var(--typing-muted); font-size: 12px; }
 .process-chart details p { line-height: 1.6; }
+
+.special-training-preview { max-height: 220px; overflow: auto; padding: 12px; margin: 0; border: 1px solid var(--typing-border); border-radius: 10px; color: var(--typing-text); background: var(--typing-input); font: inherit; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }

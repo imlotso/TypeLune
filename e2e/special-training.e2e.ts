@@ -1,0 +1,73 @@
+import { expect, test } from './fixtures';
+
+test('preserves an active draft and records a phrase drill without a public score', async ({ page }, testInfo) => {
+  let starts = 0;
+  page.on('request', (request) => { if (request.url().endsWith('/api/tests/start')) starts++; });
+  await page.goto('/');
+  await page.getByRole('textbox', { name: '当前行输入' }).fill('我与');
+  await expect.poll(() => starts).toBe(1);
+  await page.getByRole('button', { name: '专项练习', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '专项练习' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('专项语言').selectOption('en');
+  await dialog.getByLabel('专项类型').selectOption('phrases');
+  await expect(dialog.getByLabel('专项素材')).toContainText('take a deep breath');
+  await page.screenshot({ path: testInfo.outputPath('special-desktop-light.png') });
+  await dialog.getByRole('button', { name: '使用专项' }).click();
+  await expect(page.getByRole('heading', { name: '英文词组专项' })).toBeVisible();
+  await page.getByRole('textbox', { name: '当前行输入' }).fill('a quiet morning');
+  await expect(page.getByTestId('typed-count')).toHaveText('15');
+  await page.getByRole('button', { name: '结束练习' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '结束并查看成绩' }).click();
+  const result = page.getByRole('dialog', { name: '练习成绩' });
+  await expect(result.getByText('个人练习，不参与排行')).toBeVisible();
+  await expect(result.getByRole('button', { name: '提交到排行榜' })).toHaveCount(0);
+  expect(starts).toBe(1);
+  await result.getByRole('button', { name: '关闭' }).click();
+  await page.getByRole('button', { name: '我的记录', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '英文词组专项' })).toBeVisible();
+  await page.getByRole('button', { name: '更多' }).click();
+  await page.getByRole('button', { name: '草稿箱' }).click();
+  await page.getByRole('button', { name: '继续《背影》' }).click();
+  await expect(page.getByTestId('typed-count')).toHaveText('2');
+  await expect(page.getByRole('button', { name: '继续练习' })).toBeEnabled();
+});
+
+test('offers readable Chinese numbers and punctuation in mobile night mode', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '切换至夜间模式' }).click();
+  await page.getByRole('button', { name: '专项练习', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '专项练习' });
+  await expect(dialog.getByLabel('专项素材')).toContainText('１２３４５');
+  await dialog.getByLabel('专项类型').selectOption('punctuation');
+  await expect(dialog.getByLabel('专项素材')).toContainText('，。！？');
+  await expect(dialog.getByLabel('专项素材')).toContainText(', . ! ?');
+  await page.screenshot({ path: testInfo.outputPath('special-mobile-dark.png') });
+  await dialog.getByRole('button', { name: '使用专项' }).click();
+  await expect(page.getByRole('heading', { name: '中文标点专项' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('synchronizes a personal special-practice record to a second account device', async ({ page, browser, baseURL, clientIp }) => {
+  const username = 'special_member'; const email = `${username}@example.test`; const password = 'special-password-123';
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  expect((await page.request.post('/api/auth/register', { data: { username, email, password, code } })).ok()).toBe(true);
+  await page.goto('/');
+  await page.getByRole('button', { name: '专项练习', exact: true }).click();
+  await page.getByRole('dialog', { name: '专项练习' }).getByRole('button', { name: '使用专项' }).click();
+  await page.getByRole('textbox', { name: '当前行输入' }).fill('0123456789 9876543210');
+  await page.getByRole('button', { name: '结束练习' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '结束并查看成绩' }).click();
+  const result = page.getByRole('dialog', { name: '练习成绩' });
+  await expect(result.getByText('个人练习，不参与排行')).toBeVisible();
+  await expect.poll(async () => (await (await page.request.get('/api/workspace')).json()).items.some((item: { kind: string; value?: { article?: { title?: string; custom?: boolean } } }) => item.kind === 'record' && item.value?.article?.title === '中文数字专项' && item.value.article.custom === true)).toBe(true);
+  const other = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
+  expect((await other.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
+  const reader = await other.newPage(); await reader.goto('/records');
+  await expect(reader.getByRole('heading', { name: '中文数字专项' })).toBeVisible();
+  await reader.getByRole('button', { name: '《中文数字专项》详情' }).click();
+  await expect(reader.getByRole('dialog', { name: '练习详情' }).getByText('无法恢复：个人练习不参与排行')).toBeVisible();
+  await other.close();
+});
