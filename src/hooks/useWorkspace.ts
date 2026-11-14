@@ -9,6 +9,15 @@ import {
 const pollMs = 30_000;
 const debounceMs = 1000;
 const emptyItems: WorkspaceItem[] = [];
+const syncTimeKey = (owner: string) => `cloudtyping.sync.last-success.v1.${owner}`;
+function readSyncTime(owner: string | null) {
+  if (!owner) return null;
+  try { const value = Number(localStorage.getItem(syncTimeKey(owner))); return Number.isSafeInteger(value) && value > 0 ? value : null; }
+  catch { return null; }
+}
+function saveSyncTime(owner: string, time: number) {
+  try { localStorage.setItem(syncTimeKey(owner), String(time)); } catch { /* The current view still has the time. */ }
+}
 
 type View = {
   ownerId: string | null;
@@ -17,6 +26,9 @@ type View = {
   items: WorkspaceItem[];
   syncState: SyncState;
   error: string;
+  lastSyncedAt: number | null;
+  pendingCount: number | null;
+  cloudCount: number | null;
 };
 type Response = { items: WorkspaceItem[]; serverTime: number; backgroundsVersion?: string; backgroundsUnchanged?: boolean };
 type KnownBackgrounds = { version: string; items: WorkspaceItem[] };
@@ -42,7 +54,7 @@ async function workspaceRequest(owner: string, signal: AbortSignal, items?: Work
 
 export function useWorkspace(ownerId: string | null, enabled = true) {
   const [view, setView] = useState<View>(() => ({
-    ownerId, ready: false, cloudLoaded: false, items: emptyItems, syncState: ownerId ? 'loading' : 'guest', error: '',
+    ownerId, ready: false, cloudLoaded: false, items: emptyItems, syncState: ownerId ? 'loading' : 'guest', error: '', lastSyncedAt: readSyncTime(ownerId), pendingCount: null, cloudCount: null,
   }));
   const lifecycle = useRef<{ ownerId: string | null; sync: () => Promise<void> } | null>(null);
 
@@ -55,22 +67,29 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     let running: Promise<void> | undefined;
     let lastStartedAt = -Infinity;
     let pendingWrite = false;
+    let localGeneration = 0;
+    let lastCloud: WorkspaceItem[] | undefined;
     let knownBackgrounds: KnownBackgrounds | undefined;
     const requestWorkspace = async (items?: WorkspaceItem[]) => {
       const response = await workspaceRequest(ownerId!, signal, items, knownBackgrounds);
-      if (!signal.aborted) knownBackgrounds = response.backgroundsVersion
-        ? { version: response.backgroundsVersion, items: response.items.filter((item) => item.kind === 'background') }
-        : undefined;
+      if (!signal.aborted) {
+        lastCloud = response.items;
+        publish({ cloudCount: response.items.filter((item) => !item.deleted).length });
+        knownBackgrounds = response.backgroundsVersion
+          ? { version: response.backgroundsVersion, items: response.items.filter((item) => item.kind === 'background') }
+          : undefined;
+      }
       return response;
     };
-    setView({ ownerId, ready: !!cached, cloudLoaded: false, items: cached ?? emptyItems, syncState: ownerId ? 'loading' : 'guest', error: '' });
+    setView({ ownerId, ready: !!cached, cloudLoaded: false, items: cached ?? emptyItems, syncState: ownerId ? 'loading' : 'guest', error: '', lastSyncedAt: readSyncTime(ownerId), pendingCount: null, cloudCount: null });
 
     const publish = (patch: Partial<View>) => {
       if (!signal.aborted) setView((current) => current.ownerId === ownerId ? { ...current, ...patch } : current);
     };
-    const failed = (error: unknown) => publish({
+    const failed = (error: unknown, pendingCount: number | null = null) => publish({
       syncState: 'error',
       error: error instanceof Error ? error.message : '同步失败',
+      pendingCount,
     });
     const refresh = async () => {
       try {
@@ -81,15 +100,16 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
         failed(error);
       }
     };
-    const schedule = () => {
+    const schedule = (items?: WorkspaceItem[], preserveCount = false) => {
       if (!ownerId || signal.aborted) return;
       pendingWrite = true;
+      publish({ syncState: 'syncing', error: '', ...(preserveCount ? {} : { pendingCount: items && lastCloud ? newerWorkspaceItems(items, lastCloud).length : null }) });
       clearTimeout(timer);
       timer = setTimeout(() => {
         if (!running) void sync();
       }, debounceMs);
     };
-    const quarantined = new Map<string, number>();
+    const quarantined = new Map<string, { updatedAt: number; reason: string }>();
     const sync = (retry = false) => {
       if (!ownerId || signal.aborted) return Promise.resolve();
       if (running) return running;
@@ -111,11 +131,11 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
             if (signal.aborted) return;
             const pending = newerWorkspaceItems(latest, cloud.items).filter((item) => {
               const key = workspaceItemKey(item);
-              return remaining.has(key) && quarantined.get(key) !== item.updatedAt;
+              return remaining.has(key) && quarantined.get(key)?.updatedAt !== item.updatedAt;
             });
             const [batch] = chunkWorkspaceItems(pending, (item) => {
               const key = workspaceItemKey(item);
-              quarantined.set(key, item.updatedAt);
+              quarantined.set(key, { updatedAt: item.updatedAt, reason: '单项超过同步大小' });
               remaining.delete(key);
             });
             if (!batch) { remaining.clear(); return; }
@@ -126,7 +146,7 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
               if (!(error instanceof ApiError) || error.status !== 400) throw error;
               if (batch.length === 1) {
                 const item = batch[0];
-                quarantined.set(workspaceItemKey(item), item.updatedAt);
+                quarantined.set(workspaceItemKey(item), { updatedAt: item.updatedAt, reason: '服务端校验未通过' });
                 return;
               }
               const midpoint = Math.floor(batch.length / 2);
@@ -141,19 +161,30 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
           const remaining = new Set(newerWorkspaceItems(local, cloud.items).map(workspaceItemKey));
           while (remaining.size && !signal.aborted) await upload(remaining);
           if (signal.aborted) return;
+          const generation = localGeneration;
           const latest = await readWorkspace(ownerId);
-          const rejected = newerWorkspaceItems(latest, cloud.items).filter((item) =>
-            quarantined.get(workspaceItemKey(item)) === item.updatedAt);
+          const changedDuringRead = generation !== localGeneration;
+          const outstanding = newerWorkspaceItems(latest, cloud.items);
+          const rejected = outstanding.filter((item) =>
+            quarantined.get(workspaceItemKey(item))?.updatedAt === item.updatedAt);
           if (rejected.length) {
-            failed(new Error(`${rejected.length} 项资料无法同步，已保存在本机`));
+            pendingWrite = changedDuringRead;
+            const reasons = [...new Set(rejected.map((item) => quarantined.get(workspaceItemKey(item))?.reason).filter(Boolean))].join('、');
+            failed(new Error(`${rejected.length} 项资料无法同步（${reasons}），已保存在本机`), outstanding.length);
+          } else if (outstanding.length || changedDuringRead) {
+            pendingWrite = true;
+            publish({ syncState: 'syncing', pendingCount: outstanding.length });
           } else {
-            publish({ syncState: 'synced', error: '' });
+            pendingWrite = false;
+            saveSyncTime(ownerId, cloud.serverTime);
+            publish({ syncState: 'synced', error: '', pendingCount: 0, lastSyncedAt: cloud.serverTime });
           }
         } catch (error) {
-          failed(error);
+          const latest = await readWorkspace(ownerId).catch(() => undefined);
+          failed(error, latest && lastCloud ? newerWorkspaceItems(latest, lastCloud).length : null);
         } finally {
           running = undefined;
-          if (pendingWrite) schedule();
+          if (pendingWrite) schedule(undefined, true);
         }
       })();
       return running;
@@ -161,7 +192,7 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     const unsubscribe = subscribeWorkspace(ownerId, (local, items) => {
       if (items) publish({ items, ready: true });
       else void refresh();
-      if (local) schedule();
+      if (local) { localGeneration++; schedule(items); }
     });
     lifecycle.current = { ownerId, sync: () => sync(true) };
     void refresh().then(() => sync());
@@ -218,6 +249,9 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     cloudLoaded: visible?.cloudLoaded ?? false,
     syncState: visible?.syncState ?? (ownerId ? 'loading' : 'guest'),
     error: visible?.error ?? '',
+    lastSyncedAt: visible?.lastSyncedAt ?? null,
+    pendingCount: visible?.pendingCount ?? null,
+    cloudCount: visible?.cloudCount ?? null,
     put, remove, updateSettings, toggleFavorite, sync,
   };
 }

@@ -10,6 +10,10 @@ type Props = {
   onFocus: () => void;
   focused: boolean;
   syncState: SyncState;
+  syncError?: string;
+  pendingCount?: number | null;
+  cloudCount?: number | null;
+  lastSyncedAt?: number | null;
   onSync: () => void;
   isSignedIn: boolean;
   onBackground?: () => void;
@@ -20,7 +24,7 @@ const syncNames: Record<SyncState, string> = {
   guest: '仅本机', loading: '正在读取', syncing: '同步中', synced: '已同步', error: '同步失败',
 };
 
-export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, onSync, isSignedIn, onBackground, hasBackground }: Props) {
+export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, syncError, pendingCount, cloudCount, lastSyncedAt, onSync, isSignedIn, onBackground, hasBackground }: Props) {
   const [invalidMinutes, setInvalidMinutes] = useState<string>();
   const canSetMinutes = !locked && settings.mode === 'timed';
 
@@ -65,6 +69,10 @@ export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, f
           <span role="status">{syncNames[syncState]}</span>
           {isSignedIn && <button className="outline-button feature-action-button" disabled={syncState === 'loading' || syncState === 'syncing'} onClick={onSync}>立即同步</button>}
         </div>
+        {syncState === 'error' && syncError && <p className="form-error" role="alert">{syncError}</p>}
+        {pendingCount != null && pendingCount > 0 && <p className="feature-muted">未同步：{pendingCount} 项</p>}
+        {cloudCount != null && <p className="feature-muted">上次读取云端：{cloudCount} 项</p>}
+        {lastSyncedAt != null && <p className="feature-muted">最近成功同步：{new Date(lastSyncedAt).toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' })}</p>}
       </fieldset>
     </div>
   </Dialog>;
