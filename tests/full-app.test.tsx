@@ -145,13 +145,14 @@ it('keeps the local practice snapshot and uses the authoritative moderation stat
   await putWorkspaceValue('account', 'record', record.recordId, record);
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url === '/api/me') return response({ user: { id: 'account', username: '本账号' } });
-    if (url === '/api/history') return response({ entries: [{ ...record, status: 'rejected', article: undefined, typed: undefined, mistakes: undefined, localOnly: undefined }] });
+    if (url === '/api/history?limit=100') return response({ entries: [{ ...record, speed: 20, status: 'rejected', article: undefined, typed: undefined, mistakes: undefined, localOnly: undefined }], nextCursor: null });
     return response({ items: [], serverTime: Date.now() });
   }));
   render(<App />);
   await screen.findByRole('button', { name: /本账号/ });
   fireEvent.click(screen.getByRole('button', { name: '我的记录' }));
   await screen.findByText('复核未通过');
+  expect(screen.getByText('20 字/分')).toBeTruthy();
   expect(screen.queryByText('个人练习')).toBeNull();
   fireEvent.click(await screen.findByRole('button', { name: '《留存的信》详情' }));
   const details = screen.getByRole('dialog', { name: '练习详情' });

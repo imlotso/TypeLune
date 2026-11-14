@@ -22,14 +22,14 @@
 | C02 | 待完善 | `7cb5379` | 已增加容量视图、代次／修订检查、删除标记整理和本机导出后重同步；按类型清理活动项目及完整旧客户端交替回归仍待完成。协议和回退见 [说明](2026-11-15-workspace-protocol.md)。 |
 | C03 | 待完善 | `e6dac69` | 已有版本化 JSON、记录 CSV、完整历史分页及缺失项报告；待最终跨设备和失败场景回归。 |
 | C04 | 待完善 | `a0eeb01` | 已有退出清理选项、未同步保护、按账号本机清理及新版标签页迟到写入阻断；旧版独立资料检查及旧客户端兼容待完善。 |
-| C05 | 待完善 | 本阶段 | 已有显式导入、冲突保护、个人成绩隔离、云端核对及可选清理；待与历史删除和后续数据模型整体回归，见 [说明](2026-11-15-guest-import.md)。 |
+| C05 | 待完善 | `9e0e5a8` | 已有显式导入、冲突保护、个人成绩隔离、云端核对及可选清理；待与历史删除和后续数据模型整体回归，见 [说明](2026-11-15-guest-import.md)。 |
 | D01 | 待完善 | — | `/admin` 有入口，主要前台视图由组件状态切换，缺稳定路由。 |
 | D02 | 待完善 | `6cb2ae2` | 公开接口只返回三个功能开关；前台提示并限制注册／游客上榜，游客新练习关闭时直接本机开始。已有在线练习可恢复，待最终整体回归。 |
 | D03 | 待完善 | — | 已有历史详情及部分去重，缺全面筛选、删除和成绩撤回。 |
 | D04 | 待完善 | — | 有部分成绩和复核状态，缺统一状态与公开处理说明。 |
 | D05 | 待完善 | — | 草稿有恢复成绩入口；历史详情尚无对应入口。 |
 | D06 | 待完善 | `a77e3e9` | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
-| E01 | 未实现 | — | 缺按完整练习条件的个人最佳与比较。 |
+| E01 | 待完善 | 本阶段 | 已有条件分组、个人最佳、最近 10 次比较、服务端历史分页及不完整范围提示；记录删除后的重算待 D03 完成，见 [口径](2026-11-15-personal-best.md)。 |
 | E02 | 待完善 | — | 已有累计错字专项；缺本轮复练和状态管理。 |
 | E03 | 未实现 | — | 缺命名预设及跨设备同步。 |
 | E04 | 未实现 | — | 缺目标配速。 |
@@ -114,3 +114,7 @@
 | 游客导入 | 隔离测试服务实际页面 | 已查看[手机导入预览](screenshots/guest-import-mobile.png)和[桌面清理确认](screenshots/guest-import-clear-desktop.png)。 |
 | 游客导入与反馈修复 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；60 个测试文件、377 项通过，包含超出旧界面展示上限的历史、损坏草稿和设置覆盖冲突。 |
 | 游客导入与反馈修复 | `npx playwright test e2e/guest-import.e2e.ts e2e/z-feedback.e2e.ts` | 3 项通过；此前完整浏览器套件 41 项通过，之后仅对旧游客资料边界及反馈状态同步作了局部调整。 |
+| 个人最佳 | `npx vitest run tests/personal-best.test.ts tests/personal-best-ui.test.tsx tests/history-pages.test.ts tests/personal-export-fetch.test.ts tests/full-app.test.tsx` | 定向测试通过；覆盖当前记录排除、分组、重复 ID 的服务端成绩优先、分页及失败范围。 |
+| 个人最佳 | `npx playwright test e2e/personal-best.e2e.ts e2e/personal-export.e2e.ts` | 3 项通过：游客连续成绩比较、账号分页与失败范围提示、个人数据导出回归。 |
+| 个人最佳 | 隔离测试服务实际页面 | 已查看[手机日间成绩](screenshots/personal-best-mobile-light.png)及[桌面夜间成绩](screenshots/personal-best-desktop-dark.png)。 |
+| 个人最佳 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；63 个测试文件、388 项通过。 |

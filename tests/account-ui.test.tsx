@@ -18,7 +18,7 @@ beforeEach(() => {
     if (path === '/api/me') body = { user: account };
     else if (path.startsWith('/api/workspace')) body = { items: [], serverTime: Date.now() };
     else if (path === '/api/articles') body = { articles: [] };
-    else if (path === '/api/history') body = { entries: [] };
+    else if (path === '/api/history?limit=100') body = { entries: [], nextCursor: null };
     else if (path === '/api/account/username') {
       const submitted = JSON.parse(String(options?.body));
       account = { ...member, username: submitted.username }; body = { user: account };

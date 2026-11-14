@@ -393,7 +393,7 @@ describe('practice interface', () => {
     localStorage.setItem('cloudtyping.history.v1', JSON.stringify([{ language: 'zh', difficulty: 'beginner', duration: 300, speed: 45, accuracy: 98, finishedAt: 1_800_000_000_000, recordId: 'local', ownerId: 'u1', localOnly: true }]));
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/api/me') return response({ user: { id: 'u1', username: 'alice', email: 'alice@example.com', isAdmin: false } });
-      if (url === '/api/history') return response({ entries: [] });
+      if (url === '/api/history?limit=100') return response({ entries: [], nextCursor: null });
       return response({ ok: true });
     }));
     render(<App />);
@@ -406,7 +406,7 @@ describe('practice interface', () => {
     localStorage.setItem('cloudtyping.history.v1', JSON.stringify([{ language: 'zh', difficulty: 'beginner', duration: 300, speed: 38, accuracy: 97, finishedAt: 1_800_000_000_000, recordId: 'offline', ownerId: null, localOnly: true, article: { id: 'guest-article', title: '访客私文', text: '访客私文', language: 'zh', difficulty: 'beginner', custom: true }, typed: '访客' }]));
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/api/me') return response({ user: { id: 'u1', username: 'alice', email: 'alice@example.com', isAdmin: false } });
-      if (url === '/api/history') return response({ entries: [] });
+      if (url === '/api/history?limit=100') return response({ entries: [], nextCursor: null });
       return response({ ok: true });
     }));
     render(<App />);

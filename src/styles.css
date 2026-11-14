@@ -126,6 +126,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .result-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 25px 0; }.result-metrics > div { display: grid; gap: 4px; text-align: center; padding: 14px 4px; border-radius: 14px; background: #f4f0fb; }.result-metrics strong { color: #7762bf; font-size: 23px; }.result-metrics span { color: var(--typing-muted); font-size: 12px; }
 .rank-submit { display: grid; gap: 14px; }.rank-submit .primary-button { width: 100%; }.result-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
 .result-metrics small { color: var(--typing-muted); font-size: 11px; }
+.personal-best { display: grid; gap: 5px; margin: 0 0 18px; color: var(--typing-text); font-size: 13px; }
+.personal-best p { margin: 0; }
 .english-speed { min-width: 0; }
 .status-row:has(.english-speed) { align-items: flex-start; }
 .status-row:has(.english-speed) > span { min-height: 44px; }

@@ -5,6 +5,7 @@ import type { PracticeRecord, WorkspaceItem } from './models';
 import { isWorkspaceItem, readWorkspace } from './workspace';
 import { buildPersonalExport, type FeedbackExport } from './personal-export';
 import { localPracticeNeedsRecovery } from './local-practice-generation';
+import { readPagedHistory } from './history';
 
 const errorText = (problem: unknown) => problem instanceof Error ? problem.message : '读取失败';
 const dataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
@@ -70,19 +71,7 @@ export async function collectPersonalExport(initialUser: User, options?: { inclu
     remote = cloud.items;
   } catch (problem) { missing.push(`云工作区：${errorText(problem)}`); }
   try {
-    let cursor: string | undefined;
-    const seen = new Set<string>();
-    do {
-      const query = new URLSearchParams({ limit: '100', ...(cursor && { cursor }) });
-      const result = await api<{ entries: PracticeRecord[]; nextCursor?: string | null }>(`/api/history?${query}`, { headers, timeoutMs: 60_000 });
-      if (!Array.isArray(result.entries)) throw new Error('历史数据无法读取');
-      remoteHistory.push(...result.entries);
-      if (!('nextCursor' in result)) { missing.push('服务端历史未提供完整分页'); break; }
-      const next = result.nextCursor ?? undefined;
-      if (next && (typeof next !== 'string' || seen.has(next))) throw new Error('历史分页无法继续');
-      if (next) seen.add(next);
-      cursor = next;
-    } while (cursor);
+    await readPagedHistory(ownerId, { onPage: (entries) => remoteHistory.push(...entries) });
   } catch (problem) { missing.push(`服务端历史：${errorText(problem)}`); }
   if (options?.includeFeedback !== false) {
     try {

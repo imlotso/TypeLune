@@ -28,6 +28,7 @@ import { GuestImportDialog } from './components/GuestImportDialog';
 import { MistakesView } from './components/MistakesView';
 import { PracticeLines } from './components/PracticeLines';
 import { PersonalDataView } from './components/PersonalDataView';
+import { PersonalBestComparison } from './components/PersonalBestComparison';
 import { LogoutDialog } from './components/LogoutDialog';
 import { WorkspaceRecoveryDialog } from './components/WorkspaceRecoveryDialog';
 import { RankingView } from './components/RankingView';
@@ -49,6 +50,8 @@ import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAcco
 import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from './lib/local-account-cleanup';
 import { resetWorkspaceFromCloud, WorkspaceResetIncompleteError } from './lib/workspace-recovery';
 import { collectGuestImport } from './lib/guest-import';
+import { readPagedHistory } from './lib/history';
+import { mergePracticeRecords } from './lib/records';
 
 type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback' | 'data' | InfoPage;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
@@ -75,25 +78,6 @@ function legacyArticle(draft: PracticeDraft): ArticleSnapshot {
   if (draft.article) return { ...draft.article, text: draft.target };
   if (builtIn?.text === draft.target && builtIn.title === draft.title) return builtIn;
   return { id: draft.articleId, title: draft.title, text: draft.target, language: draft.language, difficulty: draft.difficulty, custom: draft.custom };
-}
-
-function mergeRecords(local: PracticeRecord[], remote: PracticeRecord[], workspace: PracticeRecord[]) {
-  const recordKey = (record: PracticeRecord) => record.recordId || `${record.finishedAt}:${record.language}:${record.difficulty}:${record.speed}:${record.accuracy}`;
-  const onlineRecords = new Set(remote.map(recordKey));
-  const statuses = new Map(remote.flatMap((record) => record.status ? [[recordKey(record), record.status] as const] : []));
-  const entries = new Map<string, PracticeRecord>();
-  for (const record of [...local, ...remote, ...workspace]) {
-    const key = recordKey(record);
-    const previous = entries.get(key);
-    if (!previous) { entries.set(key, record); continue; }
-    const rich = [record, previous].find((entry) => entry.article && entry.typed != null);
-    const mistakes = [record, previous].find((entry) => entry.mistakes?.length)?.mistakes;
-    entries.set(key, { ...previous, ...record, ...rich && { article: rich.article, typed: rich.typed, offset: rich.offset, articleTotal: rich.articleTotal }, ...mistakes && { mistakes } });
-  }
-  return [...entries].map(([key, record]) => {
-    const status = statuses.get(key);
-    return { ...record, ...(status && { status }), ...(onlineRecords.has(key) && { localOnly: false }) };
-  }).sort((a, b) => b.finishedAt - a.finishedAt);
 }
 
 export function App() {
@@ -230,6 +214,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [pendingLoad, setPendingLoad] = useState<PendingLoad>();
   const [remoteHistory, setRemoteHistory] = useState<PracticeRecord[]>([]);
   const [historyError, setHistoryError] = useState(false);
+  const [historyCheckedFor, setHistoryCheckedFor] = useState<string>();
   const bootstrapped = useRef(false);
   const interacted = useRef(false);
   const navigation = useRef(false);
@@ -363,13 +348,14 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   }, [result]);
 
   useEffect(() => {
-    if (!ownerId || !recordViews.includes(view)) return;
+    if (!ownerId || (!recordViews.includes(view) && !result)) return;
     const controller = new AbortController();
     setHistoryError(false);
-    api<{ entries: PracticeRecord[] }>('/api/history', { signal: controller.signal, headers: { 'X-Workspace-Owner': ownerId } }).then(({ entries }) => {
-      if (!controller.signal.aborted && Array.isArray(entries)) setRemoteHistory(entries);
+    const loaded: PracticeRecord[] = [];
+    void readPagedHistory(ownerId, { signal: controller.signal, onPage: (entries) => loaded.push(...entries) }).then((entries) => {
+      if (!controller.signal.aborted) { setRemoteHistory(entries); setHistoryCheckedFor(result?.recordId); }
     }).catch(() => {
-      if (!controller.signal.aborted) { setRemoteHistory([]); setHistoryError(true); }
+      if (!controller.signal.aborted) { setRemoteHistory(loaded); setHistoryError(true); setHistoryCheckedFor(result?.recordId); }
     });
     return () => controller.abort();
   }, [view, ownerId, result]);
@@ -377,7 +363,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const records = useMemo(() => {
     if (!authReady) return [];
     const local = localHistory().filter((record) => (record.ownerId ?? null) === ownerId);
-    return mergeRecords(local, remoteHistory, workspace.records);
+    return mergePracticeRecords(local, remoteHistory, workspace.records);
   }, [authReady, ownerId, remoteHistory, workspace.records, result, view]);
 
   const draftBox = useMemo(() => {
@@ -776,7 +762,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
           </section>
         </>}
         {view !== 'practice' && feedback && <p className="form-error view-error" role="alert">{feedback}</p>}
-        {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">连接失败，显示本机记录。</p>}
+        {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">连接失败，显示已读取的记录。</p>}
         {view === 'library' && <ArticleLibrary articles={catalog} favorites={workspace.favorites} onToggleFavorite={(id) => void workspace.toggleFavorite(id).catch(reportSaveError)} onSelect={selectArticle} onSave={(article) => workspace.put('article', article.id, article)} onDelete={(id) => workspace.remove('article', id)} />}
         {view === 'rankings' && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} />}
         {view === 'history' && <RecordsView records={records} onReplay={selectArticle} onContinue={continueRecord} />}
@@ -841,6 +827,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         <div><strong>{result.backspaces}</strong><span>退格次数</span></div>
         <div><strong>{formatTime(result.elapsedMs)}</strong><span>有效用时</span></div>
       </div>
+      {result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? 'local' :
+        historyCheckedFor !== result.recordId ? 'loading' : historyError || workspace.syncState === 'error' ? 'partial' : 'complete'} />}
       {mistakes.length > 0 && <details className="mistake-review"><summary>错字回看 · {mistakes.length > 30 ? `前 30 / ${mistakes.length}` : mistakes.length} 处</summary><ul>{mistakes.slice(0, 30).map((mistake) => <li key={mistake.index}><span>第 {mistake.index + 1} 字</span><span>原文 <b>{readableCharacter(mistake.expected)}</b></span><span>输入 <del>{readableCharacter(mistake.actual)}</del></span></li>)}</ul></details>}
       {practice.canRetryOnline && <div className="rank-submit"><button className="primary-button" disabled={phase === 'restoring'} onClick={() => void practice.retryOnline()}>{phase === 'restoring' ? '正在恢复…' : '重试上榜'}</button></div>}
       {practice.canRetryOnline && practice.feedback && <p className="form-error" role="alert">{practice.feedback}</p>}

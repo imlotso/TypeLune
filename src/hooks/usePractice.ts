@@ -18,7 +18,7 @@ export type PracticeConfig = RoundConfig & {
   onReplaceRecord?: (id: string, ownerId: string | null) => void;
   isDraftDeleted?: (id: string, ownerId: string | null) => boolean;
 };
-export type PracticeResult = { score: Score; attemptId?: string; status?: string; eligible?: boolean; submitted?: boolean; offline: boolean; language: Language; elapsedMs: number; backspaces: number; errors: number; articleTotal: number; custom: boolean; continuation?: SavedPractice };
+export type PracticeResult = { score: Score; recordId?: string; record?: PracticeRecord; attemptId?: string; status?: string; eligible?: boolean; submitted?: boolean; offline: boolean; language: Language; elapsedMs: number; backspaces: number; errors: number; articleTotal: number; custom: boolean; continuation?: SavedPractice };
 type Attempt = RoundConfig & {
   id?: string; recordId: string; revision: number; legacy?: boolean; target: string;
   offline: boolean; elapsedMs: number; startedAt: number | null; suspicious: boolean;
@@ -228,7 +228,8 @@ function localResult(attempt: Attempt, used: number, typed: string): PracticeRes
   const expected = splitCharacters(attempt.target);
   const offset = attempt.offset ?? 0;
   const score = scoreTyping(offset ? expected.slice(offset).join('') : attempt.target, offset ? splitCharacters(typed).slice(offset).join('') : typed, Math.max(used / 1000, 0.1));
-  return { score, offline: attempt.offline, language: attempt.language, elapsedMs: used, backspaces: attempt.backspaces, errors: score.total - score.correct, articleTotal: expected.length, custom: attempt.custom };
+  const result: PracticeResult = { score, recordId: attempt.recordId, offline: attempt.offline, language: attempt.language, elapsedMs: used, backspaces: attempt.backspaces, errors: score.total - score.correct, articleTotal: expected.length, custom: attempt.custom };
+  return { ...result, record: recordResult(attempt, result, typed) };
 }
 function withServerResult(local: PracticeResult, saved: ServerResult): PracticeResult {
   if (!saved.score || typeof saved.score.correct !== 'number' || typeof saved.score.total !== 'number' || typeof saved.score.accuracy !== 'number' || typeof saved.score.cpm !== 'number' || typeof saved.score.wpm !== 'number') throw new Error('成绩数据无效');
@@ -372,7 +373,9 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   }
 
   const settle = (attempt: Attempt, final: PracticeResult, typed: string) => {
+    final = { ...final, recordId: final.attemptId ?? attempt.recordId };
     const entry = recordResult(attempt, final, typed);
+    final = { ...final, record: entry };
     const recordId = final.attemptId ?? attempt.recordId;
     const previous = localHistory().find((item) => (item.recordId === recordId || item.recordId === attempt.recordId) && item.ownerId === attempt.ownerId);
     const alreadyRecorded = recorded.current.has(recordId) || !!previous;
