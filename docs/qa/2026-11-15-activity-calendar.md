@@ -5,4 +5,4 @@
 - `ReaderSettings` 新增可选 `statisticsTimezone` 和 `dailyGoalMinutes`（0 关闭，1–1440 为整分钟）。账号首次进入统计且云设置已读取时，缺少时区才采用浏览器时区并通过正常工作区同步；离线尚未保存时标明本机临时时区。目标与时区仅影响个人展示，不改变计分及排行。编辑期间收到其他设备更新时保留未提交内容并提示。
 - 字段保存在现有工作区 JSON 中，服务端与本机均校验时区及范围；旧账号没有字段时使用浏览器时区，旧客户端保存其他设置时服务端保留新字段。显式游客资料导入可包含这两个设置，账号原设置仍按原有冲突规则保留。完整个人数据 JSON 导出包含它们；独立练习设置导入／导出仍只包含其既定白名单，不携带日历设置。
 - 不新增 SQLite 表或列。部署前仍应通过 SQLite 备份 API／既有备份流程备份数据库、WAL 一致状态和持久化卷；前后端同步升级，旧服务会剔除未知设置字段，不能直接回退旧服务后继续写入而声称保留新字段。未操作生产数据库。
-- 单元测试覆盖跨午夜、时区差异、夏令时切换、连续天数、未知用时及设置冲突；浏览器测试覆盖实际练习、日期记录、账号两设备同步和个人数据导出。`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker` 通过，验证设置在容器替换和数据库备份恢复后保留。已查看[桌面日间](screenshots/activity-calendar-desktop-light.png)与[手机夜间](screenshots/activity-calendar-mobile-dark.png)界面。最终全站回归仍待完成，F02 保持待完善。
+- 单元测试覆盖跨午夜、时区差异、夏令时切换、连续天数、未知用时及设置冲突；浏览器测试覆盖实际练习、日期记录、账号两设备同步和个人数据导出。`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker` 通过，验证设置在容器替换和数据库备份恢复后保留。已查看[桌面日间](screenshots/activity-calendar-desktop-light.png)与[手机夜间](screenshots/activity-calendar-mobile-dark.png)界面，并通过全站浏览器回归。

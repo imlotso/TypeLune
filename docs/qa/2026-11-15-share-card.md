@@ -6,4 +6,4 @@
 - 下载通过浏览器生成 PNG；复制使用图片剪贴板能力，失败或不支持时提供明确提示且下载仍可使用。图片由当前设备生成，不上传到服务端。
 - Playwright 验证了实际下载文件的 PNG 格式和 1200×630 尺寸、默认隐藏身份信息、可选择展示，以及支持时复制得到 image/png、不支持时下载仍可用。实际打开并检查了浅色、夜间、手机界面及长标题成品图，截图在 `screenshots/share-*`。
 - 参考 [Monkeytype 成绩操作](https://github.com/monkeytypegame/monkeytype/blob/3aa6c2e448d3d13084daac678070ca9734b77ba1/frontend/src/ts/components/pages/test/result/ResultButtons.tsx) 的复制和下载入口，按本项目数据和视觉重新实现。
-- 待总体验收：不同系统字体与浏览器的真实剪贴板兼容性，以及全站完整回归。
+- 已通过全站浏览器回归；不同系统字体与浏览器的真实剪贴板兼容性未逐一实测。
