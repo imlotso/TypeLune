@@ -23,7 +23,7 @@
 | C03 | 待完善 | `e6dac69` | 已有版本化 JSON、记录 CSV、完整历史分页及缺失项报告；待最终跨设备和失败场景回归。 |
 | C04 | 待完善 | `a0eeb01` | 已有退出清理选项、未同步保护、按账号本机清理及新版标签页迟到写入阻断；旧版独立资料检查及旧客户端兼容待完善。 |
 | C05 | 待完善 | `9e0e5a8` | 已有显式导入、冲突保护、个人成绩隔离、云端核对及可选清理；待与历史删除和后续数据模型整体回归，见 [说明](2026-11-15-guest-import.md)。 |
-| D01 | 待完善 | 本阶段 | 主要页面已支持直接访问、刷新、前进／后退和草稿保护；公共文章、账号中心及记录／反馈详情深链仍待接入，见[说明](2026-11-15-main-routes.md)。 |
+| D01 | 待完善 | `55f7eea`、本阶段 | 主要页面和公共文章已支持直接访问、刷新及历史导航；账号中心、记录详情与反馈详情深链仍待接入，见[页面地址](2026-11-15-main-routes.md)、[文章地址](2026-11-15-article-routes.md)。 |
 | D02 | 待完善 | `6cb2ae2` | 公开接口只返回三个功能开关；前台提示并限制注册／游客上榜，游客新练习关闭时直接本机开始。已有在线练习可恢复，待最终整体回归。 |
 | D03 | 待完善 | `e20806e`、`673152d`、`80c3e2b` | 已有组合筛选、分批加载、删除及成绩撤回；旧版本机历史不再截断，极早期云记录 ID 差异及总体回归仍待完成，见[筛选](2026-11-15-history-filters.md)、[删除](2026-11-15-history-deletion.md)、[旧历史](2026-11-15-legacy-history.md)。 |
 | D04 | 待完善 | — | 有部分成绩和复核状态，缺统一状态与公开处理说明。 |
@@ -162,3 +162,5 @@
 | 主要页面地址 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 通过；84 个测试文件、450 项通过；构建仍提示客户端包大于 500 kB。 |
 | 主要页面地址 | 隔离测试服务实际页面 | 已查看[桌面夜间文章库](screenshots/navigation-library-desktop-dark.png)及[手机夜间未找到页面](screenshots/navigation-notfound-mobile-dark.png)。 |
 | 主要页面地址 | `npx playwright test e2e/navigation.e2e.ts e2e/private-editor.e2e.ts e2e/site-info.e2e.ts e2e/practice.e2e.ts` | 21 项通过，含直接访问、刷新、前进／后退、保存失败、未保存文章、账号和管理员预览。 |
+| 公共文章地址 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；84 个测试文件、451 项通过，构建仍提示客户端包大于 500 kB。 |
+| 公共文章地址 | `npx playwright test e2e/article-route.e2e.ts`；相关导航及私人文章流程 | 3 项通过；此前相关组合 11 项通过，覆盖实际复制、重试、隐私边界及草稿保留。 |

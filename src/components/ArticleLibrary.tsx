@@ -16,6 +16,7 @@ type Props = {
   favorites: string[];
   onToggleFavorite: (id: string) => void;
   onSelect: (article: ArticleSnapshot) => void;
+  onOpenArticle?: (id: string) => void;
   onSave: (article: PrivateArticle) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
 };
@@ -159,7 +160,7 @@ function ArticleEditor({ article, initialLanguage, onSave, onClose }: {
   </Dialog>;
 }
 
-export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect, onSave, onDelete }: Props) {
+export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect, onOpenArticle, onSave, onDelete }: Props) {
   const [language, setLanguage] = useState<Language>('zh');
   const [tab, setTab] = useState<keyof typeof libraryTabs>('all');
   const [search, setSearch] = useState('');
@@ -247,6 +248,7 @@ export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect
             <button className="icon-button" aria-label={`编辑《${article.title}》`} onClick={() => setEditor({ ...article, custom: true })}><PencilSimple size={19} aria-hidden="true" /></button>
             <button className="icon-button" aria-label={`删除《${article.title}》`} onClick={() => { setDeleting(article); setDeleteError(false); }}><Trash size={19} aria-hidden="true" /></button>
           </>}
+          {!article.custom && onOpenArticle && <button type="button" className="text-button" aria-label={`查看《${article.title}》`} onClick={() => onOpenArticle(article.id)}>详情</button>}
           <button className="outline-button feature-action-button" aria-label={`练习《${article.title}》`} onClick={() => onSelect(article)}>练习</button>
         </div>
       </li>)}

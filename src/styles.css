@@ -57,6 +57,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .command-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--typing-border); border-radius: 10px; background: var(--typing-input); color: var(--typing-text); text-align: left; }
 .command-option:disabled { opacity: .5; }
 .command-option kbd { color: var(--typing-muted); font: inherit; font-size: 12px; white-space: nowrap; }
+.public-article .feature-meta { margin-top: 14px; }
+.public-article .content-heading h1 { min-width: 0; overflow-wrap: anywhere; }
+.public-article .content-heading button { flex: none; }
+.public-article-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.85; font-size: 16px; }
+.public-article-share { margin-top: 24px; }
 .record-title-row { display: flex; align-items: flex-start; gap: 10px; }
 .record-title-row input { flex: none; margin: 4px 0 0; }
 .record-filters { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--typing-border); border-radius: 14px; }

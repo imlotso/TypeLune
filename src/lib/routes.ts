@@ -3,9 +3,19 @@ export const mainPaths = {
   feedback: '/feedback', data: '/account/data', help: '/help', about: '/about', privacy: '/privacy', terms: '/terms',
 } as const;
 export type MainView = keyof typeof mainPaths;
-export type MainRoute = MainView | 'notfound';
+export type MainRoute = MainView | 'article' | 'notfound';
 export const pathForView = (view: MainView) => mainPaths[view];
+export const pathForArticle = (id: string) => `/articles/${encodeURIComponent(id)}`;
+export function articleIdFromPath(pathname: string): string | undefined {
+  const match = /^\/articles\/([^/]+)\/?$/u.exec(pathname);
+  if (!match) return undefined;
+  try {
+    const id = decodeURIComponent(match[1]);
+    return id && id.length <= 200 && !/[\p{Cc}\p{Cf}]/u.test(id) ? id : undefined;
+  } catch { return undefined; }
+}
 export function mainRoute(pathname: string): MainRoute {
+  if (articleIdFromPath(pathname)) return 'article';
   const path = pathname.length > 1 ? pathname.replace(/\/+$/u, '') : pathname;
   return (Object.entries(mainPaths).find(([, value]) => value === path)?.[0] as MainView | undefined) ?? 'notfound';
 }

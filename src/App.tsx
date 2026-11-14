@@ -18,6 +18,7 @@ import { AccountDialog } from './components/AccountDialog';
 import { AccountMenu } from './components/AccountMenu';
 import { CommandPalette, type Command } from './components/CommandPalette';
 import { ArticleLibrary } from './components/ArticleLibrary';
+import { PublicArticleView } from './components/PublicArticleView';
 import { BackgroundDialog } from './components/BackgroundDialog';
 import { RoomBackground } from './components/RoomBackground';
 import { AuthDialog } from './components/AuthDialog';
@@ -64,7 +65,7 @@ import { collectGuestImport } from './lib/guest-import';
 import { readPagedHistory } from './lib/history';
 import { deletePracticeRecords } from './lib/history-delete';
 import { mergePracticeRecords, stableRecordId } from './lib/records';
-import { mainRoute, navigationIndex, navigationState, pathForView, type MainRoute, type MainView } from './lib/routes';
+import { articleIdFromPath, mainRoute, navigationIndex, navigationState, pathForArticle, pathForView, type MainRoute, type MainView } from './lib/routes';
 
 type View = MainRoute;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
@@ -197,11 +198,14 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const site = useSiteFeatures();
   const [selection, setSelection] = useState(builtIns[0]);
   const [publicArticles, setPublicArticles] = useState(builtIns);
+  const [routeCatalog, setRouteCatalog] = useState<ArticleSnapshot[]>([]);
+  const [catalogState, setCatalogState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [catalogRevision, setCatalogRevision] = useState(0);
   const refreshCatalog = useCallback(() => setCatalogRevision((revision) => revision + 1), []);
   const [guestTheme, setGuestTheme] = useState(initialTheme);
   const [directAdmin] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
   const [view, setView] = useState<View>(() => feedbackResume ? 'feedback' : directAdmin ? 'practice' : mainRoute(window.location.pathname));
+  const [routeArticleId, setRouteArticleId] = useState(() => articleIdFromPath(window.location.pathname));
   const currentPath = useRef(window.location.pathname + window.location.search + window.location.hash);
   const currentHistoryIndex = useRef(0);
   const restoringHistory = useRef(false);
@@ -347,11 +351,15 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
 
   useEffect(() => {
     const controller = new AbortController();
+    setCatalogState('loading');
     void api<{ articles: ArticleSnapshot[] }>('/api/articles', { signal: controller.signal }).then(({ articles: published }) => {
-      if (controller.signal.aborted || !Array.isArray(published) || !published.length) return;
+      if (!Array.isArray(published) || published.some((article) => !article || typeof article.id !== 'string' || typeof article.title !== 'string' || typeof article.text !== 'string' || article.custom !== false || !['zh', 'en'].includes(article.language) || !['beginner', 'intermediate', 'advanced'].includes(article.difficulty))) throw new Error('文章目录无法读取');
+      if (controller.signal.aborted) return;
+      setRouteCatalog(published); setCatalogState('ready');
+      if (!published.length) return;
       setPublicArticles(published);
       if (!interacted.current) setSelection((current) => current === builtIns[0] ? published[0] : current);
-    }).catch(() => { /* Bundled articles are available on static and offline deployments. */ });
+    }).catch(() => { if (!controller.signal.aborted) setCatalogState('error'); });
     return () => controller.abort();
   }, [catalogRevision]);
 
@@ -584,14 +592,18 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     }
   }
 
-  function commitView(next: MainView) {
-    const path = pathForView(next);
+  function commitAddress(path: string, next: View) {
     if (window.location.pathname !== path) {
       currentHistoryIndex.current++;
       window.history.pushState(navigationState(window.history.state, currentHistoryIndex.current), '', path);
     }
     currentPath.current = window.location.pathname + window.location.search + window.location.hash;
-    setView(next);
+    setView(next); setRouteArticleId(articleIdFromPath(path));
+  }
+  function commitView(next: MainView) { commitAddress(pathForView(next), next); }
+
+  function openPublicArticle(id: string) {
+    void afterPark(() => { setShowResult(false); setFeedback(''); commitAddress(pathForArticle(id), 'article'); });
   }
 
   function navigate(next: MainView) {
@@ -623,7 +635,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       const next = mainRoute(nextPath);
       setShowMore(false); setShowResult(false); setFeedback('');
       if (focused && next !== 'practice') exitFocus();
-      setView(next); currentPath.current = nextAddress;
+      setView(next); setRouteArticleId(articleIdFromPath(nextPath)); currentPath.current = nextAddress;
       if (targetIndex !== undefined) currentHistoryIndex.current = targetIndex;
       else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', nextAddress);
       applied = true;
@@ -945,7 +957,14 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {view !== 'practice' && feedback && <p className="form-error view-error" role="alert">{feedback}</p>}
         {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">连接失败，显示已读取的记录。</p>}
         {recordViews.includes(view) && hasUnloadedLocalHistory() && <p className="form-error view-error" role="status">部分本机旧版记录或文章快照无法完整读取。</p>}
-        {view === 'library' && <ArticleLibrary articles={catalog} favorites={workspace.favorites} onToggleFavorite={(id) => void workspace.toggleFavorite(id).catch(reportSaveError)} onSelect={selectArticle} onSave={(article) => workspace.put('article', article.id, article)} onDelete={(id) => workspace.remove('article', id)} />}
+        {view === 'library' && <ArticleLibrary articles={catalog} favorites={workspace.favorites} onOpenArticle={openPublicArticle} onToggleFavorite={(id) => void workspace.toggleFavorite(id).catch(reportSaveError)} onSelect={selectArticle} onSave={(article) => workspace.put('article', article.id, article)} onDelete={(id) => workspace.remove('article', id)} />}
+        {view === 'article' && (() => {
+          const article = catalogState === 'ready' ? routeCatalog.find((item) => item.id === routeArticleId) : catalogState === 'error' ? builtIns.find((item) => item.id === routeArticleId) : undefined;
+          if (article) return <PublicArticleView key={article.id} article={article} offline={catalogState === 'error'} onPractice={() => selectArticle(article)} onBack={() => navigate('library')} />;
+          if (catalogState === 'loading') return <section className="content-panel feature-panel"><p role="status">正在读取文章…</p></section>;
+          if (catalogState === 'error') return <section className="content-panel feature-panel"><p className="form-error" role="alert">文章暂不可用</p><button type="button" className="outline-button" onClick={refreshCatalog}>重试</button></section>;
+          return <section className="content-panel feature-panel"><div className="content-heading"><h1>文章未找到</h1></div><button type="button" className="outline-button" onClick={() => navigate('library')}>返回文章库</button></section>;
+        })()}
         {view === 'rankings' && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} />}
         {view === 'history' && <RecordsView records={records} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} />}
         {view === 'drafts' && <DraftsView drafts={draftBox.drafts} onResume={(draft) => continueDraft(draft)} onDelete={deleteDraft}
