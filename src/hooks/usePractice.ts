@@ -3,6 +3,7 @@ import type { Difficulty, Language } from '../data/articles';
 import { api, ApiError } from '../lib/api';
 import { catalogSnapshotKey, compareDraftProgress, sameDraftSnapshot, snapshotKey, type ArticleSnapshot, type MistakeSample, type PracticeMode, type PracticeRecord, type SavedPractice } from '../lib/models';
 import { scoreTyping, splitCharacters, type Score } from '../lib/scoring';
+import { stableRecordId } from '../lib/records';
 import { isLocalAccountBlocked, readWorkspaceGeneration } from '../lib/workspace';
 
 export type PracticePhase = 'ready' | 'starting' | 'running' | 'pausing' | 'paused' | 'resuming' | 'restoring' | 'finishing' | 'finished';
@@ -113,6 +114,18 @@ function storedDraft(recordId: string): PracticeDraft | null {
 
 export function localHistory(): History[] {
   try { const value = JSON.parse(localStorage.getItem(historyKey) || '[]'); return Array.isArray(value) ? value.slice(0, 50) : []; } catch { return []; }
+}
+export function deleteLocalHistory(ownerId: string | null, ids: string[]) {
+  const raw = localStorage.getItem(historyKey);
+  if (!raw) return false;
+  const entries: unknown = JSON.parse(raw);
+  if (!Array.isArray(entries)) throw new Error('本机历史无法读取');
+  const selected = new Set(ids);
+  const remaining = entries.filter((entry) => !entry || typeof entry !== 'object' || Array.isArray(entry) ||
+    ((entry as PracticeRecord).ownerId ?? null) !== ownerId || !selected.has(stableRecordId(entry as PracticeRecord)));
+  if (remaining.length === entries.length) return false;
+  localStorage.setItem(historyKey, JSON.stringify(remaining));
+  return true;
 }
 export function hasUnloadedLocalHistory() {
   try { const value: unknown = JSON.parse(localStorage.getItem(historyKey) || '[]'); return !Array.isArray(value) || value.length > 50; }

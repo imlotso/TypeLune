@@ -282,6 +282,7 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
       privateArticles: get('article'),
       drafts: get('draft').sort((a, b) => b.savedAt - a.savedAt),
       deletedDraftIds: items.filter((item) => item.kind === 'draft' && item.deleted).map((item) => item.id) as readonly string[],
+      deletedRecordIds: items.filter((item) => item.kind === 'record' && item.deleted).map((item) => item.id) as readonly string[],
       records: get('record').sort((a, b) => b.finishedAt - a.finishedAt),
     };
   }, [items, ownerId, visible?.ready]);

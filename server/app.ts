@@ -1,3 +1,4 @@
+import { registerHistoryDeletion } from './history-delete';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
@@ -263,6 +264,7 @@ export async function createApp(options: AppOptions) {
     const user = userFor(request);
     return user ? `u:${user.id}` : getGuestOwner(request, reply, create);
   };
+  const historyDeletion = registerHistoryDeletion(app, { db, now, workspace, userFor, getOwner });
   const getCodeHash = (email: string, purpose: string, code: string) => createHmac('sha256', codeSecret).update(`${email}\0${purpose}\0${code}`).digest('hex');
   const verifyCode = (email: string, purpose: string, code: string, consume = true): boolean => {
     const row = db.prepare('SELECT * FROM email_codes WHERE email = ? AND purpose = ?').get(email, purpose) as { code_hash: string; expires_at: number; attempts: number } | undefined;
@@ -565,6 +567,7 @@ export async function createApp(options: AppOptions) {
     duration: number; mode: PracticeMode; strict: boolean; recoveryHash: string | null; recoveredElapsed?: number;
     claimId?: string; claimVersion?: number; requestId?: string; draftId?: string;
   }) {
+    if (historyDeletion.isRetired(input.id)) return false;
     const { article: { content, ...metadata }, strict, recoveredElapsed, claimId, claimVersion, requestId, ...practice } = input;
     const time = now();
     const recovered = recoveredElapsed !== undefined;
@@ -625,6 +628,7 @@ export async function createApp(options: AppOptions) {
     const owner = user ? `u:${user.id}` : getGuestOwner(request, reply, true)!;
     const limit = durationMs(input);
     const existing = findChallenge.get(id) as Challenge | undefined;
+    if (!existing && historyDeletion.isRetired(id)) return { conflict: scoreFinalized };
     const boundDraftId = existing?.draft_id ?? draftId ?? defaultDraftId(id);
     const draft = draftFor(owner, boundDraftId);
     const isDraftStale = () => claim && expectedProgressVersion !== undefined && draft &&

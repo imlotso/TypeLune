@@ -131,6 +131,9 @@ export function createWorkspaceStore(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS workspace_deleted_drafts (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, draft_id TEXT NOT NULL, PRIMARY KEY(user_id,draft_id)
     );
+    CREATE TABLE IF NOT EXISTS workspace_deleted_records (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, record_id TEXT NOT NULL, PRIMARY KEY(user_id,record_id)
+    );
   `);
   db.transaction(() => {
     const columns = new Set((db.pragma('table_info(workspace_items)') as Array<{ name: string }>).map((column) => column.name));
@@ -146,6 +149,7 @@ export function createWorkspaceStore(db: Database.Database) {
     FROM workspace_items WHERE user_id=? ORDER BY kind, item_id`);
   const readItem = db.prepare('SELECT updated_at AS updatedAt,value,revision FROM workspace_items WHERE user_id=? AND kind=? AND item_id=?');
   const deletedDraft = db.prepare('SELECT 1 FROM workspace_deleted_drafts WHERE user_id=? AND draft_id=?');
+  const deletedRecord = db.prepare('SELECT 1 FROM workspace_deleted_records WHERE user_id=? AND record_id=?');
   const limits = db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(length(CAST(value AS BLOB))), 0) AS bytes FROM workspace_items WHERE user_id=?');
   const storedClaim = "COALESCE(json_extract(workspace_items.value, '$.claimVersion'), 0)";
   const incomingClaim = "COALESCE(json_extract(excluded.value, '$.claimVersion'), 0)";
@@ -196,6 +200,7 @@ export function createWorkspaceStore(db: Database.Database) {
       }
       const serialized = deleted ? null : JSON.stringify(mergedValue);
       if (kind === 'draft' && !deleted && deletedDraft.get(owner, id)) throw new WorkspaceConflictError();
+      if (kind === 'record' && !deleted && deletedRecord.get(owner, id)) throw new WorkspaceConflictError();
       if (baseRevision !== (previous?.revision ?? 0)) {
         if (previous && previous.updatedAt === updatedAt && previous.value === serialized) continue;
         throw new WorkspaceConflictError();
@@ -220,6 +225,21 @@ export function createWorkspaceStore(db: Database.Database) {
     if (removed) db.prepare('UPDATE workspace_generations SET generation=generation+1 WHERE user_id=?').run(owner);
     return { removed, generation: current + Number(removed > 0) };
   });
+  // Called inside the history deletion transaction so score withdrawal and the
+  // tombstones either both commit or neither does. Registry entries survive
+  // compaction and reject any later upload of the same record ID.
+  const deleteRecords = (owner: string, ids: string[], time: number) => {
+    for (const id of ids) {
+      const previous = readItem.get(owner, 'record', id) as { updatedAt: number; value: string | null; revision: number } | undefined;
+      db.prepare('INSERT OR IGNORE INTO workspace_deleted_records(user_id,record_id) VALUES (?,?)').run(owner, id);
+      if (previous?.value === null) continue;
+      const timestamp = Math.max(time, (previous?.updatedAt ?? -1) + 1);
+      db.prepare(`INSERT INTO workspace_items(user_id,kind,item_id,updated_at,value) VALUES (?,'record',?,?,NULL)
+        ON CONFLICT(user_id,kind,item_id) DO UPDATE SET updated_at=excluded.updated_at,value=NULL,revision=workspace_items.revision+1`).run(owner, id, timestamp);
+    }
+    const { count, bytes } = limits.get(owner) as { count: number; bytes: number };
+    if (count > maxWorkspaceItems || bytes > maxWorkspaceBytes) throw new WorkspaceLimitError();
+  };
   const snapshot = db.transaction((owner: string) => ({ generation: generation(owner), items: get(owner) }));
   const usage = db.transaction((owner: string) => {
     const total = db.prepare('SELECT COUNT(*) AS count,COALESCE(SUM(length(CAST(value AS BLOB))),0) AS bytes,COUNT(CASE WHEN value IS NULL THEN 1 END) AS tombstones FROM workspace_items WHERE user_id=?')
@@ -227,7 +247,7 @@ export function createWorkspaceStore(db: Database.Database) {
     const types = db.prepare('SELECT kind,COUNT(*) AS count,COALESCE(SUM(length(CAST(value AS BLOB))),0) AS bytes,COUNT(CASE WHEN value IS NULL THEN 1 END) AS tombstones FROM workspace_items WHERE user_id=? GROUP BY kind ORDER BY kind').all(owner);
     return { ...total, maxItems: maxWorkspaceItems, maxBytes: maxWorkspaceBytes, generation: generation(owner), types };
   });
-  return { get, generation, snapshot: snapshot.immediate, usage: usage.immediate, merge: merge.immediate, compact: compact.immediate };
+  return { get, generation, snapshot: snapshot.immediate, usage: usage.immediate, merge: merge.immediate, compact: compact.immediate, deleteRecords };
 }
 
 export class WorkspaceLimitError extends Error {}

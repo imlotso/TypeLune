@@ -43,7 +43,7 @@ import { StatsView } from './components/StatsView';
 import { SiteInfoView } from './components/SiteInfoView';
 import { articles, type Difficulty, type Language } from './data/articles';
 import { infoLabels, type InfoPage } from './data/site-content';
-import { continuationDraftId, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
+import { continuationDraftId, deleteLocalHistory, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useSiteFeatures } from './hooks/useSiteFeatures';
 import { shortcutNames, useShortcuts, type ShortcutAction } from './hooks/useShortcuts';
@@ -62,7 +62,8 @@ import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLo
 import { resetWorkspaceFromCloud, WorkspaceResetIncompleteError } from './lib/workspace-recovery';
 import { collectGuestImport } from './lib/guest-import';
 import { readPagedHistory } from './lib/history';
-import { mergePracticeRecords } from './lib/records';
+import { deletePracticeRecords } from './lib/history-delete';
+import { mergePracticeRecords, stableRecordId } from './lib/records';
 
 type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback' | 'data' | InfoPage;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
@@ -257,8 +258,11 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const adminLogin = directAdmin && authReady && !user && !adminLoginDismissed;
   const reportSaveError = useCallback(() => { if (live.current) setFeedback('无法保存进度'); }, []);
   const paceSettings = workspace.settings.pace ?? defaultPace;
-  const paceRecords = useMemo(() => !paceSettings.enabled || paceSettings.source === 'custom' ? [] :
-    mergePracticeRecords(localHistory().filter((record) => (record.ownerId ?? null) === ownerId), remoteHistory, workspace.records), [ownerId, remoteHistory, workspace.records, localRecordVersion, paceSettings.enabled, paceSettings.source]);
+  const paceRecords = useMemo(() => {
+    if (!paceSettings.enabled || paceSettings.source === 'custom') return [];
+    const deleted = new Set(workspace.deletedRecordIds);
+    return mergePracticeRecords(localHistory().filter((record) => (record.ownerId ?? null) === ownerId), remoteHistory, workspace.records).filter((record) => !deleted.has(stableRecordId(record)));
+  }, [ownerId, remoteHistory, workspace.records, workspace.deletedRecordIds, localRecordVersion, paceSettings.enabled, paceSettings.source]);
   const paceReference = useMemo<PracticeRecord>(() => ({ recordId: '__pace_reference__', language, difficulty, duration, mode: workspace.settings.mode,
     strict: workspace.settings.strict, offset: 0, speed: 0, accuracy: 0, finishedAt: 0, article: selection }), [language, difficulty, duration, workspace.settings.mode, workspace.settings.strict, selection]);
   const selectedPaceTarget = useMemo(() => !user || paceSettings.source === 'custom' || historyLoaded
@@ -403,11 +407,25 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     return () => controller.abort();
   }, [view, ownerId, result, paceSettings.enabled, paceSettings.source]);
 
+  useEffect(() => {
+    if (!workspace.ready || !workspace.deletedRecordIds.length) return;
+    try { if (deleteLocalHistory(ownerId, [...workspace.deletedRecordIds])) setLocalRecordVersion((version) => version + 1); }
+    catch { reportSaveError(); }
+  }, [ownerId, workspace.ready, workspace.deletedRecordIds, reportSaveError]);
+
   const records = useMemo(() => {
     if (!authReady) return [];
     const local = localHistory().filter((record) => (record.ownerId ?? null) === ownerId);
-    return mergePracticeRecords(local, remoteHistory, workspace.records);
-  }, [authReady, ownerId, remoteHistory, workspace.records, result, view]);
+    const deleted = new Set(workspace.deletedRecordIds);
+    return mergePracticeRecords(local, remoteHistory, workspace.records).filter((record) => !deleted.has(stableRecordId(record)));
+  }, [authReady, ownerId, remoteHistory, workspace.records, workspace.deletedRecordIds, localRecordVersion, result, view]);
+  async function deleteRecords(selected: PracticeRecord[]) {
+    const ids = new Set(await deletePracticeRecords(ownerId, selected));
+    if (!live.current) return;
+    setRemoteHistory((current) => current.filter((record) => !ids.has(stableRecordId(record))));
+    setLocalRecordVersion((version) => version + 1);
+    if (ownerId) void workspace.sync();
+  }
   const shareData = useMemo(() => {
     if (!result?.record) return undefined;
     const complete = !hasUnloadedLocalHistory() && (!user || (historyCheckedFor === result.recordId && !historyError && workspace.cloudLoaded && workspace.syncState === 'synced'));
@@ -874,7 +892,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">连接失败，显示已读取的记录。</p>}
         {view === 'library' && <ArticleLibrary articles={catalog} favorites={workspace.favorites} onToggleFavorite={(id) => void workspace.toggleFavorite(id).catch(reportSaveError)} onSelect={selectArticle} onSave={(article) => workspace.put('article', article.id, article)} onDelete={(id) => workspace.remove('article', id)} />}
         {view === 'rankings' && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} />}
-        {view === 'history' && <RecordsView records={records} onReplay={selectArticle} onContinue={continueRecord} />}
+        {view === 'history' && <RecordsView records={records} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} />}
         {view === 'drafts' && <DraftsView drafts={draftBox.drafts} onResume={(draft) => continueDraft(draft)} onDelete={deleteDraft}
           recovery={draftBox.completed.map((draft) => ({
             id: draft.recordId, title: draft.title, savedAt: draft.savedAt,

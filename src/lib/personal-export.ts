@@ -3,6 +3,7 @@ import { compareDraftProgress, type ArticleSnapshot, type MistakeSample, type Pr
 import type { BackgroundConfig } from './background';
 import { mergeWorkspaceItems, workspaceSettings } from './workspace';
 import { cleanPracticePreset } from './practice-settings';
+import { stableRecordId } from './records';
 
 export type FeedbackExport = { id: string; category: string; title: string; description: string; status: string; createdAt: number; updatedAt: number;
   article?: { id: string; title: string; snapshotKey: string; position?: string | null; wrongText?: string | null };
@@ -75,7 +76,7 @@ export function buildPersonalExport(input: Inputs) {
   }
   const workspaceRecords = items.filter((item) => item.kind === 'record' && !item.deleted).map((item) => item.value as PracticeRecord);
   const deletedRecords = new Set(items.filter((item) => item.kind === 'record' && item.deleted).map((item) => item.id));
-  const records = mergeRecords([...input.localHistory, ...workspaceRecords, ...input.remoteHistory].filter((value) => !value.recordId || !deletedRecords.has(value.recordId)));
+  const records = mergeRecords([...input.localHistory, ...workspaceRecords, ...input.remoteHistory].filter((value) => !deletedRecords.has(stableRecordId(value))));
   return {
     format: 'typing-personal-data', version: 1, exportedAt: input.exportedAt,
     scope: { accountId: input.user.id, localWorkspace: input.localAvailable === false ? 'unavailable' : 'included', cloudWorkspace: input.remote ? 'included' : 'unavailable',

@@ -25,7 +25,7 @@
 | C05 | 待完善 | `9e0e5a8` | 已有显式导入、冲突保护、个人成绩隔离、云端核对及可选清理；待与历史删除和后续数据模型整体回归，见 [说明](2026-11-15-guest-import.md)。 |
 | D01 | 待完善 | — | `/admin` 有入口，主要前台视图由组件状态切换，缺稳定路由。 |
 | D02 | 待完善 | `6cb2ae2` | 公开接口只返回三个功能开关；前台提示并限制注册／游客上榜，游客新练习关闭时直接本机开始。已有在线练习可恢复，待最终整体回归。 |
-| D03 | 待完善 | 本阶段 | 已有文章、日期、语言、模式、时长与严格纠错组合筛选及分批加载；删除、成绩撤回和跨设备一致性仍待实现，见 [说明](2026-11-15-history-filters.md)。 |
+| D03 | 待完善 | `e20806e`、本阶段 | 已有组合筛选、分批加载、单条／批量删除、公开成绩撤回及跨设备防复活；旧版无 ID／超出展示上限历史和总体回归仍待完成，见[筛选](2026-11-15-history-filters.md)、[删除](2026-11-15-history-deletion.md)。 |
 | D04 | 待完善 | — | 有部分成绩和复核状态，缺统一状态与公开处理说明。 |
 | D05 | 待完善 | — | 草稿有恢复成绩入口；历史详情尚无对应入口。 |
 | D06 | 待完善 | `a77e3e9` | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
@@ -147,3 +147,9 @@
 | 历史筛选 | `npx vitest run tests/history-filter.test.ts tests/history-filter-ui.test.tsx tests/feature-views.test.tsx`；`npm run typecheck`、`npm run build` | 均通过；定向测试 11 项通过。 |
 | 历史筛选 | `npx playwright test e2e/history-filter.e2e.ts` | 1 项通过；此前一次定向运行因测试定位器未匹配嵌套选项文本超时，改用可访问角色后通过。 |
 | 历史筛选 | 隔离测试服务实际页面 | 已查看[桌面夜间](screenshots/history-filters-desktop-dark.png)及[手机日间](screenshots/history-filters-mobile-light.png)。 |
+| 历史删除 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；81 个测试文件、443 项通过。构建继续提示客户端包大于 500 kB。 |
+| 历史删除 | `npx playwright test e2e/history-delete.e2e.ts e2e/personal-best.e2e.ts e2e/guest-import.e2e.ts` | 7 项通过；随后新增统计与个人最佳重算场景，单独 1 项通过。 |
+| 历史删除 | 隔离测试服务实际页面 | 已查看[手机日间确认](screenshots/history-delete-mobile-light.png)及[桌面夜间批量选择](screenshots/history-delete-desktop-dark.png)。 |
+| 阶段回归 | `npm run test:e2e` | 62 项通过；本次仍以模拟事件覆盖中文输入法，未代表真实系统输入法或 SMTP 投递验收。帮助／隐私文案随后单独重新构建和验证。 |
+| 历史删除补充 | `npx vitest run tests/history-delete-api.test.ts` | 5 项通过，包括并发重复请求、游客身份丢失、注销后恢复阻断及容量不足时事务回滚。 |
+| 最终文案重验 | `npm run build`、`npm run test:sites`；`npx vitest run tests/site-info.test.tsx`；`npx playwright test e2e/site-info.e2e.ts e2e/history-delete.e2e.ts` | 均通过；Sites 4 项、相关浏览器流程 5 项通过。 |

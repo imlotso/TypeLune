@@ -1,5 +1,6 @@
 import { clearLocalPractice, readDrafts, savedPracticeFromLegacy } from '../hooks/usePractice';
 import { api } from './api';
+import { stableRecordId } from './records';
 import { localPracticeNeedsRecovery } from './local-practice-generation';
 import { cleanPracticePreset } from './practice-settings';
 import { compareDraftProgress, type ArticleSnapshot, type PracticeRecord, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models';
@@ -28,13 +29,6 @@ function cleanDraft(value: SavedPractice, ownerId: string): SavedPractice {
     ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }),
     ...(value.paceTarget !== undefined && { paceTarget: value.paceTarget }),
     ...(value.suspicious !== undefined && { suspicious: value.suspicious }) };
-}
-function stableRecordId(value: PracticeRecord) {
-  if (value.recordId) return value.recordId;
-  const text = JSON.stringify(canonical(value));
-  let first = 2166136261; let second = 2246822519;
-  for (let index = 0; index < text.length; index++) { first = Math.imul(first ^ text.charCodeAt(index), 16777619); second = Math.imul(second ^ text.charCodeAt(index), 3266489917); }
-  return `guest-${(first >>> 0).toString(16).padStart(8, '0')}${(second >>> 0).toString(16).padStart(8, '0')}`;
 }
 function cleanRecord(value: PracticeRecord, ownerId: string, recordId: string): PracticeRecord {
   return { recordId, language: value.language, difficulty: value.difficulty, duration: value.duration, speed: value.speed, accuracy: value.accuracy, finishedAt: value.finishedAt,

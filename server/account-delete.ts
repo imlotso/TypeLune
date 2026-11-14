@@ -37,6 +37,8 @@ export function registerAccountDeletion(app: FastifyInstance, { db, now, userFor
       db.prepare('UPDATE feedback SET handled_by=? WHERE handled_by=?').run(anonymous, current.id);
       db.prepare('DELETE FROM email_codes WHERE email=?').run(current.email);
       db.prepare('DELETE FROM scores WHERE owner=?').run(owner);
+      db.prepare('INSERT OR IGNORE INTO retired_attempts(id) SELECT id FROM challenges WHERE owner=?').run(owner);
+      db.prepare('DELETE FROM history_deletion_receipts WHERE owner=?').run(owner);
       db.prepare('DELETE FROM challenges WHERE owner=?').run(owner);
       db.prepare('DELETE FROM users WHERE id=?').run(current.id);
       db.prepare(`INSERT INTO admin_audit(actor_id,actor_name,action,target_type,target_id,target_label,reason,created_at)

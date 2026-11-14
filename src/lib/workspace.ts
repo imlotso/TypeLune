@@ -386,6 +386,8 @@ function mergeProtocolItems(local: WorkspaceItem[], incoming: WorkspaceItem[], a
   const sent = new Map(acknowledged.map((item) => [keyOf(item), item]));
   for (const remote of incoming) {
     const key = keyOf(remote); const current = items.get(key);
+    // An older GET may finish after an explicit server-side deletion.
+    if (current?.clientGeneration === generation && current.serverRevision !== undefined && remote.serverRevision !== undefined && current.serverRevision > remote.serverRevision) continue;
     const localLease = current?.kind === 'draft' && isObject(current.value) && isObject(remote.value) && samePayload(current, remote)
       ? { value: { ...remote.value, ...(typeof current.value.claimId === 'string' && { claimId: current.value.claimId }),
         ...(typeof current.value.recoveryRequestId === 'string' && { recoveryRequestId: current.value.recoveryRequestId }) } } : {};
@@ -521,6 +523,21 @@ export function mergeRemoteWorkspace(ownerId: string, items: WorkspaceItem[], se
   }, false);
 }
 
+export function applyAuthoritativeRecordDeletions(ownerId: string, deleted: WorkspaceItem[], generation: number): Promise<void> {
+  if (!Number.isSafeInteger(generation) || generation < 1 || deleted.some((item) => !isWorkspaceItem(item) || item.kind !== 'record' || !item.deleted || item.serverRevision === undefined)) {
+    return Promise.reject(new Error('删除结果无法读取'));
+  }
+  return editWorkspace(ownerId, (items) => {
+    const next = new Map(items.map((item) => [keyOf(item), item]));
+    for (const item of deleted) {
+      const current = next.get(keyOf(item));
+      if (current?.clientGeneration === generation && current.serverRevision !== undefined && current.serverRevision > item.serverRevision!) continue;
+      next.set(keyOf(item), { ...item, baseUpdatedAt: item.updatedAt, clientGeneration: generation });
+    }
+    return [...next.values()];
+  }, false).then(() => {});
+}
+
 export function workspaceValue<K extends WorkspaceKind>(items: WorkspaceItem[], kind: K, id: string): WorkspaceValues[K] | undefined {
   const item = items.find((entry) => entry.kind === kind && entry.id === id);
   return !item?.deleted ? item?.value as WorkspaceValues[K] | undefined : undefined;
@@ -543,8 +560,8 @@ export function mutateWorkspaceValue<K extends WorkspaceKind>(
   return editWorkspace(ownerId, (items) => {
     const old = items.find((item) => item.kind === kind && item.id === id);
     const value = update(old?.deleted ? undefined : old?.value as WorkspaceValues[K] | undefined, items);
-    if (kind === 'draft' && old?.deleted) {
-      if (value !== undefined) throw new DraftDeletedError(id);
+    if ((kind === 'draft' || kind === 'record') && old?.deleted) {
+      if (value !== undefined) throw kind === 'draft' ? new DraftDeletedError(id) : new Error('此记录已删除');
       return items;
     }
     if (old && !old.deleted && old.value === value) return items;

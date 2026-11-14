@@ -11,7 +11,7 @@ it('combines filters and loads more matching records without losing detail actio
     finishedAt: new Date(2026, 10, 15, 12, i).getTime(), mode: 'timed', strict: i % 2 === 0,
     article: { id: String(i), title: `文章 ${i}`, text: '春风', language: 'zh', difficulty: 'beginner', custom: true }, typed: '春风',
   }));
-  render(<RecordsView records={records} onReplay={() => {}} onContinue={() => {}} />);
+  render(<RecordsView onDelete={async () => {}} records={records} onReplay={() => {}} onContinue={() => {}} />);
   expect(screen.getAllByRole('button', { name: /详情$/ })).toHaveLength(20);
   fireEvent.click(screen.getByRole('button', { name: '加载更多' }));
   expect(screen.getAllByRole('button', { name: /详情$/ })).toHaveLength(24);

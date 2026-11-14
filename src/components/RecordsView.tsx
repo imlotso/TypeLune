@@ -5,6 +5,7 @@ import { recordMistakes } from '../lib/analysis';
 import { emptyHistoryFilters, filterPracticeRecords, type HistoryFilters } from '../lib/history-filter';
 import type { ArticleSnapshot, PracticeRecord } from '../lib/models';
 import { readableCharacter } from '../lib/practice-lines';
+import { stableRecordId } from '../lib/records';
 import { splitCharacters } from '../lib/scoring';
 import { Dialog } from './Dialog';
 
@@ -12,6 +13,7 @@ type Props = {
   records: PracticeRecord[];
   onReplay: (article: ArticleSnapshot) => void;
   onContinue: (record: PracticeRecord) => void;
+  onDelete: (records: PracticeRecord[]) => Promise<void>;
 };
 
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
@@ -81,15 +83,27 @@ function RecordDetail({ record, onClose, onReplay, onContinue }: {
   </Dialog>;
 }
 
-export function RecordsView({ records, onReplay, onContinue }: Props) {
+export function RecordsView({ records, onReplay, onContinue, onDelete }: Props) {
   const [filters, setFilters] = useState<HistoryFilters>(emptyHistoryFilters);
   const [limit, setLimit] = useState(20);
   const [selected, setSelected] = useState<PracticeRecord>();
+  const [chosen, setChosen] = useState<Set<string>>(() => new Set());
+  const [deleting, setDeleting] = useState<PracticeRecord[]>();
+  const [deleteError, setDeleteError] = useState('');
+  const [busy, setBusy] = useState(false);
   const filtered = filterPracticeRecords(records, filters);
   const setFilter = <K extends keyof HistoryFilters>(key: K, value: HistoryFilters[K]) => {
     setFilters((current) => ({ ...current, [key]: value })); setLimit(20);
   };
 
+  const selectedRecords = records.filter((record) => chosen.has(stableRecordId(record)));
+  async function confirmDelete() {
+    if (!deleting?.length || busy) return;
+    setBusy(true); setDeleteError('');
+    try { await onDelete(deleting); setChosen(new Set()); setDeleting(undefined); }
+    catch (error) { setDeleteError(error instanceof Error ? error.message : '删除失败，请重试'); }
+    finally { setBusy(false); }
+  }
   return <section className="content-panel records feature-panel">
     <div className="content-heading"><h1><Clock size={25} aria-hidden="true" /> 我的记录</h1></div>
     <div className="feature-toolbar">
@@ -98,6 +112,7 @@ export function RecordsView({ records, onReplay, onContinue }: Props) {
         <button aria-pressed={filters.language === 'zh'} onClick={() => setFilter('language', 'zh')}>中文</button>
         <button aria-pressed={filters.language === 'en'} onClick={() => setFilter('language', 'en')}>English</button>
       </div>
+      {selectedRecords.length > 0 && <button type="button" className="outline-button" onClick={() => { setDeleteError(''); setDeleting(selectedRecords); }}>删除所选（{selectedRecords.length}）</button>}
     </div>
     <details className="record-filters">
       <summary>筛选</summary>
@@ -114,9 +129,10 @@ export function RecordsView({ records, onReplay, onContinue }: Props) {
       {filtered.slice(0, limit).map((record, index) => {
         const date = new Date(record.finishedAt);
         const title = recordTitle(record);
+        const id = stableRecordId(record);
         return <li className="feature-row" key={record.recordId ?? `${record.finishedAt}-${index}`}>
           <div className="feature-row-main">
-            <h2>{title}</h2>
+            <div className="record-title-row"><input type="checkbox" aria-label={`选择《${title}》`} checked={chosen.has(id)} disabled={!chosen.has(id) && selectedRecords.length >= 100} onChange={(event) => setChosen((current) => { const next = new Set(current); if (event.target.checked) next.add(id); else next.delete(id); return next; })} /><h2>{title}</h2></div>
             <div className="feature-meta">
               <time dateTime={date.toISOString()}>{dateText(date)}</time>
               {record.article && <span>{languageNames[record.language]} · {difficultyNames[record.difficulty]}</span>}
@@ -127,11 +143,18 @@ export function RecordsView({ records, onReplay, onContinue }: Props) {
           <div className="feature-actions">
             <div className="record-speed"><strong>{speedLabel(record)}</strong><span>准确率 {record.accuracy}%</span></div>
             <button className="outline-button feature-action-button" aria-label={`${record.article ? `《${title}》` : title}详情`} onClick={() => setSelected(record)}>详情</button>
+            <button type="button" className="text-button" aria-label={`删除《${title}》`} onClick={() => { setDeleteError(''); setDeleting([record]); }}>删除</button>
           </div>
         </li>;
       })}
     </ul>}
     {limit < filtered.length && <div className="feature-actions"><button type="button" className="outline-button" onClick={() => setLimit((current) => current + 20)}>加载更多</button></div>}
+    {deleting && <Dialog title="删除记录" onClose={() => setDeleting(undefined)} dismissible={!busy}>
+      <div className="feature-form"><p>删除 {deleting.length} 条记录并撤回关联的公开成绩；统计和个人最佳会重新计算。此操作无法撤销。</p>
+        {deleteError && <p className="form-error" role="alert">{deleteError}</p>}
+        <div className="feature-actions"><button type="button" className="outline-button" disabled={busy} onClick={() => setDeleting(undefined)}>取消</button><button type="button" className="primary-button" disabled={busy} onClick={() => void confirmDelete()}>删除</button></div>
+      </div>
+    </Dialog>}
     {selected && <RecordDetail record={selected} onClose={() => setSelected(undefined)} onReplay={onReplay} onContinue={onContinue} />}
   </section>;
 }

@@ -57,6 +57,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .command-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--typing-border); border-radius: 10px; background: var(--typing-input); color: var(--typing-text); text-align: left; }
 .command-option:disabled { opacity: .5; }
 .command-option kbd { color: var(--typing-muted); font: inherit; font-size: 12px; white-space: nowrap; }
+.record-title-row { display: flex; align-items: flex-start; gap: 10px; }
+.record-title-row input { flex: none; margin: 4px 0 0; }
 .record-filters { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--typing-border); border-radius: 14px; }
 .record-filters summary { cursor: pointer; font-weight: 700; }
 .record-filter-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 14px; }

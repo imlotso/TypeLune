@@ -130,7 +130,7 @@ describe('personal progress views', () => {
     function RecordHarness() {
       const [selection, setSelection] = useState('');
       return <>
-        <RecordsView records={[record, legacy]} onReplay={(article) => setSelection(article.text)} onContinue={(entry) => setSelection(entry.typed ?? '')} />
+        <RecordsView onDelete={async () => {}} records={[record, legacy]} onReplay={(article) => setSelection(article.text)} onContinue={(entry) => setSelection(entry.typed ?? '')} />
         <output>{selection}</output>
       </>;
     }

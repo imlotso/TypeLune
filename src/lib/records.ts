@@ -1,5 +1,20 @@
 import type { PracticeRecord } from './models';
 
+function canonicalRecord(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalRecord);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => [key, canonicalRecord(entry)]));
+}
+
+// Keep the existing guest-import ID for old records without an explicit ID.
+export function stableRecordId(value: PracticeRecord) {
+  if (value.recordId) return value.recordId;
+  const text = JSON.stringify(canonicalRecord(value));
+  let first = 2166136261; let second = 2246822519;
+  for (let index = 0; index < text.length; index++) { first = Math.imul(first ^ text.charCodeAt(index), 16777619); second = Math.imul(second ^ text.charCodeAt(index), 3266489917); }
+  return `guest-${(first >>> 0).toString(16).padStart(8, '0')}${(second >>> 0).toString(16).padStart(8, '0')}`;
+}
+
 export function mergePracticeRecords(local: PracticeRecord[], remote: PracticeRecord[], workspace: PracticeRecord[]) {
   const keyOf = (record: PracticeRecord) => record.recordId || `${record.finishedAt}:${record.language}:${record.difficulty}:${record.speed}:${record.accuracy}`;
   const onlineRecords = new Set(remote.map(keyOf));
