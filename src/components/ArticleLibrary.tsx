@@ -1,4 +1,4 @@
-import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Books } from '@phosphor-icons/react/Books';
 import { FileText } from '@phosphor-icons/react/FileText';
 import { PencilSimple } from '@phosphor-icons/react/PencilSimple';
@@ -71,6 +71,28 @@ function ArticleEditor({ article, initialLanguage, onSave, onClose }: {
   const [body, setBody] = useState(article?.text ?? '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmation, setConfirmation] = useState<{ type: 'discard' } | { type: 'replace'; text: string; filename: string }>();
+  const safeAction = useRef<HTMLButtonElement>(null);
+  const bodyField = useRef<HTMLTextAreaElement>(null);
+  const hadConfirmation = useRef(false);
+  const changed = title !== (article?.title ?? '') || body !== (article?.text ?? '') ||
+    language !== (article?.language ?? initialLanguage) || difficulty !== (article?.difficulty ?? 'beginner');
+  useEffect(() => {
+    if (confirmation) { hadConfirmation.current = true; safeAction.current?.focus(); }
+    else if (hadConfirmation.current) { bodyField.current?.focus(); hadConfirmation.current = false; }
+  }, [confirmation]);
+
+  function closeEditor() {
+    if (busy) return;
+    if (confirmation) { setConfirmation(undefined); return; }
+    if (changed) setConfirmation({ type: 'discard' });
+    else onClose();
+  }
+  function applyImport(text: string, filename: string) {
+    setBody(text);
+    setTitle((current) => current.trim() ? current : filename.replace(/\.txt$/iu, '').slice(0, 200));
+    setConfirmation(undefined);
+  }
 
   async function importTxt(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -84,8 +106,8 @@ function ArticleEditor({ article, initialLanguage, onSave, onClose }: {
       const text = normalizeText(await readTxt(file));
       const invalid = validateText(text);
       if (invalid) { setError(invalid); return; }
-      setBody(text);
-      setTitle((current) => current.trim() ? current : file.name.replace(/\.txt$/iu, '').slice(0, 200));
+      if (body && body !== text) setConfirmation({ type: 'replace', text, filename: file.name });
+      else applyImport(text, file.name);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法读取 TXT');
     } finally {
@@ -111,22 +133,29 @@ function ArticleEditor({ article, initialLanguage, onSave, onClose }: {
     }
   }
 
-  return <Dialog title={article ? '编辑文章' : '新建文章'} onClose={() => { if (!busy) onClose(); }}>
-    <form className="feature-form" onSubmit={submit}>
+  const dialogTitle = confirmation?.type === 'discard' ? '放弃未保存的修改？' : confirmation?.type === 'replace' ? '替换当前正文？' : article ? '编辑文章' : '新建文章';
+  return <Dialog title={dialogTitle} onClose={closeEditor} dismissible={!busy}>
+    {confirmation ? <div className="feature-form">
+      <p>{confirmation.type === 'discard' ? '未保存的文章修改将丢失。' : '当前正文将被 TXT 内容替换。'}</p>
+      <div className="feature-actions">
+        <button ref={safeAction} type="button" className="outline-button" onClick={() => setConfirmation(undefined)}>{confirmation.type === 'discard' ? '继续编辑' : '取消'}</button>
+        <button type="button" className="primary-button" onClick={() => confirmation.type === 'discard' ? onClose() : applyImport(confirmation.text, confirmation.filename)}>{confirmation.type === 'discard' ? '放弃修改' : '替换正文'}</button>
+      </div>
+    </div> : <form className="feature-form" onSubmit={submit}>
       <label>标题<input value={title} maxLength={200} disabled={busy} onChange={(event) => setTitle(event.target.value)} /></label>
       <div className="feature-form-pair">
         <label>语言<select value={language} disabled={busy} onChange={(event) => setLanguage(event.target.value as Language)}><option value="zh">中文</option><option value="en">English</option></select></label>
         <label>难度<select value={difficulty} disabled={busy} onChange={(event) => setDifficulty(event.target.value as Difficulty)}>{Object.entries(difficultyNames).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
       </div>
-      <label>正文<textarea value={body} rows={7} disabled={busy} onChange={(event) => setBody(event.target.value)} /></label>
+      <label>正文<textarea ref={bodyField} value={body} rows={7} disabled={busy} onChange={(event) => setBody(event.target.value)} /></label>
       <span className="feature-muted feature-editor-count">{splitCharacters(body.slice(0, MAX_PRIVATE_CHARACTERS + 1)).length.toLocaleString()} 字符</span>
       <label className="feature-file"><span><FileText size={16} /> 导入 TXT</span><input type="file" accept=".txt,text/plain" disabled={busy} onChange={(event) => void importTxt(event)} /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="feature-actions">
-        <button type="button" className="outline-button" disabled={busy} onClick={onClose}>取消</button>
+        <button type="button" className="outline-button" disabled={busy} onClick={closeEditor}>取消</button>
         <button type="submit" className="primary-button" disabled={busy}>保存</button>
       </div>
-    </form>
+    </form>}
   </Dialog>;
 }
 
@@ -225,6 +254,7 @@ export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect
     {editor !== undefined && <ArticleEditor article={editor} initialLanguage={language} onSave={saveArticle} onClose={() => setEditor(undefined)} />}
     {deleting && <Dialog title={`删除《${deleting.title}》？`} onClose={() => { if (!deletePending) setDeleting(undefined); }}>
       <div className="feature-form">
+        <p>已有草稿和历史记录保留原文章快照。</p>
         {deleteError && <p className="form-error" role="alert">删除失败</p>}
         <div className="feature-actions">
           <button className="outline-button" disabled={deletePending} onClick={() => setDeleting(undefined)}>取消</button>

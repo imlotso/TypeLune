@@ -81,6 +81,8 @@ describe('article library', () => {
     const bytes = new TextEncoder().encode('\uFEFF春风\r\n细雨。');
     const file = new File([bytes], '春日.txt', { type: 'text/plain' });
     fireEvent.change(within(dialog).getByLabelText('导入 TXT'), { target: { files: [file] } });
+    const replace = await screen.findByRole('dialog', { name: '替换当前正文？' });
+    fireEvent.click(within(replace).getByRole('button', { name: '替换正文' }));
     await waitFor(() => expect((within(dialog).getByRole('textbox', { name: '正文' }) as HTMLTextAreaElement).value).toBe('春风\n细雨。'));
     fireEvent.click(within(dialog).getByRole('button', { name: '保存' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
