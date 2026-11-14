@@ -30,11 +30,11 @@
 | D05 | 待完善 | — | 草稿有恢复成绩入口；历史详情尚无对应入口。 |
 | D06 | 待完善 | `a77e3e9` | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
 | E01 | 待完善 | `3608105` | 已有条件分组、个人最佳、最近 10 次比较、服务端历史分页及不完整范围提示；记录删除后的重算待 D03 完成，见 [口径](2026-11-15-personal-best.md)。 |
-| E02 | 待完善 | 本阶段 | 已有本轮复练、重复次数、状态和筛选、跨设备同步及截断提示；待最终整体回归，见 [说明](2026-11-15-mistake-training.md)。 |
+| E02 | 待完善 | `7b9bd92` | 已有本轮复练、重复次数、状态和筛选、跨设备同步及截断提示；待最终整体回归，见 [说明](2026-11-15-mistake-training.md)。 |
 | E03 | 未实现 | — | 缺命名预设及跨设备同步。 |
 | E04 | 未实现 | — | 缺目标配速。 |
 | E05 | 待完善 | — | 有 Escape 暂停；缺命令面板和可配置快捷键。 |
-| E06 | 未实现 | — | 缺独立实时指标显示设置。 |
+| E06 | 待完善 | 本阶段 | 计时、速度和准确率已可独立隐藏并同步；结果及专注模式回归通过，待最终整体验收，见 [说明](2026-11-15-live-indicators.md)。 |
 | E07 | 待完善 | — | 已有错字专项，缺独立数字、标点与词组素材。 |
 | E08 | 未实现 | — | 缺练习设置和预设的版本化导入导出。 |
 | F01 | 待完善 | — | 已有 7/30 天概览；缺完整趋势、组合筛选及覆盖范围。 |
@@ -122,3 +122,7 @@
 | 错字训练 | `npx playwright test e2e/mistake-training.e2e.ts` | 2 项通过：纠正过的错字生成个人专项，以及两设备掌握／恢复状态同步。 |
 | 错字训练 | 隔离测试服务实际页面 | 已查看[手机结果复练入口](screenshots/mistake-round-mobile.png)及[桌面夜间错字本](screenshots/mistake-notebook-desktop-dark.png)。 |
 | 错字训练 | `npm run build`、`npm run test:sites`；`npx playwright test e2e/mistake-training.e2e.ts e2e/recovery.e2e.ts e2e/guest-import.e2e.ts e2e/personal-best.e2e.ts` | 均通过；12 项浏览器流程覆盖相关恢复、游客导入和成绩比较回归。 |
+| 实时指标 | `npx vitest run tests/live-indicators.test.tsx tests/workspace-reclamation.test.ts tests/guest-import.test.ts` | 定向测试通过；覆盖旧客户端保留字段、失败回退及连续切换的先后顺序。 |
+| 实时指标 | `npx playwright test e2e/live-indicators.e2e.ts` | 1 项通过：独立开关、专注模式、完整英文结果及第二设备同步。 |
+| 实时指标 | 隔离测试服务 390 px 日间实际页面 | 已查看[实时指标设置](screenshots/live-indicators-settings-mobile.png)。 |
+| 实时指标 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites`；相关 Playwright 流程 | 均通过；66 个测试文件、399 项通过，指标、游客导入和错字训练共 5 项浏览器流程通过。 |

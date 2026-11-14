@@ -70,6 +70,7 @@ const schemas = {
     fontSize: z.number().min(12).max(40), lineHeight: z.number().min(1).max(3),
     visibleLines: z.number().int().min(1).max(12), theme: z.enum(['light', 'dark']),
     mistakeStates: z.record(z.string().min(1).max(512), z.enum(['mastered', 'ignored'])).refine((value) => Object.keys(value).length <= 2000).optional(),
+    showTimer: z.boolean().optional(), showSpeed: z.boolean().optional(), showAccuracy: z.boolean().optional(),
   }),
 } satisfies Record<WorkspaceKind, z.ZodType>;
 const item = z.object({

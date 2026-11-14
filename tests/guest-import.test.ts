@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from 'vitest';
-import { clearImportedGuestCopies, collectGuestImport, importGuestItems } from '../src/lib/guest-import';
+import { clearImportedGuestCopies, collectGuestImport, guestImportConflicts, importGuestItems } from '../src/lib/guest-import';
 import { allowLocalAccount, blockLocalAccount, putWorkspaceValue, readWorkspace } from '../src/lib/workspace';
 import { defaultSettings, type SavedPractice } from '../src/lib/models';
 
@@ -96,6 +96,16 @@ it('requires an explicit settings override and does not overwrite a newer accoun
   const current = await collectGuestImport('alice');
   expect((await importGuestItems('alice', current, true)).added).toBe(1);
   expect((await readWorkspace('alice'))[0].value).toMatchObject({ minutes: 10 });
+});
+
+it('treats absent legacy display flags as the visible defaults during deduplication', async () => {
+  const old = { minutes: 5, mode: 'timed' as const, strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light' as const };
+  await putWorkspaceValue('alice', 'settings', 'preferences', old);
+  await putWorkspaceValue(null, 'settings', 'preferences', { ...defaultSettings });
+  const plan = await collectGuestImport('alice');
+  expect(guestImportConflicts(plan, false)).toBe(0);
+  const result = await importGuestItems('alice', plan, false);
+  expect(result).toMatchObject({ added: 0, conflicts: 0 });
 });
 
 it('does not silently discard legacy history beyond the normal display limit or invalid guest drafts', async () => {

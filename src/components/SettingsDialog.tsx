@@ -1,10 +1,10 @@
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { ReaderSettings, SyncState } from '../lib/models';
 import { Dialog } from './Dialog';
 
 type Props = {
   settings: ReaderSettings;
-  onChange: (patch: Partial<ReaderSettings>) => void;
+  onChange: (patch: Partial<ReaderSettings>) => void | Promise<void>;
   locked: boolean;
   onClose: () => void;
   onFocus: () => void;
@@ -28,13 +28,56 @@ const syncNames: Record<SyncState, string> = {
 
 export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, syncError, pendingCount, cloudCount, lastSyncedAt, recoveryReason, onRecovery, onSync, isSignedIn, onBackground, hasBackground }: Props) {
   const [invalidMinutes, setInvalidMinutes] = useState<string>();
+  const [saveError, setSaveError] = useState('');
+  type Indicator = 'showTimer' | 'showSpeed' | 'showAccuracy';
+  const [pendingIndicators, setPendingIndicators] = useState<Partial<Record<Indicator, { value: boolean; version: number; settled: boolean }>>>({});
+  const sequence = useRef(0);
+  const indicatorVersions = useRef<Partial<Record<Indicator, number>>>({});
   const canSetMinutes = !locked && settings.mode === 'timed';
+
+  useEffect(() => {
+    setPendingIndicators((previous) => {
+      let next = previous;
+      for (const key of ['showTimer', 'showSpeed', 'showAccuracy'] as const) {
+        const pending = previous[key];
+        if (pending?.settled && (settings[key] !== false) === pending.value) {
+          if (next === previous) next = { ...previous };
+          delete next[key];
+        }
+      }
+      return next;
+    });
+  }, [settings.showTimer, settings.showSpeed, settings.showAccuracy, pendingIndicators]);
+
+  function change(patch: Partial<ReaderSettings>) {
+    setSaveError('');
+    try { void Promise.resolve(onChange(patch)).catch(() => setSaveError('设置保存失败')); }
+    catch { setSaveError('设置保存失败'); }
+  }
+  function changeIndicator(key: Indicator, value: boolean) {
+    const version = ++sequence.current;
+    indicatorVersions.current[key] = version;
+    setSaveError('');
+    setPendingIndicators((previous) => ({ ...previous, [key]: { value, version, settled: false } }));
+    const finish = (failed: boolean) => {
+      if (indicatorVersions.current[key] !== version) return;
+      setPendingIndicators((previous) => {
+        if (previous[key]?.version !== version) return previous;
+        const next = { ...previous };
+        if (failed) delete next[key]; else next[key] = { value, version, settled: true };
+        return next;
+      });
+      if (failed) setSaveError('设置保存失败');
+    };
+    try { void Promise.resolve(onChange({ [key]: value })).then(() => finish(false), () => finish(true)); }
+    catch { finish(true); }
+  }
 
   function changeMinutes(event: ChangeEvent<HTMLInputElement>) {
     const { value, valueAsNumber } = event.currentTarget;
     if (Number.isInteger(valueAsNumber) && valueAsNumber >= 1 && valueAsNumber <= 60) {
       setInvalidMinutes(undefined);
-      onChange({ minutes: valueAsNumber });
+      change({ minutes: valueAsNumber });
     } else {
       setInvalidMinutes(value);
     }
@@ -42,21 +85,28 @@ export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, f
 
   return <Dialog title="练习设置" onClose={onClose}>
     <div className="feature-form settings">
+      {saveError && <p className="form-error" role="alert">{saveError}</p>}
       <fieldset className="settings-group">
         <legend>规则</legend>
         <div className="feature-form-pair">
-          <label>练习模式<select value={settings.mode} disabled={locked} onChange={(event) => onChange({ mode: event.target.value as ReaderSettings['mode'] })}><option value="timed">限时</option><option value="article">整篇</option></select></label>
+          <label>练习模式<select value={settings.mode} disabled={locked} onChange={(event) => change({ mode: event.target.value as ReaderSettings['mode'] })}><option value="timed">限时</option><option value="article">整篇</option></select></label>
           <label>限时（分钟）<input type="number" min={1} max={60} step={1} value={canSetMinutes ? invalidMinutes ?? settings.minutes : settings.minutes} disabled={!canSetMinutes} aria-invalid={canSetMinutes && invalidMinutes !== undefined} onChange={changeMinutes} /></label>
         </div>
         {canSetMinutes && invalidMinutes !== undefined && <p className="form-error" role="alert">请输入 1–60 的整数</p>}
-        <label className="settings-check"><input type="checkbox" checked={settings.strict} disabled={locked} onChange={(event) => onChange({ strict: event.target.checked })} />严格纠错</label>
-        <label className="settings-check"><input type="checkbox" checked={settings.autoPause} onChange={(event) => onChange({ autoPause: event.target.checked })} />离开页面自动暂停</label>
+        <label className="settings-check"><input type="checkbox" checked={settings.strict} disabled={locked} onChange={(event) => change({ strict: event.target.checked })} />严格纠错</label>
+        <label className="settings-check"><input type="checkbox" checked={settings.autoPause} onChange={(event) => change({ autoPause: event.target.checked })} />离开页面自动暂停</label>
+      </fieldset>
+      <fieldset className="settings-group">
+        <legend>实时指标</legend>
+        <label className="settings-check"><input type="checkbox" checked={pendingIndicators.showTimer?.value ?? (settings.showTimer !== false)} onChange={(event) => changeIndicator('showTimer', event.target.checked)} />显示计时</label>
+        <label className="settings-check"><input type="checkbox" checked={pendingIndicators.showSpeed?.value ?? (settings.showSpeed !== false)} onChange={(event) => changeIndicator('showSpeed', event.target.checked)} />显示速度</label>
+        <label className="settings-check"><input type="checkbox" checked={pendingIndicators.showAccuracy?.value ?? (settings.showAccuracy !== false)} onChange={(event) => changeIndicator('showAccuracy', event.target.checked)} />显示准确率</label>
       </fieldset>
       <fieldset className="settings-group">
         <legend>阅读</legend>
-        <label className="settings-range"><span>字号</span><input aria-label="字号" type="range" min={16} max={24} step={1} value={settings.fontSize} onChange={(event) => onChange({ fontSize: event.target.valueAsNumber })} /><span aria-hidden="true">{settings.fontSize} px</span></label>
-        <label className="settings-range"><span>行距</span><input aria-label="行距" type="range" min={1.4} max={2.2} step={.1} value={settings.lineHeight} onChange={(event) => onChange({ lineHeight: event.target.valueAsNumber })} /><span aria-hidden="true">{settings.lineHeight.toFixed(1)}</span></label>
-        <label className="settings-range"><span>可见行数</span><input aria-label="可见行数" type="range" min={3} max={8} step={1} value={settings.visibleLines} onChange={(event) => onChange({ visibleLines: event.target.valueAsNumber })} /><span aria-hidden="true">{settings.visibleLines} 行</span></label>
+        <label className="settings-range"><span>字号</span><input aria-label="字号" type="range" min={16} max={24} step={1} value={settings.fontSize} onChange={(event) => change({ fontSize: event.target.valueAsNumber })} /><span aria-hidden="true">{settings.fontSize} px</span></label>
+        <label className="settings-range"><span>行距</span><input aria-label="行距" type="range" min={1.4} max={2.2} step={.1} value={settings.lineHeight} onChange={(event) => change({ lineHeight: event.target.valueAsNumber })} /><span aria-hidden="true">{settings.lineHeight.toFixed(1)}</span></label>
+        <label className="settings-range"><span>可见行数</span><input aria-label="可见行数" type="range" min={3} max={8} step={1} value={settings.visibleLines} onChange={(event) => change({ visibleLines: event.target.valueAsNumber })} /><span aria-hidden="true">{settings.visibleLines} 行</span></label>
         <div className="feature-actions">
           <button className="outline-button feature-action-button" onClick={onFocus}>{focused ? '退出专注' : '进入专注'}</button>
         </div>

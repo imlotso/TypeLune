@@ -13,8 +13,11 @@ export type ReaderSettings = {
   visibleLines: number;
   theme: 'light' | 'dark';
   mistakeStates?: Record<string, MistakeStatus>;
+  showTimer?: boolean;
+  showSpeed?: boolean;
+  showAccuracy?: boolean;
 };
-export const defaultSettings: ReaderSettings = { minutes: 5, mode: 'timed', strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light' };
+export const defaultSettings: ReaderSettings = { minutes: 5, mode: 'timed', strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light', showTimer: true, showSpeed: true, showAccuracy: true };
 export type ArticleSnapshot = { id: string; title: string; text: string; language: Language; difficulty: Difficulty; custom: boolean; author?: string; theme?: string; source?: ArticleSource };
 export type PrivateArticle = ArticleSnapshot & { custom: true };
 export type MistakeSample = { position: number; expected: string; actual: string };

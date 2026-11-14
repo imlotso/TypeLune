@@ -457,7 +457,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     if (phase === 'finished' && (patch.mode !== undefined || patch.strict !== undefined || patch.minutes !== undefined)) {
       resetPractice(selection, true);
     }
-    void workspace.updateSettings(patch).catch(reportSaveError);
+    return workspace.updateSettings(patch).catch((problem: unknown) => { reportSaveError(); throw problem; });
   }
 
   function resetPractice(article = selection, keepDraft = false) {
@@ -731,12 +731,12 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {site.error && <div className="cleanup-warning" role="status"><span>站点配置读取失败：{site.error}</span><button className="outline-button" onClick={site.retry}>重试</button></div>}
         {view === 'practice' && <>
           {focused ? <div className="focus-actions"><button ref={focusButton} className="outline-button feature-action-button" onClick={exitFocus}>退出专注</button></div> : filters}
-          <div className="status-row">
-            <span><Clock size={23} /> {currentMode === 'article' ? '用时' : '剩余时间'}：<b data-testid="remaining-time">{formatTime(clockMs)}</b></span>
-            <span><Crosshair size={23} /> 准确率：{roundTyped ? `${previewScore.accuracy}%` : '—'}</span>
-            {language === 'en' ? <EnglishSpeed score={roundTyped ? previewScore : undefined} display="live" />
-              : <span><Keyboard size={23} /> 字 / 分钟：{roundTyped ? previewScore.cpm : '—'}</span>}
-          </div>
+          {(workspace.settings.showTimer !== false || workspace.settings.showAccuracy !== false || workspace.settings.showSpeed !== false) && <div className="status-row">
+            {workspace.settings.showTimer !== false && <span><Clock size={23} /> {currentMode === 'article' ? '用时' : '剩余时间'}：<b data-testid="remaining-time">{formatTime(clockMs)}</b></span>}
+            {workspace.settings.showAccuracy !== false && <span><Crosshair size={23} /> 准确率：{roundTyped ? `${previewScore.accuracy}%` : '—'}</span>}
+            {workspace.settings.showSpeed !== false && (language === 'en' ? <EnglishSpeed score={roundTyped ? previewScore : undefined} display="live" />
+              : <span><Keyboard size={23} /> 字 / 分钟：{roundTyped ? previewScore.cpm : '—'}</span>)}
+          </div>}
           <div className="progress-row"><span>文章字数：<b data-testid="article-count">{targetCharacters.length}</b></span><span>已打字数：<b data-testid="typed-count">{typedCharacters.length}</b></span><span>当前错误：<b data-testid="error-count">{previewScore.total - previewScore.correct}</b></span><span>退格：<b data-testid="backspace-count">{practice.backspaces}</b></span></div>
           {practiceNotice && <p className="practice-notice" role="status">{practiceNotice}</p>}
           {!user && site.features?.guestLeaderboardEnabled === false && <p className="practice-notice" role="status">游客上榜已关闭。</p>}

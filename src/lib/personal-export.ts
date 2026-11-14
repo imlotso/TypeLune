@@ -39,7 +39,8 @@ function draft(value: SavedPractice) {
 }
 function settings(value: ReaderSettings) {
   return { minutes: value.minutes, mode: value.mode, strict: value.strict, autoPause: value.autoPause, fontSize: value.fontSize,
-    lineHeight: value.lineHeight, visibleLines: value.visibleLines, theme: value.theme, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }) };
+    lineHeight: value.lineHeight, visibleLines: value.visibleLines, theme: value.theme, showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false,
+    showAccuracy: value.showAccuracy !== false, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }) };
 }
 function background(value: BackgroundConfig) {
   return { image: value.image, name: value.name, width: value.width, height: value.height, fit: value.fit,

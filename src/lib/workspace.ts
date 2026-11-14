@@ -105,6 +105,7 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
     case 'settings': return Number.isInteger(payload.minutes) && isTheme(payload.theme) && isMode(payload.mode) &&
       typeof payload.autoPause === 'boolean' && typeof payload.strict === 'boolean' &&
       [payload.fontSize, payload.lineHeight, payload.visibleLines].every(isNumber) &&
+      ['showTimer', 'showSpeed', 'showAccuracy'].every((key) => payload[key] === undefined || typeof payload[key] === 'boolean') &&
       (payload.mistakeStates === undefined || (isObject(payload.mistakeStates) && Object.keys(payload.mistakeStates).length <= 2000 &&
         Object.entries(payload.mistakeStates).every(([key, state]) => key.length > 0 && key.length <= 512 && (state === 'mastered' || state === 'ignored'))));
     default: return false;
@@ -115,6 +116,12 @@ function comparable(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(comparable);
   if (!isObject(value)) return value;
   return Object.fromEntries(Object.keys(value).filter((key) => key !== 'claimId' && key !== 'recoveryRequestId').sort().map((key) => [key, comparable(value[key])]));
+}
+export function sameWorkspaceValue(kind: WorkspaceKind, a: unknown, b: unknown) {
+  const normalize = (value: unknown) => kind === 'settings' && isObject(value) ? { ...value,
+    showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false, showAccuracy: value.showAccuracy !== false,
+    mistakeStates: value.mistakeStates ?? {} } : value;
+  return JSON.stringify(comparable(normalize(a))) === JSON.stringify(comparable(normalize(b)));
 }
 function samePayload(a: WorkspaceItem, b: WorkspaceItem) {
   return a.updatedAt === b.updatedAt && !!a.deleted === !!b.deleted && JSON.stringify(comparable(a.value)) === JSON.stringify(comparable(b.value));
@@ -554,7 +561,7 @@ export function importWorkspaceValue(ownerId: string, kind: WorkspaceKind, id: s
   let outcome: 'added' | 'existing' | 'conflict' = 'conflict';
   return editWorkspace(ownerId, (items) => {
     const old = items.find((item) => item.kind === kind && item.id === id);
-    if (old && !old.deleted && JSON.stringify(comparable(old.value)) === JSON.stringify(comparable(value))) { outcome = 'existing'; return items; }
+    if (old && !old.deleted && sameWorkspaceValue(kind, old.value, value)) { outcome = 'existing'; return items; }
     if (old && !(kind === 'settings' && replaceSettings && !old.deleted && expected &&
       old.updatedAt === expected.updatedAt && old.serverRevision === expected.serverRevision &&
       JSON.stringify(comparable(old.value)) === JSON.stringify(comparable(expected.value)))) return items;

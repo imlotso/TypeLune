@@ -2,7 +2,7 @@ import { clearLocalPractice, readDrafts, savedPracticeFromLegacy } from '../hook
 import { api } from './api';
 import { localPracticeNeedsRecovery } from './local-practice-generation';
 import { compareDraftProgress, type ArticleSnapshot, type PracticeRecord, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models';
-import { allowGuestWorkspace, blockGuestWorkspace, clearLocalWorkspace, importWorkspaceValue, isLocalAccountBlocked, isWorkspaceItem, ownsGuestWorkspaceBlock, readBlockedWorkspace, readWorkspace, workspaceSettings } from './workspace';
+import { allowGuestWorkspace, blockGuestWorkspace, clearLocalWorkspace, importWorkspaceValue, isLocalAccountBlocked, isWorkspaceItem, ownsGuestWorkspaceBlock, readBlockedWorkspace, readWorkspace, sameWorkspaceValue, workspaceSettings } from './workspace';
 
 export type GuestItem = { kind: WorkspaceKind; id: string; value: WorkspaceValues[WorkspaceKind]; expected?: WorkspaceItem };
 export type GuestImportPlan = { ownerId: string; items: GuestItem[]; counts: Record<WorkspaceKind, number>; fingerprint: string };
@@ -45,7 +45,9 @@ function cleanRecord(value: PracticeRecord, ownerId: string, recordId: string): 
 }
 function cleanSettings(value: ReaderSettings): ReaderSettings {
   const { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme } = value;
-  return { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }) };
+  return { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme,
+    showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false, showAccuracy: value.showAccuracy !== false,
+    ...(value.mistakeStates && { mistakeStates: value.mistakeStates }) };
 }
 
 function guestLegacyData() {
@@ -126,7 +128,7 @@ export async function collectGuestImport(ownerId: string, guestBlocked = false):
 
 export function guestImportConflicts(plan: GuestImportPlan, replaceSettings: boolean) {
   return plan.items.filter((item) => item.expected && (item.expected.deleted ||
-    (!equal(item.expected.value, item.value) && !(item.kind === 'settings' && replaceSettings)))).length;
+    (!sameWorkspaceValue(item.kind, item.expected.value, item.value) && !(item.kind === 'settings' && replaceSettings)))).length;
 }
 
 export async function importGuestItems(ownerId: string, plan: GuestImportPlan, replaceSettings: boolean) {
@@ -145,7 +147,7 @@ export async function verifyGuestImport(ownerId: string, accepted: GuestItem[]) 
   const response = await api<{ protocol: number; items: WorkspaceItem[] }>('/api/workspace', { headers: { 'X-Workspace-Owner': ownerId, 'X-Workspace-Protocol': '2' }, timeoutMs: 60_000 });
   if (response.protocol !== 2 || !Array.isArray(response.items) || !response.items.every(isWorkspaceItem)) throw new Error('云端资料无法读取');
   const cloud = new Map(response.items.map((item) => [`${item.kind}:${item.id}`, item]));
-  return accepted.every((item) => { const stored = cloud.get(`${item.kind}:${item.id}`); return stored && !stored.deleted && equal(stored.value, item.value); });
+  return accepted.every((item) => { const stored = cloud.get(`${item.kind}:${item.id}`); return stored && !stored.deleted && sameWorkspaceValue(item.kind, stored.value, item.value); });
 }
 
 export async function clearImportedGuestCopies(ownerId: string, fingerprint: string) {
