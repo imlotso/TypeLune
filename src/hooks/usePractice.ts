@@ -139,15 +139,17 @@ function completeLegacySnapshot(record: History) {
   return typeof item.id === 'string' && typeof item.title === 'string' && typeof item.text === 'string' &&
     ['zh', 'en'].includes(item.language as string) && ['beginner', 'intermediate', 'advanced'].includes(item.difficulty as string) && typeof item.custom === 'boolean';
 }
-function normalizeLegacyRecord(record: History): History {
+function normalizeLegacyRecord(stored: History): History {
+  const { legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, ...record } = stored;
   const recordId = record.recordId || stableRecordId(record);
-  if (completeLegacySnapshot(record)) return record.recordId ? record : { ...record, recordId };
+  const legacy = record.recordId ? {} : { legacyLocalIds: [recordId] };
+  if (completeLegacySnapshot(record)) return record.recordId ? record : { ...record, recordId, ...legacy };
   const { article, ...summary } = record;
   if (!article || typeof article !== 'object' || Array.isArray(article) || typeof article.id !== 'string' || typeof article.title !== 'string' || typeof article.text !== 'string') {
-    return { ...summary, recordId };
+    return { ...summary, recordId, ...legacy };
   }
   // Missing provenance cannot be upgraded to a verified public article.
-  return { ...summary, recordId, article: { ...article, language: record.language, difficulty: record.difficulty, custom: true } };
+  return { ...summary, recordId, ...legacy, article: { ...article, language: record.language, difficulty: record.difficulty, custom: true } };
 }
 export function localHistory(): History[] {
   try { return readRawHistory().filter(validLocalHistory).map(normalizeLegacyRecord); } catch { return []; }

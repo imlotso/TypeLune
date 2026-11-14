@@ -157,6 +157,7 @@ export function RecordsView({ records, ownerId = null, onReplay, onContinue, onD
               <time dateTime={date.toISOString()}>{dateText(date)}</time>
               {record.article && <span>{languageNames[record.language]} · {difficultyNames[record.difficulty]}</span>}
               {record.localOnly && <span>{record.article?.custom || (record.offset ?? 0) > 0 ? '个人练习' : '本机记录'}</span>}
+              {record.legacyIdConflict && <span>记录标识冲突</span>}
               {record.scoreStatus && <span>{scoreStatusText(record.scoreStatus)}</span>}
             </div>
           </div>

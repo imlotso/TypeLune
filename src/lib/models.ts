@@ -37,6 +37,8 @@ export type PracticeRecord = {
   status?: string; scoreStatus?: ServerScoreStatus; elapsedMs?: number; backspaces?: number; errors?: number; recordId?: string; ownerId?: string | null; localOnly?: boolean;
   article?: ArticleSnapshot; typed?: string; offset?: number; total?: number; correct?: number; articleTotal?: number;
   mode?: PracticeMode; strict?: boolean; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; paceTarget?: number; processTrace?: ProcessTrace;
+  // Read-time compatibility metadata; never treated as a verified score.
+  legacyLocalIds?: string[]; legacyWorkspaceId?: boolean; legacyIdConflict?: boolean;
 };
 export type SavedPractice = {
   id: string; article: ArticleSnapshot; typed: string; elapsedMs: number; backspaces: number;

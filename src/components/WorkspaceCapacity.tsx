@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import type { WorkspaceKind } from '../lib/models';
 
-type Usage = { count: number; bytes: number; tombstones: number; maxItems: number; maxBytes: number; generation: number;
-  types: Array<{ kind: WorkspaceKind; count: number; bytes: number; tombstones: number }> };
+type Usage = { count: number; bytes: number; tombstones: number; aliasTombstones?: number; maxItems: number; maxBytes: number; generation: number;
+  types: Array<{ kind: WorkspaceKind; count: number; bytes: number; tombstones: number; aliasTombstones?: number }> };
 export type CapacityDestination = Exclude<WorkspaceKind, 'settings' | 'background'> | 'background-light' | 'background-dark';
 const names: Record<WorkspaceKind, string> = { favorite: '收藏', article: '私人文章', draft: '草稿', record: '记录', settings: '设置', background: '背景' };
 const size = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
@@ -21,7 +21,9 @@ export function WorkspaceCapacity({ ownerId, onCompacted, onManage, onResetSetti
     try {
       const next = await api<Usage>('/api/workspace/usage', { headers });
       if (![next.count, next.bytes, next.tombstones, next.maxItems, next.maxBytes, next.generation].every((value) => Number.isSafeInteger(value) && value >= 0) ||
-        next.generation < 1 || !Array.isArray(next.types) || next.types.some((type) => !names[type.kind] || ![type.count, type.bytes, type.tombstones].every((value) => Number.isSafeInteger(value) && value >= 0))) throw new Error('容量数据无法读取');
+        (next.aliasTombstones !== undefined && (!Number.isSafeInteger(next.aliasTombstones) || next.aliasTombstones < 0)) ||
+        next.generation < 1 || !Array.isArray(next.types) || next.types.some((type) => !names[type.kind] || ![type.count, type.bytes, type.tombstones].every((value) => Number.isSafeInteger(value) && value >= 0) ||
+          (type.aliasTombstones !== undefined && (!Number.isSafeInteger(type.aliasTombstones) || type.aliasTombstones < 0)))) throw new Error('容量数据无法读取');
       setUsage(next);
     } catch (problem) { setError(problem instanceof Error ? problem.message : '容量读取失败'); }
     finally { setBusy(false); }
@@ -55,6 +57,7 @@ export function WorkspaceCapacity({ ownerId, onCompacted, onManage, onResetSetti
     {usage && <>
       <p>{usage.count} / {usage.maxItems} 项 · {size(usage.bytes)} / {size(usage.maxBytes)}</p>
       <p>已删除：{usage.tombstones} 项</p>
+      {!!usage.aliasTombstones && <p>旧记录关联标记：{usage.aliasTombstones} 项，不计入容量上限</p>}
       <ul className="workspace-capacity-types">{usage.types.map((type) => <li key={type.kind}>
         <span>{names[type.kind]}：{type.count} 项，已删除 {type.tombstones} 项 · {size(type.bytes)}</span>
         {type.count > type.tombstones && <div className="feature-actions">
@@ -68,7 +71,7 @@ export function WorkspaceCapacity({ ownerId, onCompacted, onManage, onResetSetti
         <div className="feature-actions"><button type="button" className="outline-button" disabled={busy} onClick={() => setConfirmingSettings(false)}>取消</button>
           <button type="button" className="primary-button" disabled={busy} onClick={() => void resetSettings()}>确认清除设置</button></div>
       </div>}
-      {!confirming && <button type="button" className="outline-button" disabled={busy || !usage.tombstones} onClick={() => setConfirming(true)}>整理删除标记</button>}
+      {!confirming && <button type="button" className="outline-button" disabled={busy || !((usage.aliasTombstones ?? 0) + usage.tombstones)} onClick={() => setConfirming(true)}>整理删除标记</button>}
       {confirming && <div className="feature-form">
         <p className="form-error">整理后其他设备需要重新同步；未同步资料应先导出。此设备也需要确认本机资料。</p>
         <div className="feature-actions"><button type="button" className="outline-button" disabled={busy} onClick={() => setConfirming(false)}>取消</button>

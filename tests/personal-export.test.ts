@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import { buildPersonalExport, recordsCsv } from '../src/lib/personal-export';
 import { defaultSettings, type SavedPractice, type WorkspaceItem } from '../src/lib/models';
 import { makePracticePreset } from '../src/lib/practice-settings';
+import { stableRecordId } from '../src/lib/records';
 
 it('merges stable IDs, honors deletions and excludes authentication and recovery material', () => {
   const article = { id: 'private', title: '私文', text: '原文', language: 'zh' as const, difficulty: 'beginner' as const, custom: true as const, password: 'article-secret' };
@@ -54,4 +55,15 @@ it('exports validated process observations and excludes unknown trace data', () 
   const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false }, local: [], legacyDrafts: [], localHistory: [record, bad], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
   expect(exported.data.records.find((item) => item.recordId === 'sample')?.processTrace).toEqual(processTrace);
   expect(JSON.stringify(exported)).not.toContain('trace-secret');
+});
+
+it('deduplicates a legacy local record against its distinct workspace item in exports', () => {
+  const legacy = { ownerId: 'user', language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: 10 };
+  const alias = stableRecordId(legacy);
+  const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false },
+    local: [{ kind: 'record', id: 'old-cloud-id', updatedAt: 10, value: legacy }], legacyDrafts: [],
+    localHistory: [{ ...legacy, recordId: alias, legacyLocalIds: [alias] }], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
+  expect(exported.data.records).toHaveLength(1);
+  expect(exported.data.records[0]).toMatchObject({ recordId: 'old-cloud-id', localOnly: true });
+  expect(JSON.stringify(exported)).not.toContain('legacyLocalIds');
 });

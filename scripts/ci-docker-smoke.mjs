@@ -99,6 +99,14 @@ try {
   const syncedSettings = await post(baseURL, '/api/workspace/sync', { generation, items: [{ kind: 'settings', id: 'preferences', updatedAt: Date.now(), baseRevision: 0, value: settings }] }, accountCookie, workspaceHeaders);
   assert.equal(syncedSettings.status, 200);
   assert.deepEqual((await syncedSettings.json()).items.find((item) => item.kind === 'settings').value, settings);
+  const legacy = { ownerId: accountId, language: 'zh', difficulty: 'beginner', duration: 300, speed: 12, accuracy: 100, finishedAt: Date.now() };
+  const alias = execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', "import { stableRecordId } from './src/lib/records.ts'; process.stdout.write(stableRecordId(JSON.parse(process.argv[1])));", JSON.stringify(legacy)], { encoding: 'utf8' });
+  const legacySync = await post(baseURL, '/api/workspace/sync', { generation, items: [{ kind: 'record', id: 'docker-legacy', updatedAt: Date.now(), baseRevision: 0, value: legacy }] }, accountCookie, workspaceHeaders);
+  assert.equal(legacySync.status, 200);
+  const legacyDelete = await post(baseURL, '/api/history/delete', { ids: ['docker-legacy', alias], legacyPairs: [{ id: 'docker-legacy', alias }] }, accountCookie, workspaceHeaders);
+  assert.equal(legacyDelete.status, 200);
+  const legacyUsage = await get(baseURL, '/api/workspace/usage', accountCookie, workspaceHeaders);
+  assert.equal((await legacyUsage.json()).aliasTombstones, 1);
   const screenshot = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#aabbcc' } }).png().toBuffer();
   const feedback = await post(baseURL, '/api/feedback', { category: 'issue', title: '持久化测试', description: '测试附件',
     attachments: [{ name: 'test.png', data: `data:image/png;base64,${screenshot.toString('base64')}` }] }, accountCookie);
@@ -123,6 +131,7 @@ try {
   assert.deepEqual(Buffer.from(await persistedAttachment.arrayBuffer()), attachmentBytes, 'Feedback attachment must survive container replacement');
   const persistedWorkspace = await get(baseURL, '/api/workspace', accountCookie, workspaceHeaders);
   assert.deepEqual((await persistedWorkspace.json()).items.find((item) => item.kind === 'settings').value, settings, 'Statistics settings must survive container replacement');
+  assert.equal((await (await get(baseURL, '/api/workspace/usage', accountCookie, workspaceHeaders)).json()).aliasTombstones, 1, 'Legacy deletion markers must survive container replacement');
 
   createVolume(restoredVolume);
   docker('run', '--rm', '--user', '0', '--entrypoint', 'sh', '-v', `${restoredVolume}:/app/data`, '-v', `${directory}:/backup:ro`, image, '-c', 'cp /backup/backup.sqlite /app/data/dazi.sqlite && chown node:node /app/data/dazi.sqlite');
@@ -136,7 +145,8 @@ try {
   assert.deepEqual(Buffer.from(await restoredAttachment.arrayBuffer()), attachmentBytes, 'Feedback attachment must be included in the SQLite backup');
   const restoredWorkspace = await get(backupURL, '/api/workspace', accountCookie, workspaceHeaders);
   assert.deepEqual((await restoredWorkspace.json()).items.find((item) => item.kind === 'settings').value, settings, 'Statistics settings must be included in the SQLite backup');
-  console.log('Production image: homepage, API, ownership, pause/resume, feedback attachments, statistics settings, volume replacement and backup restore passed.');
+  assert.equal((await (await get(backupURL, '/api/workspace/usage', accountCookie, workspaceHeaders)).json()).aliasTombstones, 1, 'Legacy deletion markers must be included in the SQLite backup');
+  console.log('Production image: homepage, API, ownership, pause/resume, feedback attachments, statistics settings, legacy deletion markers, volume replacement and backup restore passed.');
 } catch (error) {
   for (const name of containers) {
     const logs = spawnSync('docker', ['logs', name], { encoding: 'utf8' });

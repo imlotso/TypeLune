@@ -1,9 +1,9 @@
 import { localHistory, readDrafts, savedPracticeFromLegacy } from '../hooks/usePractice';
 import type { PracticeRecord, SavedPractice } from './models';
-import { stableRecordId } from './records';
+import { mergePracticeRecords, stableRecordId } from './records';
 
 type Risk = { pending: number; unknown: boolean; fingerprint: string; rawFingerprint: string };
-const ignored = new Set(['savedAt', 'claimId', 'recoveryRequestId', 'localSyncGeneration', 'scoreStatus']);
+const ignored = new Set(['savedAt', 'claimId', 'recoveryRequestId', 'localSyncGeneration', 'scoreStatus', 'legacyLocalIds', 'legacyWorkspaceId', 'legacyIdConflict']);
 function covered(local: unknown, cloud: unknown): boolean {
   if (local === undefined) return true;
   if (Array.isArray(local)) return Array.isArray(cloud) && local.length === cloud.length && local.every((value, index) => covered(value, cloud[index]));
@@ -66,6 +66,11 @@ export function inspectLocalPracticeCopies(ownerId: string, cloudDrafts: readonl
   if (drafts.length !== raw.draftCount || records.length !== raw.recordCount) unknown = true;
   const draftMap = new Map(cloudDrafts.map((draft) => [draft.id, draft]));
   const recordMap = new Map(cloudRecords.map((record) => [stableRecordId(record), record]));
+  const aliases = new Map<string, PracticeRecord>();
+  for (const merged of mergePracticeRecords(records, [], [...cloudRecords])) {
+    const remote = recordMap.get(stableRecordId(merged));
+    if (remote?.legacyWorkspaceId && !merged.legacyIdConflict) for (const alias of merged.legacyLocalIds ?? []) aliases.set(alias, remote);
+  }
   const pendingDrafts = drafts.filter((draft) => {
     const saved = savedPracticeFromLegacy(draft);
     const remote = draftMap.get(saved.id);
@@ -73,8 +78,8 @@ export function inspectLocalPracticeCopies(ownerId: string, cloudDrafts: readonl
   }).map((draft) => draft.recordId);
   const pendingRecords = records.filter((record) => {
     const id = stableRecordId(record);
-    const remote = recordMap.get(id);
-    return !remote || !covered(record, remote);
+    const remote = recordMap.get(id) ?? aliases.get(id);
+    return !remote || !covered(record, { ...remote, recordId: id });
   }).map(stableRecordId);
   const rawFingerprint = JSON.stringify([raw.owned, raw.unknown]);
   return { pending: pendingDrafts.length + pendingRecords.length, unknown, rawFingerprint, fingerprint: JSON.stringify([rawFingerprint, pendingDrafts, pendingRecords, unknown]) };

@@ -7,6 +7,8 @@ import { isPresetList } from '../src/lib/practice-settings';
 import { isPaceSettings } from '../src/lib/pace';
 import { isStatisticsTimeZone } from '../src/lib/long-term-stats';
 import { isProcessTrace, type ProcessTrace } from '../src/lib/process-trace';
+import { stableRecordId } from '../src/lib/records';
+import type { PracticeRecord } from '../src/lib/models';
 
 export const syncBodyLimit = 4 * 1024 * 1024;
 export const recoveryIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -137,6 +139,9 @@ export function createWorkspaceStore(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS workspace_deleted_records (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, record_id TEXT NOT NULL, PRIMARY KEY(user_id,record_id)
     );
+    CREATE TABLE IF NOT EXISTS workspace_legacy_record_aliases (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, alias_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(user_id,alias_id)
+    );
   `);
   db.transaction(() => {
     const columns = new Set((db.pragma('table_info(workspace_items)') as Array<{ name: string }>).map((column) => column.name));
@@ -153,7 +158,8 @@ export function createWorkspaceStore(db: Database.Database) {
   const readItem = db.prepare('SELECT updated_at AS updatedAt,value,revision FROM workspace_items WHERE user_id=? AND kind=? AND item_id=?');
   const deletedDraft = db.prepare('SELECT 1 FROM workspace_deleted_drafts WHERE user_id=? AND draft_id=?');
   const deletedRecord = db.prepare('SELECT 1 FROM workspace_deleted_records WHERE user_id=? AND record_id=?');
-  const limits = db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(length(CAST(value AS BLOB))), 0) AS bytes FROM workspace_items WHERE user_id=?');
+  const exemptAlias = "kind='record' AND value IS NULL AND EXISTS (SELECT 1 FROM workspace_legacy_record_aliases a WHERE a.user_id=workspace_items.user_id AND a.alias_id=workspace_items.item_id)";
+  const limits = db.prepare(`SELECT COUNT(CASE WHEN NOT (${exemptAlias}) THEN 1 END) AS count, COALESCE(SUM(length(CAST(value AS BLOB))), 0) AS bytes FROM workspace_items WHERE user_id=?`);
   const storedClaim = "COALESCE(json_extract(workspace_items.value, '$.claimVersion'), 0)";
   const incomingClaim = "COALESCE(json_extract(excluded.value, '$.claimVersion'), 0)";
   const storedProgress = "json_extract(workspace_items.value, '$.progressVersion')";
@@ -237,7 +243,16 @@ export function createWorkspaceStore(db: Database.Database) {
   // Called inside the history deletion transaction so score withdrawal and the
   // tombstones either both commit or neither does. Registry entries survive
   // compaction and reject any later upload of the same record ID.
-  const deleteRecords = (owner: string, ids: string[], time: number) => {
+  const deleteRecords = (owner: string, ids: string[], time: number, legacyPairs: Array<{ id: string; alias: string }> = []) => {
+    for (const { id, alias } of legacyPairs) {
+      const source = readItem.get(owner, 'record', id) as { value: string | null } | undefined;
+      const existingAlias = readItem.get(owner, 'record', alias) as { value: string | null } | undefined;
+      if (!source?.value || existingAlias?.value) continue;
+      const value: unknown = JSON.parse(source.value);
+      if (!value || typeof value !== 'object' || Array.isArray(value) || (value as { recordId?: unknown }).recordId !== undefined) continue;
+      if (stableRecordId({ ...value, ownerId: owner } as PracticeRecord) !== alias) continue;
+      db.prepare('INSERT OR IGNORE INTO workspace_legacy_record_aliases(user_id,alias_id,source_id) VALUES (?,?,?)').run(owner, alias, id);
+    }
     for (const id of ids) {
       const previous = readItem.get(owner, 'record', id) as { updatedAt: number; value: string | null; revision: number } | undefined;
       db.prepare('INSERT OR IGNORE INTO workspace_deleted_records(user_id,record_id) VALUES (?,?)').run(owner, id);
@@ -251,9 +266,11 @@ export function createWorkspaceStore(db: Database.Database) {
   };
   const snapshot = db.transaction((owner: string) => ({ generation: generation(owner), items: get(owner) }));
   const usage = db.transaction((owner: string) => {
-    const total = db.prepare('SELECT COUNT(*) AS count,COALESCE(SUM(length(CAST(value AS BLOB))),0) AS bytes,COUNT(CASE WHEN value IS NULL THEN 1 END) AS tombstones FROM workspace_items WHERE user_id=?')
-      .get(owner) as { count: number; bytes: number; tombstones: number };
-    const types = db.prepare('SELECT kind,COUNT(*) AS count,COALESCE(SUM(length(CAST(value AS BLOB))),0) AS bytes,COUNT(CASE WHEN value IS NULL THEN 1 END) AS tombstones FROM workspace_items WHERE user_id=? GROUP BY kind ORDER BY kind').all(owner);
+    const counts = `COUNT(CASE WHEN NOT (${exemptAlias}) THEN 1 END) AS count, COALESCE(SUM(length(CAST(value AS BLOB))),0) AS bytes,
+      COUNT(CASE WHEN value IS NULL AND NOT (${exemptAlias}) THEN 1 END) AS tombstones, COUNT(CASE WHEN ${exemptAlias} THEN 1 END) AS aliasTombstones`;
+    const total = db.prepare(`SELECT ${counts} FROM workspace_items WHERE user_id=?`)
+      .get(owner) as { count: number; bytes: number; tombstones: number; aliasTombstones: number };
+    const types = db.prepare(`SELECT kind,${counts} FROM workspace_items WHERE user_id=? GROUP BY kind ORDER BY kind`).all(owner);
     return { ...total, maxItems: maxWorkspaceItems, maxBytes: maxWorkspaceBytes, generation: generation(owner), types };
   });
   return { get, generation, snapshot: snapshot.immediate, usage: usage.immediate, merge: merge.immediate, compact: compact.immediate, deleteRecords };

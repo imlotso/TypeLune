@@ -2,6 +2,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { savedPracticeFromLegacy, type PracticeDraft } from '../src/hooks/usePractice';
 import { inspectLocalPracticeCopies, localPracticeRawFingerprint } from '../src/lib/local-practice-unsynced';
+import { normalizeWorkspaceRecord } from '../src/lib/records';
 
 const article = { id: 'private', title: '短文', text: '山海', language: 'zh' as const, difficulty: 'beginner' as const, custom: true };
 const local: PracticeDraft = { version: 1, articleId: article.id, title: article.title, text: article.text, target: article.text, article, language: 'zh', difficulty: 'beginner', custom: true, duration: 300, mode: 'timed', strict: false, ownerId: 'alice', typed: '山', elapsedMs: 1000, backspaces: 0, offline: true, suspicious: false, recordId: 'round', revision: 1, savedAt: 1000 };
@@ -35,4 +36,11 @@ it('detects changes to the current account without reacting to other accounts', 
   expect(owned).not.toBe(empty);
   localStorage.setItem('cloudtyping.practice.v2.round', JSON.stringify({ ...local, typed: '山海' }));
   expect(localPracticeRawFingerprint('alice')).not.toBe(owned);
+});
+
+it('recognizes a matching id-less legacy record under its workspace item ID', () => {
+  const record = { ownerId: 'alice', language: 'zh', difficulty: 'beginner', duration: 300, speed: 10, accuracy: 100, finishedAt: 1000 };
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([record]));
+  const cloud = normalizeWorkspaceRecord({ kind: 'record', id: 'old-cloud-id', updatedAt: 1000, value: record })!;
+  expect(inspectLocalPracticeCopies('alice', [], [cloud]).pending).toBe(0);
 });

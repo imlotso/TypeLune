@@ -34,3 +34,10 @@ it('shows real capacity and requires a warning before reclaiming deleted items',
   await waitFor(() => expect(compacted).toHaveBeenCalledOnce());
   expect(fetcher).toHaveBeenCalledTimes(2);
 });
+
+it('shows and reclaims alias markers even when ordinary tombstones are absent', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ count: 0, bytes: 0, tombstones: 0, aliasTombstones: 1, maxItems: 2000, maxBytes: 33554432, generation: 1, types: [{ kind: 'record', count: 0, bytes: 0, tombstones: 0, aliasTombstones: 1 }] }))));
+  render(<WorkspaceCapacity ownerId="alice" onCompacted={() => {}} onManage={() => {}} onResetSettings={async () => {}} />);
+  expect(await screen.findByText('旧记录关联标记：1 项，不计入容量上限')).toBeTruthy();
+  expect((screen.getByRole('button', { name: '整理删除标记' }) as HTMLButtonElement).disabled).toBe(false);
+});

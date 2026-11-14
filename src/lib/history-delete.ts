@@ -6,12 +6,16 @@ import { applyAuthoritativeRecordDeletions, deleteWorkspaceValue, isWorkspaceIte
 
 const attemptId = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export async function deletePracticeRecords(ownerId: string | null, records: PracticeRecord[]) {
-  const ids = [...new Set(records.map(stableRecordId))];
-  if (!ids.length || ids.length > 100) throw new Error('请选择 1 至 100 条记录');
+  if (!records.length || records.length > 100) throw new Error('请选择 1 至 100 条记录');
+  if (records.some((record) => record.legacyIdConflict)) throw new Error('记录标识冲突，请先导出并检查本机资料');
+  const ids = [...new Set(records.flatMap((record) => [stableRecordId(record), ...(record.legacyLocalIds ?? [])]))];
+  if (ids.length > 200 || ids.some((id) => !id || id.length > 200 || /[\p{Cc}\p{Cf}]/u.test(id))) throw new Error('记录标识无效');
   const expectedOnlineIds = [...new Set(records.filter((record) => record.localOnly !== true && !!record.recordId && attemptId.test(record.recordId)).map(stableRecordId))];
+  const legacyPairs = records.flatMap((record) => record.legacyWorkspaceId ? (record.legacyLocalIds ?? []).filter((alias) => alias !== stableRecordId(record)).map((alias) => ({ id: stableRecordId(record), alias })) : []);
+  if (legacyPairs.length > 100) throw new Error('旧记录标识无效');
   if (ownerId || expectedOnlineIds.length) {
     const result = await api<{ ok: boolean; generation?: number; items?: WorkspaceItem[] }>('/api/history/delete', {
-      method: 'POST', headers: { 'X-Workspace-Owner': ownerId ?? 'guest' }, body: { ids, expectedOnlineIds },
+      method: 'POST', headers: { 'X-Workspace-Owner': ownerId ?? 'guest' }, body: { ids, expectedOnlineIds, ...(legacyPairs.length && { legacyPairs }) },
     });
     if (!result.ok) throw new Error('删除结果无法确认，请重试');
     if (ownerId) {

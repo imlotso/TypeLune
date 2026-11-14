@@ -3,7 +3,7 @@ import { compareDraftProgress, type ArticleSnapshot, type MistakeSample, type Pr
 import type { BackgroundConfig } from './background';
 import { mergeWorkspaceItems, workspaceSettings } from './workspace';
 import { cleanPracticePreset } from './practice-settings';
-import { stableRecordId } from './records';
+import { mergePracticeRecords, normalizeWorkspaceRecord, stableRecordId } from './records';
 import { isProcessTrace } from './process-trace';
 
 export type FeedbackExport = { id: string; category: string; title: string; description: string; status: string; createdAt: number; updatedAt: number;
@@ -76,9 +76,10 @@ export function buildPersonalExport(input: Inputs) {
     const previous = drafts.get(value.id);
     if (!previous || compareDraftProgress(value, previous) > 0) drafts.set(value.id, value);
   }
-  const workspaceRecords = items.filter((item) => item.kind === 'record' && !item.deleted).map((item) => item.value as PracticeRecord);
+  const workspaceRecords = items.map(normalizeWorkspaceRecord).filter((item): item is PracticeRecord => !!item);
   const deletedRecords = new Set(items.filter((item) => item.kind === 'record' && item.deleted).map((item) => item.id));
-  const records = mergeRecords([...input.localHistory, ...workspaceRecords, ...input.remoteHistory].filter((value) => !deletedRecords.has(stableRecordId(value))));
+  const active = (values: PracticeRecord[]) => values.filter((value) => !deletedRecords.has(stableRecordId(value)));
+  const records = mergeRecords(mergePracticeRecords(active(input.localHistory), active(input.remoteHistory), active(workspaceRecords)));
   return {
     format: 'typing-personal-data', version: 1, exportedAt: input.exportedAt,
     scope: { accountId: input.user.id, localWorkspace: input.localAvailable === false ? 'unavailable' : 'included', cloudWorkspace: input.remote ? 'included' : 'unavailable',

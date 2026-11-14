@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../server/app';
+import { stableRecordId } from '../src/lib/records';
 
 describe('history deletion and score withdrawal', () => {
   let app: Awaited<ReturnType<typeof createApp>>;
@@ -101,5 +102,47 @@ describe('history deletion and score withdrawal', () => {
     expect((await app.inject({ url: '/api/history?limit=100', headers: alice.headers })).json().entries.map((item: { recordId: string }) => item.recordId)).toContain(completed.id);
     expect((await app.inject('/api/leaderboard?language=zh&difficulty=beginner&duration=60')).json().entries).toHaveLength(1);
     expect((await post('/api/history/delete', { ids: [] }, alice.headers)).statusCode).toBe(400);
+  });
+  it('allows alias tombstones for 100 selected legacy records, with a bounded request size', async () => {
+    const alice = await register('alice');
+    const ids = Array.from({ length: 200 }, (_, index) => `legacy-${index}`);
+    const removed = await post('/api/history/delete', { ids }, alice.headers);
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().items).toHaveLength(200);
+    expect((await post('/api/history/delete', { ids: [...ids, 'extra'] }, alice.headers)).statusCode).toBe(400);
+  });
+  it('deletes a verified legacy pair at full quota and refuses a forged quota exemption', async () => {
+    const alice = await register('alice');
+    const legacy = { ownerId: alice.id, language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: now };
+    const alias = stableRecordId(legacy);
+    for (let batch = 0; batch < 20; batch++) {
+      const items = Array.from({ length: 100 }, (_, index) => {
+        const id = `full-${batch * 100 + index}`;
+        return batch === 19 && index === 99
+          ? { kind: 'record', id: 'old-cloud-id', updatedAt: now, baseRevision: 0, value: legacy }
+          : { kind: 'favorite', id, updatedAt: now, baseRevision: 0, value: { articleId: id } };
+      });
+      expect((await post('/api/workspace/sync', { generation: 1, items }, alice.headers)).statusCode).toBe(200);
+    }
+    const forged = 'guest-0000000000000000';
+    expect((await post('/api/history/delete', { ids: ['old-cloud-id', forged], legacyPairs: [{ id: 'old-cloud-id', alias: forged }] }, alice.headers)).statusCode).toBe(413);
+    const removed = await post('/api/history/delete', { ids: ['old-cloud-id', alias], legacyPairs: [{ id: 'old-cloud-id', alias }] }, alice.headers);
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().items.map((item: { id: string }) => item.id).sort()).toEqual([alias, 'old-cloud-id'].sort());
+    const usage = (await app.inject({ url: '/api/workspace/usage', headers: alice.headers })).json();
+    expect(usage).toMatchObject({ count: 2000, tombstones: 1, aliasTombstones: 1 });
+    const compacted = await post('/api/workspace/compact', { generation: 1 }, alice.headers);
+    expect(compacted.json()).toMatchObject({ removed: 2, generation: 2 });
+    expect((await app.inject({ url: '/api/workspace/usage', headers: alice.headers })).json().count).toBe(1999);
+    expect((await post('/api/workspace/sync', { generation: 2, items: [{ kind: 'record', id: alias, updatedAt: ++now, baseRevision: 0, value: { ...legacy, recordId: alias } }] }, alice.headers)).statusCode).toBe(409);
+  });
+  it('never grants another account an exemption based on a legacy record it does not own', async () => {
+    const alice = await register('alice'); const bob = await register('bobby');
+    const legacy = { ownerId: alice.id, language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: now };
+    const alias = stableRecordId(legacy);
+    expect((await post('/api/workspace/sync', { generation: 1, items: [{ kind: 'record', id: 'old-cloud-id', updatedAt: now, baseRevision: 0, value: legacy }] }, alice.headers)).statusCode).toBe(200);
+    expect((await post('/api/history/delete', { ids: ['old-cloud-id', alias], legacyPairs: [{ id: 'old-cloud-id', alias }] }, bob.headers)).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/workspace/usage', headers: bob.headers })).json()).toMatchObject({ count: 2, aliasTombstones: 0 });
+    expect((await app.inject({ url: '/api/workspace', headers: alice.headers })).json().items[0]).toMatchObject({ id: 'old-cloud-id', value: legacy });
   });
 });

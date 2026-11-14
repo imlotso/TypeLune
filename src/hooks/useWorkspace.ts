@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { localPracticeNeedsRecovery } from '../lib/local-practice-generation';
 import { applyPresetAction, type PresetAction } from '../lib/practice-settings';
-import type { MistakeStatus, ReaderSettings, SyncState, WorkspaceItem, WorkspaceKind, WorkspaceValues } from '../lib/models';
+import { normalizeWorkspaceRecord } from '../lib/records';
+import type { MistakeStatus, PracticeRecord, ReaderSettings, SyncState, WorkspaceItem, WorkspaceKind, WorkspaceValues } from '../lib/models';
 import {
   cachedWorkspace, chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceItem, mergeRemoteWorkspace, mutateWorkspaceValue,
   newerWorkspaceItems, putWorkspaceValue, readWorkspace, readWorkspaceGeneration, saveWorkspaceGeneration, subscribeWorkspace, workspaceGenerationKey, workspaceItemKey, workspaceRecoveryReason, WorkspaceMergeConflictError, workspaceSettings, workspaceValue,
@@ -287,7 +288,7 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
       drafts: get('draft').sort((a, b) => b.savedAt - a.savedAt),
       deletedDraftIds: items.filter((item) => item.kind === 'draft' && item.deleted).map((item) => item.id) as readonly string[],
       deletedRecordIds: items.filter((item) => item.kind === 'record' && item.deleted).map((item) => item.id) as readonly string[],
-      records: get('record').sort((a, b) => b.finishedAt - a.finishedAt),
+      records: active.map(normalizeWorkspaceRecord).filter((record): record is PracticeRecord => !!record).sort((a, b) => b.finishedAt - a.finishedAt),
     };
   }, [items, ownerId, visible?.ready]);
 

@@ -19,13 +19,13 @@
 | B04 | 待完善 | `0705057`、`7a4bd23` | 已有个人列表、详情、状态变化、补充及独立详情地址；待最终回归。 |
 | B05 | 待完善 | `0705057` | 练习页关联公开文章快照，后台可进入对应文章；待最终回归。 |
 | C01 | 待完善 | `bfdaa46` | 已显示错误、待同步数量、上次云端项目数和最近成功时间；待最终跨设备及容量场景回归。 |
-| C02 | 待完善 | `7cb5379`、`58fcff1` | 已有按类型管理、代次／修订检查、删除标记整理和本机导出后重同步；完整旧客户端交替回归仍待完成。见[分类管理](2026-11-15-capacity-management.md)及[协议](2026-11-15-workspace-protocol.md)。 |
+| C02 | 待完善 | `7cb5379`、`58fcff1`、本阶段 | 已有按类型管理、代次／修订检查和标记整理；经核验的旧记录关联标记不占普通配额，元数据差异及旧客户端交替回归仍有边界，见[分类管理](2026-11-15-capacity-management.md)、[旧记录](2026-11-15-legacy-workspace-records.md)及[协议](2026-11-15-workspace-protocol.md)。 |
 | C03 | 待完善 | `e6dac69` | 已有版本化 JSON、记录 CSV、完整历史分页及缺失项报告；待最终跨设备和失败场景回归。 |
-| C04 | 待完善 | `a0eeb01`、本阶段 | 已有账号隔离清理、旧版独立资料检查、本机导出及退出前后并发核对；极旧标签页跨存储的最终竞态与全站回归仍待验收，见[说明](2026-11-15-local-cleanup-safety.md)。 |
+| C04 | 待完善 | `a0eeb01`、`47e1d10`、本阶段 | 已有账号隔离清理、旧版独立资料检查、本机导出及退出前后并发核对；极旧标签页跨存储的最终竞态与全站回归仍待验收，见[说明](2026-11-15-local-cleanup-safety.md)。 |
 | C05 | 待完善 | `9e0e5a8` | 已有显式导入、冲突保护、个人成绩隔离、云端核对及可选清理；待与历史删除和后续数据模型整体回归，见 [说明](2026-11-15-guest-import.md)。 |
 | D01 | 待完善 | `55f7eea`、`780d58b`、`ff0ca0c`、`7a4bd23`、`bfb2ff5` | 主要页面、公共文章、记录／反馈详情及账号中心已接入地址；外部历史条目边界及总体回归仍待验收，见[页面](2026-11-15-main-routes.md)、[文章](2026-11-15-article-routes.md)、[记录](2026-11-15-record-routes.md)、[反馈](2026-11-15-feedback-routes.md)、[账号](2026-11-15-account-route.md)。 |
 | D02 | 待完善 | `6cb2ae2` | 公开接口只返回三个功能开关；前台提示并限制注册／游客上榜，游客新练习关闭时直接本机开始。已有在线练习可恢复，待最终整体回归。 |
-| D03 | 待完善 | `e20806e`、`673152d`、`80c3e2b` | 已有组合筛选、分批加载、删除及成绩撤回；旧版本机历史不再截断，极早期云记录 ID 差异及总体回归仍待完成，见[筛选](2026-11-15-history-filters.md)、[删除](2026-11-15-history-deletion.md)、[旧历史](2026-11-15-legacy-history.md)。 |
+| D03 | 待完善 | `e20806e`、`673152d`、`80c3e2b`、本阶段 | 已有筛选、删除及成绩撤回，旧版无 ID 云／本机记录按唯一内容匹配并保护两个标识；歧义、元数据差异和总体回归仍待处理，见[筛选](2026-11-15-history-filters.md)、[删除](2026-11-15-history-deletion.md)、[旧记录](2026-11-15-legacy-workspace-records.md)。 |
 | D04 | 待完善 | `da1103e` | 服务端与结果／历史已区分提交、审核及榜单状态，并支持用户可见处理说明；恢复原因及最终回归仍待完成，见[说明](2026-11-15-score-status.md)。 |
 | D05 | 待完善 | `9bf9670` | 历史详情已复用本机及匹配的账号同步草稿恢复流程，显示不可恢复原因；最终整体回归仍待完成，见[说明](2026-11-15-history-recovery.md)。 |
 | D06 | 待完善 | `a77e3e9` | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
@@ -200,3 +200,7 @@
 | 本机清理保护 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；101 个测试文件、507 项通过；构建仍提示客户端包大于 500 kB。 |
 | 本机清理保护 | `npx playwright test e2e/local-cleanup.e2e.ts e2e/guest-import.e2e.ts` | 10 项通过；另有背景、游客导入及清理组合 13 项通过。覆盖本机导出、已同步副本、清理前及退出期间的旧页面写入。 |
 | 本机清理保护 | 隔离测试服务实际页面 | 已查看[桌面](screenshots/local-cleanup-legacy-desktop.png)和[手机](screenshots/local-cleanup-legacy-mobile.png)未确认同步提示。 |
+| 旧工作区记录 | `npx vitest run tests/history-delete-api.test.ts tests/history-delete-client.test.ts tests/workspace-migration.test.ts tests/workspace-reclamation.test.ts tests/workspace-capacity-ui.test.tsx tests/legacy-workspace-records.test.ts tests/personal-export.test.ts tests/local-practice-unsynced.test.ts` | 35 项定向测试通过；补充测试单独验证注销后的关联标记级联删除。 |
+| 旧工作区记录 | `npm test`、`npm run typecheck`、`npm run build`、`npm run test:sites` | 均通过；102 个测试文件、519 项通过；构建仍提示客户端包大于 500 kB。 |
+| 旧工作区记录 | `npx playwright test e2e/legacy-workspace-records.e2e.ts e2e/workspace-capacity-management.e2e.ts e2e/workspace-reclamation.e2e.ts` | 3 项通过；随后单独复验容量页面关联标记提示，1 项通过。 |
+| 旧工作区记录 | `docker build -t typing-upgrade-ci:local .`；`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker` | 容器替换与 SQLite 备份恢复后，旧记录删除关联标记、统计设置及反馈附件保留。 |
