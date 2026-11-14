@@ -41,7 +41,7 @@ function draft(value: SavedPractice) {
 function settings(value: ReaderSettings) {
   return { minutes: value.minutes, mode: value.mode, strict: value.strict, autoPause: value.autoPause, fontSize: value.fontSize,
     lineHeight: value.lineHeight, visibleLines: value.visibleLines, theme: value.theme, showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false,
-    showAccuracy: value.showAccuracy !== false, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }), ...(value.presets && { presets: value.presets.map(cleanPracticePreset) }),
+    showAccuracy: value.showAccuracy !== false, shortcutsEnabled: value.shortcutsEnabled !== false, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }), ...(value.presets && { presets: value.presets.map(cleanPracticePreset) }),
     ...(value.pace && { pace: { enabled: value.pace.enabled, source: value.pace.source, customSpeed: value.pace.customSpeed } }) };
 }
 function background(value: BackgroundConfig) {

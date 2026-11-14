@@ -32,8 +32,8 @@
 | E01 | 待完善 | `3608105` | 已有条件分组、个人最佳、最近 10 次比较、服务端历史分页及不完整范围提示；记录删除后的重算待 D03 完成，见 [口径](2026-11-15-personal-best.md)。 |
 | E02 | 待完善 | `7b9bd92` | 已有本轮复练、重复次数、状态和筛选、跨设备同步及截断提示；待最终整体回归，见 [说明](2026-11-15-mistake-training.md)。 |
 | E03 | 待完善 | `d130c2e` | 已有创建、应用、更新、重命名、删除和账号同步；进行中切换保留草稿，待最终整体回归，见 [说明](2026-11-15-presets-settings-transfer.md)。 |
-| E04 | 待完善 | 本阶段 | 已有自定义／上次／最佳目标、有效时间比较和草稿持久化；待最终整体回归，见 [口径](2026-11-15-target-pace.md)。 |
-| E05 | 待完善 | — | 有 Escape 暂停；缺命令面板和可配置快捷键。 |
+| E04 | 待完善 | `cb2a9b3` | 已有自定义／上次／最佳目标、有效时间比较和草稿持久化；待最终整体回归，见 [口径](2026-11-15-target-pace.md)。 |
+| E05 | 待完善 | 本阶段 | 已有可搜索功能面板、可关闭快捷键、输入法／表单保护和重启确认；待真实系统输入法及最终回归，见 [说明](2026-11-15-command-palette.md)。 |
 | E06 | 待完善 | `1026bb0` | 计时、速度和准确率已可独立隐藏并同步；结果及专注模式回归通过，待最终整体验收，见 [说明](2026-11-15-live-indicators.md)。 |
 | E07 | 待完善 | — | 已有错字专项，缺独立数字、标点与词组素材。 |
 | E08 | 待完善 | `d130c2e` | 已有独立版本化设置文件、严格校验、预览及确认导入；待与后续新增设置整体回归，见 [说明](2026-11-15-presets-settings-transfer.md)。 |
@@ -135,3 +135,9 @@
 | 目标配速 | 隔离测试服务实际页面 | 已查看[手机配速提示](screenshots/pace-mobile-light.png)及[桌面夜间配速设置](screenshots/pace-settings-desktop-dark.png)。 |
 | 目标配速 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；72 个测试文件、423 项通过。 |
 | 目标配速 | `docker build -t typing-upgrade-ci:local .`；`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker` | 容器启动、练习恢复、反馈附件、卷替换及备份恢复通过；脚本未单独验证配速字段。 |
+| 快捷操作 | `npx vitest run tests/shortcuts.test.tsx tests/command-palette-ui.test.tsx tests/practice-settings-transfer.test.ts tests/workspace-reclamation.test.ts` | 定向测试通过：模拟组合输入、表单和弹窗保护、关闭开关及旧客户端字段兼容。 |
+| 快捷操作 | `npx playwright test e2e/shortcuts.e2e.ts e2e/presets-settings.e2e.ts` | 6 项通过：搜索、暂停／继续、重启确认、页面导航、双设备开关和专注模式；输入法为模拟事件。 |
+| 快捷操作 | 隔离测试服务实际页面 | 已查看[手机功能面板](screenshots/command-palette-mobile.png)及[桌面夜间搜索](screenshots/command-palette-desktop-dark.png)。 |
+| 管理员预览回归 | `npx vitest run tests/admin-entry.test.tsx -t 'explicit site preview\|same-account session' --repeats=9` | 通过；修复同一账号延迟恢复时错误清除前台预览状态。 |
+| 快捷操作 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 通过；74 个测试文件、429 项通过。 |
+| 快捷操作 | `npx playwright test e2e/shortcuts.e2e.ts e2e/presets-settings.e2e.ts e2e/practice.e2e.ts` | 17 项通过；随后补充卸载保护，快捷操作 3 项定向浏览器流程再次通过。 |

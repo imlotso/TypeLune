@@ -22,8 +22,9 @@ export type ReaderSettings = {
   showAccuracy?: boolean;
   presets?: PracticePreset[];
   pace?: PaceSettings;
+  shortcutsEnabled?: boolean;
 };
-export const defaultSettings: ReaderSettings = { minutes: 5, mode: 'timed', strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light', showTimer: true, showSpeed: true, showAccuracy: true };
+export const defaultSettings: ReaderSettings = { minutes: 5, mode: 'timed', strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light', showTimer: true, showSpeed: true, showAccuracy: true, shortcutsEnabled: true };
 export type ArticleSnapshot = { id: string; title: string; text: string; language: Language; difficulty: Difficulty; custom: boolean; author?: string; theme?: string; source?: ArticleSource };
 export type PrivateArticle = ArticleSnapshot & { custom: true };
 export type MistakeSample = { position: number; expected: string; actual: string };

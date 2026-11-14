@@ -53,6 +53,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .progress-row { display: flex; flex-wrap: wrap; gap: 8px 24px; color: #6a6389; font-size: 14px; margin: 0 0 16px; }
 .progress-row b, .status-row b { font-weight: 700; font-variant-numeric: tabular-nums; }
 .pace-indicator { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 12px; color: var(--typing-text); font-size: 13px; }
+.command-palette ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.command-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--typing-border); border-radius: 10px; background: var(--typing-input); color: var(--typing-text); text-align: left; }
+.command-option:disabled { opacity: .5; }
+.command-option kbd { color: var(--typing-muted); font: inherit; font-size: 12px; white-space: nowrap; }
 .typing-panel { padding: 18px 20px 12px; background: rgba(255,255,255,.92); border: 1px solid #d5cbef; border-radius: 19px; box-shadow: 0 4px 18px rgba(83, 69, 129, .035); }
 .char-correct { color: #326a52; background: #dff5e6; }
 .char-wrong { color: #ad4052; background: #ffdee3; text-decoration: underline; }

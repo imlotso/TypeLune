@@ -23,6 +23,7 @@ type Props = {
   hasBackground?: boolean;
   onPresets?: () => void;
   onSettingsTransfer?: () => void;
+  onCommands?: () => void;
   language?: Language;
 };
 
@@ -30,10 +31,10 @@ const syncNames: Record<SyncState, string> = {
   guest: '仅本机', loading: '正在读取', syncing: '同步中', synced: '已同步', error: '同步失败',
 };
 
-export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, syncError, pendingCount, cloudCount, lastSyncedAt, recoveryReason, onRecovery, onSync, isSignedIn, onBackground, hasBackground, onPresets, onSettingsTransfer, language = 'zh' }: Props) {
+export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, syncError, pendingCount, cloudCount, lastSyncedAt, recoveryReason, onRecovery, onSync, isSignedIn, onBackground, hasBackground, onPresets, onSettingsTransfer, onCommands, language = 'zh' }: Props) {
   const [invalidMinutes, setInvalidMinutes] = useState<string>();
   const [saveError, setSaveError] = useState('');
-  type Indicator = 'showTimer' | 'showSpeed' | 'showAccuracy';
+  type Indicator = 'showTimer' | 'showSpeed' | 'showAccuracy' | 'shortcutsEnabled';
   const [pendingIndicators, setPendingIndicators] = useState<Partial<Record<Indicator, { value: boolean; version: number; settled: boolean }>>>({});
   const sequence = useRef(0);
   const indicatorVersions = useRef<Partial<Record<Indicator, number>>>({});
@@ -46,7 +47,7 @@ export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, f
   useEffect(() => {
     setPendingIndicators((previous) => {
       let next = previous;
-      for (const key of ['showTimer', 'showSpeed', 'showAccuracy'] as const) {
+      for (const key of ['showTimer', 'showSpeed', 'showAccuracy', 'shortcutsEnabled'] as const) {
         const pending = previous[key];
         if (pending?.settled && (settings[key] !== false) === pending.value) {
           if (next === previous) next = { ...previous };
@@ -55,7 +56,7 @@ export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, f
       }
       return next;
     });
-  }, [settings.showTimer, settings.showSpeed, settings.showAccuracy, pendingIndicators]);
+  }, [settings.showTimer, settings.showSpeed, settings.showAccuracy, settings.shortcutsEnabled, pendingIndicators]);
   useEffect(() => {
     if (pendingPace?.settled && JSON.stringify(settings.pace ?? defaultPace) === JSON.stringify(pendingPace.value)) setPendingPace(undefined);
   }, [settings.pace, pendingPace]);
@@ -139,6 +140,11 @@ export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, f
           {invalidPace !== undefined && pace.source === 'custom' && <p className="form-error" role="alert">请输入 1–1000 的速度</p>}
         </>}
         {locked && <p className="feature-muted">本轮目标保持不变，设置用于下一轮。</p>}
+      </fieldset>
+      <fieldset className="settings-group">
+        <legend>快捷操作</legend>
+        <label className="settings-check"><input type="checkbox" checked={pendingIndicators.shortcutsEnabled?.value ?? (settings.shortcutsEnabled !== false)} onChange={(event) => changeIndicator('shortcutsEnabled', event.target.checked)} />启用快捷键</label>
+        {onCommands && <button type="button" className="outline-button feature-action-button" onClick={onCommands}>快捷键与功能</button>}
       </fieldset>
       <fieldset className="settings-group">
         <legend>阅读</legend>

@@ -105,6 +105,22 @@ it('returns from an explicit site preview through the account entry and preserve
   expect(screen.getByTestId('typed-count').textContent).toBe('2');
 });
 
+it('keeps an explicit preview open when same-account session revalidation finishes later', async () => {
+  account = admin; render(<App />);
+  await screen.findByRole('heading', { name: '管理后台' });
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  let resolveMe!: (response: Response) => void;
+  vi.stubGlobal('fetch', vi.fn((path: string, options?: RequestInit) => path === '/api/me'
+    ? new Promise<Response>((resolve) => { resolveMe = resolve; }) : original(path, options)));
+  fireEvent.focus(window);
+  await waitFor(() => expect(resolveMe).toBeTypeOf('function'));
+  fireEvent.click(screen.getByRole('button', { name: '预览网站' }));
+  await screen.findByRole('button', { name: '自定义文字' });
+  await act(async () => resolveMe(new Response(JSON.stringify({ user: admin }))));
+  expect(screen.getByRole('navigation', { name: '主要导航' })).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: '管理后台' })).toBeNull();
+});
+
 it('removes the admin interface when focus revalidation discovers a different normal account', async () => {
   account = admin; render(<App />);
   await screen.findByRole('heading', { name: '管理后台' });

@@ -77,7 +77,7 @@ describe('workspace deletion and reclamation protocol', () => {
     const pace = { enabled: true, source: 'custom', customSpeed: 80 };
     const presets = [{ id: 'preset-one', name: '夜读', language: 'zh', difficulty: 'intermediate', mode: 'article', minutes: 5, strict: true, autoPause: true, pace }];
     const created = await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now, baseRevision: 0,
-      value: { ...settings, mistakeStates: { 'zh:风': 'mastered' }, showSpeed: false, showAccuracy: false, showTimer: true, presets, pace } }]);
+      value: { ...settings, mistakeStates: { 'zh:风': 'mastered' }, showSpeed: false, showAccuracy: false, showTimer: true, shortcutsEnabled: false, presets, pace } }]);
     expect(created.statusCode).toBe(200);
     const revision = created.json().items[0].serverRevision;
     expect((await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now + 1, baseRevision: revision, value: { ...settings, mistakeStates: { 'zh:风': 'invalid' } } }])).statusCode).toBe(400);
@@ -86,7 +86,7 @@ describe('workspace deletion and reclamation protocol', () => {
     expect((await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now + 1, baseRevision: revision, value: { ...settings, pace: { ...pace, customSpeed: 0 } } }])).statusCode).toBe(400);
     const oldClient = await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: ++now, baseRevision: revision, value: { ...settings, minutes: 10 } }]);
     expect(oldClient.statusCode).toBe(200);
-    expect(oldClient.json().items[0].value).toMatchObject({ minutes: 10, mistakeStates: { 'zh:风': 'mastered' }, showSpeed: false, showAccuracy: false, showTimer: true, presets, pace });
+    expect(oldClient.json().items[0].value).toMatchObject({ minutes: 10, mistakeStates: { 'zh:风': 'mastered' }, showSpeed: false, showAccuracy: false, showTimer: true, shortcutsEnabled: false, presets, pace });
     const { pace: _pace, ...oldPreset } = presets[0];
     const renamed = await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: ++now, baseRevision: oldClient.json().items[0].serverRevision,
       value: { ...settings, presets: [{ ...oldPreset, name: '晨读' }] } }]);

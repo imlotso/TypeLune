@@ -75,6 +75,7 @@ const schemas = {
     showTimer: z.boolean().optional(), showSpeed: z.boolean().optional(), showAccuracy: z.boolean().optional(),
     presets: z.custom<PracticePreset[]>((value) => isPresetList(value, true)).optional(),
     pace: z.custom<PaceSettings>(isPaceSettings).optional(),
+    shortcutsEnabled: z.boolean().optional(),
   }),
 } satisfies Record<WorkspaceKind, z.ZodType>;
 const item = z.object({

@@ -109,7 +109,7 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
     case 'settings': return Number.isInteger(payload.minutes) && isTheme(payload.theme) && isMode(payload.mode) &&
       typeof payload.autoPause === 'boolean' && typeof payload.strict === 'boolean' &&
       [payload.fontSize, payload.lineHeight, payload.visibleLines].every(isNumber) &&
-      ['showTimer', 'showSpeed', 'showAccuracy'].every((key) => payload[key] === undefined || typeof payload[key] === 'boolean') &&
+      ['showTimer', 'showSpeed', 'showAccuracy', 'shortcutsEnabled'].every((key) => payload[key] === undefined || typeof payload[key] === 'boolean') &&
       (payload.presets === undefined || isPresetList(payload.presets)) &&
       (payload.pace === undefined || isPaceSettings(payload.pace)) &&
       (payload.mistakeStates === undefined || (isObject(payload.mistakeStates) && Object.keys(payload.mistakeStates).length <= 2000 &&
@@ -126,7 +126,7 @@ function comparable(value: unknown): unknown {
 export function sameWorkspaceValue(kind: WorkspaceKind, a: unknown, b: unknown) {
   const normalize = (value: unknown) => kind === 'settings' && isObject(value) ? { ...value,
     showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false, showAccuracy: value.showAccuracy !== false,
-    mistakeStates: value.mistakeStates ?? {}, presets: value.presets ?? [], pace: value.pace ?? defaultPace } : value;
+    mistakeStates: value.mistakeStates ?? {}, presets: value.presets ?? [], pace: value.pace ?? defaultPace, shortcutsEnabled: value.shortcutsEnabled !== false } : value;
   return JSON.stringify(comparable(normalize(a))) === JSON.stringify(comparable(normalize(b)));
 }
 function samePayload(a: WorkspaceItem, b: WorkspaceItem) {

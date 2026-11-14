@@ -37,9 +37,10 @@ it('validates version, fields, ranges and duplicate preset IDs before applying a
 it('reads older version 1 files without a pace field as disabled pace', () => {
   const preset = makePracticePreset('p1', '旧预设', defaultSettings, 'zh', 'beginner', false);
   const old = JSON.parse(exportPracticeSettings({ ...defaultSettings, presets: [preset] }, 'zh', 'beginner'));
-  delete old.settings.pace; delete old.presets[0].pace;
+  delete old.settings.pace; delete old.settings.shortcutsEnabled; delete old.presets[0].pace;
   const parsed = parsePracticeSettings(JSON.stringify(old));
   expect(parsed.settings.pace.enabled).toBe(false);
+  expect(parsed.settings.shortcutsEnabled).toBe(true);
   expect(parsed.presets[0].pace?.enabled).toBe(false);
 });
 
@@ -50,4 +51,12 @@ it('round-trips pace settings in both the current configuration and named preset
   const parsed = parsePracticeSettings(exportPracticeSettings({ ...settings, presets: [preset] }, 'en', 'intermediate'));
   expect(parsed.settings.pace).toEqual(pace);
   expect(parsed.presets[0].pace).toEqual(pace);
+});
+
+it('round-trips the shortcut preference without putting it into a practice preset', () => {
+  const settings = { ...defaultSettings, shortcutsEnabled: false };
+  const preset = makePracticePreset('p1', '练习', settings, 'zh', 'beginner', true);
+  const parsed = parsePracticeSettings(exportPracticeSettings({ ...settings, presets: [preset] }, 'zh', 'beginner'));
+  expect(parsed.settings.shortcutsEnabled).toBe(false);
+  expect(parsed.presets[0]).not.toHaveProperty('shortcutsEnabled');
 });

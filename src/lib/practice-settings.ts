@@ -2,7 +2,7 @@ import type { Difficulty, Language } from '../data/articles';
 import { defaultPace, type PaceSettings, type PracticeMode, type PracticePreset, type PresetReading, type ReaderSettings } from './models';
 import { isPaceSettings } from './pace';
 
-export type PortablePracticeSettings = { language: Language; difficulty: Difficulty; mode: PracticeMode; minutes: number; strict: boolean; autoPause: boolean; pace: PaceSettings } & PresetReading;
+export type PortablePracticeSettings = { language: Language; difficulty: Difficulty; mode: PracticeMode; minutes: number; strict: boolean; autoPause: boolean; pace: PaceSettings; shortcutsEnabled: boolean } & PresetReading;
 export type PracticeSettingsFile = { format: 'typing-practice-settings'; version: 1; exportedAt: string; settings: PortablePracticeSettings; presets: PracticePreset[] };
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const keysOnly = (value: Record<string, unknown>, keys: string[]) => Object.keys(value).every((key) => keys.includes(key));
@@ -60,7 +60,7 @@ export function applyPresetAction(presets: PracticePreset[], action: PresetActio
 export function exportPracticeSettings(settings: ReaderSettings, selectedLanguage: Language, selectedDifficulty: Difficulty): string {
   const presets = (settings.presets ?? []).map(cleanPracticePreset);
   const value: PracticeSettingsFile = { format: 'typing-practice-settings', version: 1, exportedAt: new Date().toISOString(),
-    settings: { language: selectedLanguage, difficulty: selectedDifficulty, mode: settings.mode, minutes: settings.minutes, strict: settings.strict, autoPause: settings.autoPause, pace: { ...(settings.pace ?? defaultPace) }, ...reading(settings) }, presets };
+    settings: { language: selectedLanguage, difficulty: selectedDifficulty, mode: settings.mode, minutes: settings.minutes, strict: settings.strict, autoPause: settings.autoPause, pace: { ...(settings.pace ?? defaultPace) }, shortcutsEnabled: settings.shortcutsEnabled !== false, ...reading(settings) }, presets };
   const text = JSON.stringify(value, null, 2);
   parsePracticeSettings(text);
   return text;
@@ -73,11 +73,12 @@ export function parsePracticeSettings(text: string): PracticeSettingsFile {
   const readingValue = settings ? Object.fromEntries(readingKeys.map((key) => [key, settings[key]])) : undefined;
   if (!isObject(value) || !keysOnly(value, ['format', 'version', 'exportedAt', 'settings', 'presets']) || value.format !== 'typing-practice-settings' || value.version !== 1 ||
     typeof value.exportedAt !== 'string' || !Number.isFinite(Date.parse(value.exportedAt)) || !settings ||
-    !keysOnly(settings, ['language', 'difficulty', 'mode', 'minutes', 'strict', 'autoPause', 'pace', ...readingKeys]) ||
+    !keysOnly(settings, ['language', 'difficulty', 'mode', 'minutes', 'strict', 'autoPause', 'pace', 'shortcutsEnabled', ...readingKeys]) ||
     !language(settings.language) || !difficulty(settings.difficulty) || !mode(settings.mode) || !minutes(settings.minutes) ||
-    typeof settings.strict !== 'boolean' || typeof settings.autoPause !== 'boolean' || (settings.pace !== undefined && !isPaceSettings(settings.pace)) || !isReading(readingValue, true) ||
+    typeof settings.strict !== 'boolean' || typeof settings.autoPause !== 'boolean' || (settings.pace !== undefined && !isPaceSettings(settings.pace)) ||
+    (settings.shortcutsEnabled !== undefined && typeof settings.shortcutsEnabled !== 'boolean') || !isReading(readingValue, true) ||
     !isPresetList(value.presets, true)) throw new Error('设置文件版本或内容无效');
   const parsed = value as unknown as PracticeSettingsFile;
-  return { ...parsed, settings: { ...parsed.settings, pace: { ...(parsed.settings.pace ?? defaultPace) } },
+  return { ...parsed, settings: { ...parsed.settings, pace: { ...(parsed.settings.pace ?? defaultPace) }, shortcutsEnabled: parsed.settings.shortcutsEnabled !== false },
     presets: parsed.presets.map((preset) => ({ ...preset, pace: { ...(preset.pace ?? defaultPace) } })) };
 }
