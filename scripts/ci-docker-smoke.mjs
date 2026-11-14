@@ -45,16 +45,16 @@ async function ready(baseURL) {
   }
   throw new Error(`Production container did not become healthy: ${lastError}`);
 }
-async function post(baseURL, path, body, cookie) {
+async function post(baseURL, path, body, cookie, extraHeaders = {}) {
   return fetch(`${baseURL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: baseURL, ...(cookie ? { Cookie: cookie } : {}) },
+    headers: { 'Content-Type': 'application/json', Origin: baseURL, ...(cookie ? { Cookie: cookie } : {}), ...extraHeaders },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(5000),
   });
 }
-async function get(baseURL, path, cookie) {
-  return fetch(`${baseURL}${path}`, { headers: cookie ? { Cookie: cookie } : {}, signal: AbortSignal.timeout(5000) });
+async function get(baseURL, path, cookie, extraHeaders = {}) {
+  return fetch(`${baseURL}${path}`, { headers: { ...(cookie ? { Cookie: cookie } : {}), ...extraHeaders }, signal: AbortSignal.timeout(5000) });
 }
 
 try {
@@ -90,6 +90,15 @@ try {
   assert.equal(login.status, 200);
   const accountCookie = login.headers.get('set-cookie')?.split(';')[0];
   assert.ok(accountCookie);
+  const accountId = (await login.json()).user.id;
+  const workspaceHeaders = { 'X-Workspace-Owner': accountId, 'X-Workspace-Protocol': '2' };
+  const initialWorkspace = await get(baseURL, '/api/workspace', accountCookie, workspaceHeaders);
+  assert.equal(initialWorkspace.status, 200);
+  const generation = (await initialWorkspace.json()).generation;
+  const settings = { minutes: 5, mode: 'timed', strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light', statisticsTimezone: 'Asia/Tokyo', dailyGoalMinutes: 25 };
+  const syncedSettings = await post(baseURL, '/api/workspace/sync', { generation, items: [{ kind: 'settings', id: 'preferences', updatedAt: Date.now(), baseRevision: 0, value: settings }] }, accountCookie, workspaceHeaders);
+  assert.equal(syncedSettings.status, 200);
+  assert.deepEqual((await syncedSettings.json()).items.find((item) => item.kind === 'settings').value, settings);
   const screenshot = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#aabbcc' } }).png().toBuffer();
   const feedback = await post(baseURL, '/api/feedback', { category: 'issue', title: '持久化测试', description: '测试附件',
     attachments: [{ name: 'test.png', data: `data:image/png;base64,${screenshot.toString('base64')}` }] }, accountCookie);
@@ -112,6 +121,8 @@ try {
   const persistedAttachment = await get(baseURL, attachmentUrl, accountCookie);
   assert.equal(persistedAttachment.status, 200);
   assert.deepEqual(Buffer.from(await persistedAttachment.arrayBuffer()), attachmentBytes, 'Feedback attachment must survive container replacement');
+  const persistedWorkspace = await get(baseURL, '/api/workspace', accountCookie, workspaceHeaders);
+  assert.deepEqual((await persistedWorkspace.json()).items.find((item) => item.kind === 'settings').value, settings, 'Statistics settings must survive container replacement');
 
   createVolume(restoredVolume);
   docker('run', '--rm', '--user', '0', '--entrypoint', 'sh', '-v', `${restoredVolume}:/app/data`, '-v', `${directory}:/backup:ro`, image, '-c', 'cp /backup/backup.sqlite /app/data/dazi.sqlite && chown node:node /app/data/dazi.sqlite');
@@ -123,7 +134,9 @@ try {
   const restoredAttachment = await get(backupURL, attachmentUrl, accountCookie);
   assert.equal(restoredAttachment.status, 200);
   assert.deepEqual(Buffer.from(await restoredAttachment.arrayBuffer()), attachmentBytes, 'Feedback attachment must be included in the SQLite backup');
-  console.log('Production image: homepage, API, ownership, pause/resume, feedback attachments, volume replacement and backup restore passed.');
+  const restoredWorkspace = await get(backupURL, '/api/workspace', accountCookie, workspaceHeaders);
+  assert.deepEqual((await restoredWorkspace.json()).items.find((item) => item.kind === 'settings').value, settings, 'Statistics settings must be included in the SQLite backup');
+  console.log('Production image: homepage, API, ownership, pause/resume, feedback attachments, statistics settings, volume replacement and backup restore passed.');
 } catch (error) {
   for (const name of containers) {
     const logs = spawnSync('docker', ['logs', name], { encoding: 'utf8' });

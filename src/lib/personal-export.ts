@@ -43,7 +43,8 @@ function settings(value: ReaderSettings) {
   return { minutes: value.minutes, mode: value.mode, strict: value.strict, autoPause: value.autoPause, fontSize: value.fontSize,
     lineHeight: value.lineHeight, visibleLines: value.visibleLines, theme: value.theme, showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false,
     showAccuracy: value.showAccuracy !== false, shortcutsEnabled: value.shortcutsEnabled !== false, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }), ...(value.presets && { presets: value.presets.map(cleanPracticePreset) }),
-    ...(value.pace && { pace: { enabled: value.pace.enabled, source: value.pace.source, customSpeed: value.pace.customSpeed } }) };
+    ...(value.pace && { pace: { enabled: value.pace.enabled, source: value.pace.source, customSpeed: value.pace.customSpeed } }),
+    ...(value.statisticsTimezone !== undefined && { statisticsTimezone: value.statisticsTimezone }), ...(value.dailyGoalMinutes !== undefined && { dailyGoalMinutes: value.dailyGoalMinutes }) };
 }
 function background(value: BackgroundConfig) {
   return { image: value.image, name: value.name, width: value.width, height: value.height, fit: value.fit,

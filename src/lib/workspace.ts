@@ -3,6 +3,7 @@ import { themeStorageKey } from './theme';
 import { isBackgroundConfig } from './background';
 import { isPresetList } from './practice-settings';
 import { isPaceSettings } from './pace';
+import { isStatisticsTimeZone } from './long-term-stats';
 
 const databaseName = 'cloudtyping-workspace';
 const itemStore = 'items';
@@ -112,6 +113,8 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
       ['showTimer', 'showSpeed', 'showAccuracy', 'shortcutsEnabled'].every((key) => payload[key] === undefined || typeof payload[key] === 'boolean') &&
       (payload.presets === undefined || isPresetList(payload.presets)) &&
       (payload.pace === undefined || isPaceSettings(payload.pace)) &&
+      (payload.statisticsTimezone === undefined || isStatisticsTimeZone(payload.statisticsTimezone)) &&
+      (payload.dailyGoalMinutes === undefined || (Number.isInteger(payload.dailyGoalMinutes) && (payload.dailyGoalMinutes as number) >= 0 && (payload.dailyGoalMinutes as number) <= 1440)) &&
       (payload.mistakeStates === undefined || (isObject(payload.mistakeStates) && Object.keys(payload.mistakeStates).length <= 2000 &&
         Object.entries(payload.mistakeStates).every(([key, state]) => key.length > 0 && key.length <= 512 && (state === 'mastered' || state === 'ignored'))));
     default: return false;

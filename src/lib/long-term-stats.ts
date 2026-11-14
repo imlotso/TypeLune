@@ -11,7 +11,8 @@ const formatters = new Map<string, Intl.DateTimeFormat>();
 export function browserStatisticsTimeZone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
 }
-export function isStatisticsTimeZone(value: string) {
+export function isStatisticsTimeZone(value: unknown): value is string {
+  if (typeof value !== 'string' || !value || value.length > 100 || value.trim() !== value) return false;
   try { new Intl.DateTimeFormat('en-US', { timeZone: value }).format(0); return true; } catch { return false; }
 }
 export function statsDayKey(timestamp: number, timeZone: string) {

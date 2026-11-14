@@ -111,4 +111,17 @@ describe('workspace deletion and reclamation protocol', () => {
     expect(updated.statusCode).toBe(200);
     expect(updated.json().items.every((entry: { value: { mistakesTruncated?: boolean; paceTarget?: number } }) => entry.value.mistakesTruncated === true && entry.value.paceTarget === 60)).toBe(true);
   });
+  it('preserves the statistics time zone and goal when an older client updates settings', async () => {
+    const settings = { minutes: 5, mode: 'timed', strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light' };
+    const created = await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now, baseRevision: 0, value: { ...settings, statisticsTimezone: 'Asia/Shanghai', dailyGoalMinutes: 30 } }]);
+    expect(created.statusCode).toBe(200);
+    expect(created.json().items[0].value).toMatchObject({ statisticsTimezone: 'Asia/Shanghai', dailyGoalMinutes: 30 });
+    const revision = created.json().items[0].serverRevision;
+    expect((await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now + 1, baseRevision: revision, value: { ...settings, statisticsTimezone: 'Invalid/Place' } }])).statusCode).toBe(400);
+    expect((await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now + 1, baseRevision: revision, value: { ...settings, dailyGoalMinutes: 1441 } }])).statusCode).toBe(400);
+    const oldClient = await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: ++now, baseRevision: revision, value: { ...settings, minutes: 10 } }]);
+    expect(oldClient.statusCode).toBe(200);
+    expect(oldClient.json().items[0].value).toMatchObject({ minutes: 10, statisticsTimezone: 'Asia/Shanghai', dailyGoalMinutes: 30 });
+  });
+
 });

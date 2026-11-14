@@ -9,7 +9,7 @@ it('merges stable IDs, honors deletions and excludes authentication and recovery
     recoveryKey: 'recovery-secret', claimId: 'claim-secret', recoveryRequestId: 'request-secret' } as SavedPractice;
   const preset = { ...makePracticePreset('p1', '晨读', defaultSettings, 'zh', 'beginner', true), token: 'preset-secret' };
   const local: WorkspaceItem[] = [
-    { kind: 'settings', id: 'preferences', updatedAt: 1, value: { ...defaultSettings, token: 'settings-secret', presets: [preset] } },
+    { kind: 'settings', id: 'preferences', updatedAt: 1, value: { ...defaultSettings, token: 'settings-secret', presets: [preset], statisticsTimezone: 'Asia/Shanghai', dailyGoalMinutes: 25 } },
     { kind: 'article', id: 'private', updatedAt: 2, value: article },
     { kind: 'draft', id: 'draft-1', updatedAt: 3, value: draft },
     { kind: 'favorite', id: 'deleted', updatedAt: 1, value: { articleId: 'deleted' } },
@@ -23,6 +23,7 @@ it('merges stable IDs, honors deletions and excludes authentication and recovery
   expect(exported.data.records).toHaveLength(1);
   expect(exported.data.records[0]).toMatchObject({ recordId: 'record-1', status: 'review', typed: '原' });
   expect(exported.data.settings.presets).toMatchObject([{ id: 'p1', name: '晨读' }]);
+  expect(exported.data.settings).toMatchObject({ statisticsTimezone: 'Asia/Shanghai', dailyGoalMinutes: 25 });
   const json = JSON.stringify(exported);
   for (const secret of ['recovery-secret', 'claim-secret', 'request-secret', 'settings-secret', 'preset-secret', 'record-secret', 'session-secret', 'article-secret']) expect(json).not.toContain(secret);
   expect(exported.version).toBe(1);

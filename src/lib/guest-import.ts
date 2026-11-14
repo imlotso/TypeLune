@@ -44,6 +44,7 @@ function cleanSettings(value: ReaderSettings): ReaderSettings {
   return { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme,
     showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false, showAccuracy: value.showAccuracy !== false,
     shortcutsEnabled: value.shortcutsEnabled !== false,
+    ...(value.statisticsTimezone !== undefined && { statisticsTimezone: value.statisticsTimezone }), ...(value.dailyGoalMinutes !== undefined && { dailyGoalMinutes: value.dailyGoalMinutes }),
     ...(value.mistakeStates && { mistakeStates: value.mistakeStates }), ...(value.presets && { presets: value.presets.map(cleanPracticePreset) }),
     ...(value.pace && { pace: { enabled: value.pace.enabled, source: value.pace.source, customSpeed: value.pace.customSpeed } }) };
 }

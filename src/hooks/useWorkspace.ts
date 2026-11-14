@@ -247,6 +247,10 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     if (!settingsAvailable) return Promise.reject(new Error('账号设置尚未读取'));
     return mutateWorkspaceValue(ownerId, 'settings', 'preferences', (_saved, items) => ({ ...workspaceSettings(items), ...patch }));
   }, [ownerId, settingsAvailable]);
+  const ensureStatisticsTimezone = useCallback((timeZone: string) => {
+    if (!settingsAvailable) return Promise.reject(new Error('账号设置尚未读取'));
+    return mutateWorkspaceValue(ownerId, 'settings', 'preferences', (saved, items) => saved?.statisticsTimezone ? saved : { ...workspaceSettings(items), statisticsTimezone: timeZone });
+  }, [ownerId, settingsAvailable]);
   const toggleFavorite = useCallback((id: string) =>
     mutateWorkspaceValue(ownerId, 'favorite', id, (old) => old ? undefined : { articleId: id }), [ownerId]);
   const updateMistakeState = useCallback((id: string, status?: MistakeStatus) => {
@@ -298,6 +302,6 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     pendingCount: visible?.pendingCount ?? null,
     cloudCount: visible?.cloudCount ?? null,
     recoveryReason: visible?.recoveryReason ?? null,
-    put, remove, updateSettings, updateMistakeState, changePresets, toggleFavorite, sync,
+    put, remove, updateSettings, ensureStatisticsTimezone, updateMistakeState, changePresets, toggleFavorite, sync,
   };
 }

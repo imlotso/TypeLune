@@ -5,6 +5,7 @@ import type { PaceSettings, PracticePreset, WorkspaceItem, WorkspaceKind } from 
 import { isBackgroundConfig, type BackgroundConfig } from '../src/lib/background';
 import { isPresetList } from '../src/lib/practice-settings';
 import { isPaceSettings } from '../src/lib/pace';
+import { isStatisticsTimeZone } from '../src/lib/long-term-stats';
 
 export const syncBodyLimit = 4 * 1024 * 1024;
 export const recoveryIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -76,6 +77,7 @@ const schemas = {
     presets: z.custom<PracticePreset[]>((value) => isPresetList(value, true)).optional(),
     pace: z.custom<PaceSettings>(isPaceSettings).optional(),
     shortcutsEnabled: z.boolean().optional(),
+    statisticsTimezone: z.custom<string>(isStatisticsTimeZone).optional(), dailyGoalMinutes: z.number().int().min(0).max(1440).optional(),
   }),
 } satisfies Record<WorkspaceKind, z.ZodType>;
 const item = z.object({

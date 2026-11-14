@@ -54,6 +54,7 @@ import { api, ApiError, type User } from './lib/api';
 import { catalogSnapshotKey, compareDraftProgress, defaultPace, sameCompletedDraftProgress, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PaceSettings, type PracticePreset, type PracticeRecord, type PresetReading, type ReaderSettings, type SavedPractice } from './lib/models';
 import type { PracticeSettingsFile } from './lib/practice-settings';
 import { calculatePace, selectPaceTarget } from './lib/pace';
+import { browserStatisticsTimeZone } from './lib/long-term-stats';
 import { comparePersonalBest } from './lib/personal-best';
 import { makeShareCardData } from './lib/share-card';
 import { readableCharacter } from './lib/practice-lines';
@@ -443,6 +444,11 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     try { if (deleteLocalHistory(ownerId, [...workspace.deletedRecordIds])) setLocalRecordVersion((version) => version + 1); }
     catch { reportSaveError(); }
   }, [ownerId, workspace.ready, workspace.deletedRecordIds, reportSaveError]);
+
+  useEffect(() => {
+    if (view !== 'stats' || !workspace.settingsReady || workspace.settings.statisticsTimezone || (ownerId && !workspace.cloudLoaded)) return;
+    void workspace.ensureStatisticsTimezone(browserStatisticsTimeZone()).catch(reportSaveError);
+  }, [view, ownerId, workspace.settingsReady, workspace.cloudLoaded, workspace.settings.statisticsTimezone, workspace.ensureStatisticsTimezone, reportSaveError]);
 
   const records = useMemo(() => {
     if (!authReady) return [];
@@ -1054,7 +1060,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {view === 'mistakes' && <MistakesView records={records} states={workspace.settings.mistakeStates ?? {}} onStatus={(id, status) => void workspace.updateMistakeState(id, status).catch((problem: unknown) => {
           if (live.current) setFeedback(problem instanceof Error ? problem.message : '错字状态保存失败');
         })} onPractice={selectArticle} />}
-        {view === 'stats' && <StatsView records={records} coverage={!ready || (!!ownerId && !historyLoaded) ? 'loading' : historyError || !!workspace.error || (!!ownerId && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory() ? 'partial' : ownerId ? 'complete' : 'local'} onOpenRecord={(id) => void afterPark(() => commitAddress(pathForRecord(id), 'history'))} />}
+        {view === 'stats' && <StatsView records={records} coverage={!ready || (!!ownerId && !historyLoaded) ? 'loading' : historyError || !!workspace.error || (!!ownerId && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory() ? 'partial' : ownerId ? 'complete' : 'local'} timeZone={workspace.settings.statisticsTimezone ?? browserStatisticsTimeZone()} timeZoneProvisional={!workspace.settings.statisticsTimezone} goalMinutes={workspace.settings.dailyGoalMinutes ?? 0} onSaveCalendar={workspace.settingsReady ? workspace.updateSettings : undefined}
+          onOpenRecord={(id) => void afterPark(() => commitAddress(pathForRecord(id), 'history'))} />}
         {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} routeFeedbackId={routeFeedbackId} onOpenFeedback={openFeedback} onCloseFeedback={() => commitView('feedback')} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
         {view === 'account' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>账号设置</h1></div>{authReady ? <><p>请先登录</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>登录</button></> : <p role="status">正在读取账号…</p>}</section>}
         {view === 'data' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>个人数据</h1></div>{authReady ? <><p>请先登录</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>登录</button></> : <p role="status">正在读取账号…</p>}</section>}

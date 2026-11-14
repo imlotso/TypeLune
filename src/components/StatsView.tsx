@@ -4,6 +4,7 @@ import type { Difficulty, Language } from '../data/articles';
 import type { PracticeRecord } from '../lib/models';
 import { browserStatisticsTimeZone, groupComparableRecords, selectStatisticsRecords, statsDayKey, summarizeStatistics, type StatisticsFilters, type StatisticsGroup, type StatisticsRange } from '../lib/long-term-stats';
 import { stableRecordId } from '../lib/records';
+import { ActivityCalendar } from './ActivityCalendar';
 
 export type StatisticsCoverage = 'loading' | 'complete' | 'partial' | 'local';
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
@@ -67,7 +68,7 @@ function TrendGroup({ group, timeZone, onOpenRecord, tableName }: { group: Stati
   </section>;
 }
 
-export function StatsView({ records, coverage = 'local', onOpenRecord, timeZone = browserStatisticsTimeZone() }: { records: PracticeRecord[]; coverage?: StatisticsCoverage; onOpenRecord?: (id: string) => void; timeZone?: string }) {
+export function StatsView({ records, coverage = 'local', onOpenRecord, timeZone = browserStatisticsTimeZone(), goalMinutes = 0, onSaveCalendar, timeZoneProvisional = false }: { records: PracticeRecord[]; coverage?: StatisticsCoverage; onOpenRecord?: (id: string) => void; timeZone?: string; goalMinutes?: number; timeZoneProvisional?: boolean; onSaveCalendar?: (settings: { statisticsTimezone: string; dailyGoalMinutes: number }) => Promise<void> }) {
   const [filters, setFilters] = useState<StatisticsFilters>({ language: 'zh', article: '', mode: '', duration: '', difficulty: '', strict: '', range: '7', from: '', to: '' });
   const [groupLimit, setGroupLimit] = useState(10);
   const change = <K extends keyof StatisticsFilters>(key: K, value: StatisticsFilters[K]) => { setFilters((current) => ({ ...current, [key]: value })); setGroupLimit(10); };
@@ -97,6 +98,7 @@ export function StatsView({ records, coverage = 'local', onOpenRecord, timeZone 
     {coverage !== 'complete' && <p className="feature-muted" role="status">{coverage === 'loading' ? '正在读取历史…' : coverage === 'partial' ? '统计基于已读取的记录' : '仅本机记录'}</p>}
     <dl className="feature-metrics"><div><dt>练习次数</dt><dd>{summary.sessions}</dd></div><div><dt>累计有效用时</dt><dd>{summary.timedSessions ? elapsedLabel(summary.elapsedMs) : '—'}</dd></div></dl>
     {summary.missingElapsed > 0 && <p className="feature-muted">{summary.missingElapsed} 条记录缺少有效用时</p>}
+    <ActivityCalendar records={records} timeZone={timeZone} goalMinutes={goalMinutes} coverage={coverage} onOpenRecord={onOpenRecord} onSave={onSaveCalendar} provisional={timeZoneProvisional} />
     {!!groups.length && <p className="feature-muted">速度和准确率按同条件每次练习等权平均</p>}
     {!groups.length ? <p className="empty-state">暂无练习</p> : <div className="stats-groups">{groups.slice(0, groupLimit).map((group) => <TrendGroup key={`${JSON.stringify(filters)}:${group.key}`} group={group} timeZone={timeZone} onOpenRecord={onOpenRecord} tableName={groups.length === 1 ? '每日统计' : `每日统计：${groupTitle(group)}`} />)}
       {groupLimit < groups.length && <div className="feature-actions"><button type="button" className="outline-button" onClick={() => setGroupLimit((value) => value + 10)}>加载更多条件</button></div>}</div>}

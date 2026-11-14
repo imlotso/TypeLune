@@ -125,3 +125,10 @@ it('does not silently discard legacy history beyond the normal display limit or 
   await expect(collectGuestImport('alice')).rejects.toThrow('游客草稿无法读取');
   expect(localStorage.getItem('cloudtyping.practice.v2.invalid')).toContain('不完整');
 });
+
+it('imports the chosen guest statistics time zone and goal as settings', async () => {
+  await putWorkspaceValue(null, 'settings', 'preferences', { ...defaultSettings, statisticsTimezone: 'Asia/Shanghai', dailyGoalMinutes: 25 });
+  const plan = await collectGuestImport('alice');
+  await importGuestItems('alice', plan, false);
+  expect((await readWorkspace('alice'))[0].value).toMatchObject({ statisticsTimezone: 'Asia/Shanghai', dailyGoalMinutes: 25 });
+});
