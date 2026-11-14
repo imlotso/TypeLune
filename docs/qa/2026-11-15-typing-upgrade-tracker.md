@@ -33,14 +33,14 @@
 | E02 | 待完善 | `7b9bd92` | 已有本轮复练、重复次数、状态和筛选、跨设备同步及截断提示；待最终整体回归，见 [说明](2026-11-15-mistake-training.md)。 |
 | E03 | 待完善 | `d130c2e` | 已有创建、应用、更新、重命名、删除和账号同步；进行中切换保留草稿，待最终整体回归，见 [说明](2026-11-15-presets-settings-transfer.md)。 |
 | E04 | 待完善 | `cb2a9b3` | 已有自定义／上次／最佳目标、有效时间比较和草稿持久化；待最终整体回归，见 [口径](2026-11-15-target-pace.md)。 |
-| E05 | 待完善 | 本阶段 | 已有可搜索功能面板、可关闭快捷键、输入法／表单保护和重启确认；待真实系统输入法及最终回归，见 [说明](2026-11-15-command-palette.md)。 |
+| E05 | 待完善 | `ca667cf` | 已有可搜索功能面板、可关闭快捷键、输入法／表单保护和重启确认；待真实系统输入法及最终回归，见 [说明](2026-11-15-command-palette.md)。 |
 | E06 | 待完善 | `1026bb0` | 计时、速度和准确率已可独立隐藏并同步；结果及专注模式回归通过，待最终整体验收，见 [说明](2026-11-15-live-indicators.md)。 |
 | E07 | 待完善 | — | 已有错字专项，缺独立数字、标点与词组素材。 |
 | E08 | 待完善 | `d130c2e` | 已有独立版本化设置文件、严格校验、预览及确认导入；待与后续新增设置整体回归，见 [说明](2026-11-15-presets-settings-transfer.md)。 |
 | F01 | 待完善 | — | 已有 7/30 天概览；缺完整趋势、组合筛选及覆盖范围。 |
 | F02 | 未实现 | — | 缺活动日历、连续天数、目标及账号统计时区。 |
 | F03 | 未实现 | — | 旧记录无过程采样；缺有界持久化采样及稳定性计算。 |
-| F04 | 未实现 | — | 缺成绩分享卡预览、下载和复制。 |
+| F04 | 待完善 | 本阶段 | 已有成绩卡预览、真实 PNG 下载及剪贴板复制，默认隐藏昵称和文章标题；待跨浏览器及最终回归，见 [说明](2026-11-15-share-card.md)。 |
 | G01 | 后置未实施 | — | 快速测试及定量练习不在本次默认实施范围。 |
 | G02 | 后置未实施 | — | 慢词识别不在本次默认实施范围。 |
 | G03 | 后置未实施 | — | 完整过程回放不在本次默认实施范围。 |
@@ -141,3 +141,6 @@
 | 管理员预览回归 | `npx vitest run tests/admin-entry.test.tsx -t 'explicit site preview\|same-account session' --repeats=9` | 通过；修复同一账号延迟恢复时错误清除前台预览状态。 |
 | 快捷操作 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 通过；74 个测试文件、429 项通过。 |
 | 快捷操作 | `npx playwright test e2e/shortcuts.e2e.ts e2e/presets-settings.e2e.ts e2e/practice.e2e.ts` | 17 项通过；随后补充卸载保护，快捷操作 3 项定向浏览器流程再次通过。 |
+| 成绩分享卡 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；76 个测试文件、433 项通过；构建继续提示客户端包大于 500 kB。 |
+| 成绩分享卡 | `npx playwright test e2e/share-card.e2e.ts e2e/personal-best.e2e.ts` | 4 项通过，包含真实 PNG 下载与剪贴板图片复制，以及个人最佳比较回归。 |
+| 成绩分享卡 | 隔离测试服务实际页面 | 已查看[手机日间预览](screenshots/share-dialog-mobile-light.png)、[桌面夜间预览](screenshots/share-dialog-desktop-dark.png)及[浅色成品](screenshots/share-card-light.png)、[夜间成品](screenshots/share-card-dark.png)。 |

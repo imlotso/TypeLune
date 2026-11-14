@@ -33,6 +33,7 @@ import { PersonalBestComparison } from './components/PersonalBestComparison';
 import { PaceIndicator } from './components/PaceIndicator';
 import { PresetsDialog } from './components/PresetsDialog';
 import { SettingsTransferDialog } from './components/SettingsTransferDialog';
+import { ShareCardDialog } from './components/ShareCardDialog';
 import { LogoutDialog } from './components/LogoutDialog';
 import { WorkspaceRecoveryDialog } from './components/WorkspaceRecoveryDialog';
 import { RankingView } from './components/RankingView';
@@ -50,6 +51,8 @@ import { api, ApiError, type User } from './lib/api';
 import { catalogSnapshotKey, compareDraftProgress, defaultPace, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PaceSettings, type PracticePreset, type PracticeRecord, type PresetReading, type ReaderSettings, type SavedPractice } from './lib/models';
 import type { PracticeSettingsFile } from './lib/practice-settings';
 import { calculatePace, selectPaceTarget } from './lib/pace';
+import { comparePersonalBest } from './lib/personal-best';
+import { makeShareCardData } from './lib/share-card';
 import { readableCharacter } from './lib/practice-lines';
 import { scoreTyping, splitCharacters } from './lib/scoring';
 import { createRoundMistakeDrill } from './lib/analysis';
@@ -207,6 +210,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [showPresets, setShowPresets] = useState(false);
   const [showSettingsTransfer, setShowSettingsTransfer] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [showBackground, setShowBackground] = useState<Theme>();
   const [showMore, setShowMore] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -404,6 +408,13 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     const local = localHistory().filter((record) => (record.ownerId ?? null) === ownerId);
     return mergePracticeRecords(local, remoteHistory, workspace.records);
   }, [authReady, ownerId, remoteHistory, workspace.records, result, view]);
+  const shareData = useMemo(() => {
+    if (!result?.record) return undefined;
+    const complete = !hasUnloadedLocalHistory() && (!user || (historyCheckedFor === result.recordId && !historyError && workspace.cloudLoaded && workspace.syncState === 'synced'));
+    const comparison = comparePersonalBest(result.record, records);
+    try { return makeShareCardData(result.record, window.location.origin, user ? user.displayName || user.username : nickname, complete && comparison?.improvement != null, result.score.cpm); }
+    catch { return undefined; }
+  }, [result, records, user, nickname, historyCheckedFor, historyError, workspace.cloudLoaded, workspace.syncState]);
 
   const draftBox = useMemo(() => {
     if (!ready || view !== 'drafts') return { drafts: [], completed: [] };
@@ -451,7 +462,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       else if (wasFullscreen) setFocused(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !showResult && !confirmPractice && !showSettings && !showPresets && !showSettingsTransfer && !showCommands && !showBackground && !showRecovery && !showGuestImport) exitFocus();
+      if (event.key === 'Escape' && !showResult && !showShare && !confirmPractice && !showSettings && !showPresets && !showSettingsTransfer && !showCommands && !showBackground && !showRecovery && !showGuestImport) exitFocus();
     };
     document.addEventListener('fullscreenchange', fullscreenChange);
     document.addEventListener('keydown', escape);
@@ -459,7 +470,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       document.removeEventListener('fullscreenchange', fullscreenChange);
       document.removeEventListener('keydown', escape);
     };
-  }, [focused, showResult, confirmPractice, showSettings, showPresets, showSettingsTransfer, showCommands, showBackground, showRecovery, showGuestImport]);
+  }, [focused, showResult, showShare, confirmPractice, showSettings, showPresets, showSettingsTransfer, showCommands, showBackground, showRecovery, showGuestImport]);
 
   function exitFocus() {
     setFocused(false);
@@ -946,6 +957,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {!user && site.features?.guestLeaderboardEnabled === false && <p className="form-error" role="status">游客上榜已关闭。</p>}
       </div>}
       {rankMessage && <p className={rankSubmitted ? 'form-notice' : 'form-error'} role={rankSubmitted ? 'status' : 'alert'}>{rankSubmitted && <CheckCircle size={18} />} {rankMessage}</p>}
+      {result.record && <div className="feature-actions"><button className="outline-button" disabled={!shareData} onClick={() => { setShowResult(false); setShowShare(true); }}>分享成绩</button></div>}
+      {result.record && !shareData && <p className="form-error" role="status">无法生成分享卡</p>}
       <div className={`result-actions result-navigation${result.continuation ? ' with-continuation' : ''}`}>
         {result.continuation && <button className="primary-button" onClick={() => continueDraft(result.continuation!)}>继续本篇</button>}
         <button className="outline-button" onClick={() => resetPractice(selection, true)}>再练一次</button>
@@ -953,5 +966,6 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {!focused && <button className="text-button" onClick={() => navigate('rankings')}>排行榜</button>}
       </div>
     </Dialog>}
+    {showShare && shareData && <ShareCardDialog data={shareData} theme={theme} onClose={() => { setShowShare(false); setShowResult(true); }} />}
   </div>;
 }
