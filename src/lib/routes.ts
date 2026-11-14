@@ -41,6 +41,12 @@ export function mainRoute(pathname: string): MainRoute {
 }
 
 const navigationIndexKey = '__typingNavigationIndex';
+export function navigationEntryIndex(source: unknown = typeof window === 'undefined' ? undefined : (window as Window & { navigation?: unknown }).navigation): number | undefined {
+  if (!source || typeof source !== 'object' || !('currentEntry' in source)) return undefined;
+  const entry = source.currentEntry;
+  if (!entry || typeof entry !== 'object' || !('index' in entry)) return undefined;
+  return Number.isSafeInteger(entry.index) && (entry.index as number) >= 0 ? entry.index as number : undefined;
+}
 export function navigationIndex(state: unknown): number | undefined {
   if (!state || typeof state !== 'object' || Array.isArray(state)) return undefined;
   const value = (state as Record<string, unknown>)[navigationIndexKey];

@@ -73,7 +73,7 @@ import { readPagedHistory } from './lib/history';
 import { deletePracticeRecords } from './lib/history-delete';
 import { recordMatchesSavedRecovery, recoveryMatchesRecord } from './lib/result-recovery';
 import { mergePracticeRecords, stableRecordId } from './lib/records';
-import { articleIdFromPath, feedbackIdFromPath, mainRoute, navigationIndex, navigationState, pathForArticle, pathForFeedback, pathForRecord, pathForView, recordIdFromPath, type MainRoute, type MainView } from './lib/routes';
+import { articleIdFromPath, feedbackIdFromPath, mainRoute, navigationEntryIndex, navigationIndex, navigationState, pathForArticle, pathForFeedback, pathForRecord, pathForView, recordIdFromPath, type MainRoute, type MainView } from './lib/routes';
 
 type View = MainRoute;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean; recoverCompleted?: boolean };
@@ -218,6 +218,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [routeFeedbackId, setRouteFeedbackId] = useState(() => feedbackIdFromPath(window.location.pathname));
   const currentPath = useRef(window.location.pathname + window.location.search + window.location.hash);
   const currentHistoryIndex = useRef(0);
+  const currentEntryIndex = useRef(navigationEntryIndex());
   const restoringHistory = useRef(false);
   const pendingHistoryAction = useRef<(() => void) | undefined>(undefined);
   const popRoute = useRef<() => void>(() => {});
@@ -626,6 +627,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       window.history.pushState(navigationState(window.history.state, currentHistoryIndex.current), '', path);
     }
     currentPath.current = window.location.pathname + window.location.search + window.location.hash;
+    currentEntryIndex.current = navigationEntryIndex();
     setView(next); setRouteArticleId(articleIdFromPath(path)); setRouteRecordId(recordIdFromPath(path)); setRouteFeedbackId(feedbackIdFromPath(path));
   }
   function commitView(next: MainView) { commitAddress(pathForView(next), next); }
@@ -665,8 +667,12 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     const nextPath = window.location.pathname;
     const nextAddress = nextPath + window.location.search + window.location.hash;
     const targetIndex = navigationIndex(window.history.state);
+    const targetEntryIndex = navigationEntryIndex();
     const restoreAddress = () => {
-      if (targetIndex !== undefined && targetIndex !== currentHistoryIndex.current) {
+      if (targetEntryIndex !== undefined && currentEntryIndex.current !== undefined && targetEntryIndex !== currentEntryIndex.current) {
+        restoringHistory.current = true;
+        window.history.go(currentEntryIndex.current - targetEntryIndex);
+      } else if (targetIndex !== undefined && targetIndex !== currentHistoryIndex.current) {
         restoringHistory.current = true;
         window.history.go(currentHistoryIndex.current - targetIndex);
       } else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', currentPath.current);
@@ -686,6 +692,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       setShowMore(false); setShowResult(false); setFeedback('');
       if (focused && next !== 'practice') exitFocus();
       setView(next); setRouteArticleId(articleIdFromPath(nextPath)); setRouteRecordId(recordIdFromPath(nextPath)); setRouteFeedbackId(feedbackIdFromPath(nextPath)); currentPath.current = nextAddress;
+      currentEntryIndex.current = targetEntryIndex;
       if (targetIndex !== undefined) currentHistoryIndex.current = targetIndex;
       else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', nextAddress);
       applied = true;
@@ -693,6 +700,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   };
   useEffect(() => {
     currentHistoryIndex.current = navigationIndex(window.history.state) ?? 0;
+    currentEntryIndex.current = navigationEntryIndex();
     if (navigationIndex(window.history.state) === undefined) window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', window.location.href);
     const pop = () => popRoute.current();
     window.addEventListener('popstate', pop);

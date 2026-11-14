@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { articleIdFromPath, mainRoute, pathForArticle, pathForView } from '../src/lib/routes';
+import { articleIdFromPath, mainRoute, navigationEntryIndex, pathForArticle, pathForView } from '../src/lib/routes';
 
 it('maps every main page to a stable path and rejects unknown paths', () => {
   const pairs = [['/', 'practice'], ['/library', 'library'], ['/rankings', 'rankings'], ['/records', 'history'], ['/drafts', 'drafts'],
@@ -8,6 +8,13 @@ it('maps every main page to a stable path and rejects unknown paths', () => {
   expect(mainRoute('/library/')).toBe('library');
   expect(mainRoute('/unknown')).toBe('notfound');
   expect(mainRoute('/library/not-a-page')).toBe('notfound');
+});
+
+it('accepts only valid browser navigation entry indices', () => {
+  expect(navigationEntryIndex({ currentEntry: { index: 3 } })).toBe(3);
+  expect(navigationEntryIndex({ currentEntry: { index: -1 } })).toBeUndefined();
+  expect(navigationEntryIndex({ currentEntry: { index: 1.5 } })).toBeUndefined();
+  expect(navigationEntryIndex({})).toBeUndefined();
 });
 
 
