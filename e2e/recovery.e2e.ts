@@ -202,7 +202,7 @@ test('recovers a submitted result after its response is lost without submitting 
   const result = page.getByRole('dialog', { name: '练习成绩' });
   await result.getByRole('textbox', { name: '上榜昵称' }).fill('回包丢失');
   await result.getByRole('button', { name: '提交到排行榜' }).click();
-  await expect(result.getByRole('alert')).toBeVisible();
+  await expect(result.getByText('已提交，待复核。')).toBeVisible();
   await page.reload();
   await expect(result.getByText('已提交，待复核。')).toBeVisible();
   await expect(result.getByRole('button', { name: '提交到排行榜' })).toHaveCount(0);

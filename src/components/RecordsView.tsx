@@ -23,6 +23,7 @@ type Props = {
   onOpenRecord?: (id: string) => void;
   onCloseRecord?: () => void;
   onRetryRecords?: () => void;
+  recoveryFor?: (record: PracticeRecord) => { available: boolean; reason?: string; recover?: () => void };
 };
 
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
@@ -31,16 +32,19 @@ const recordTitle = (record: PracticeRecord) => record.article?.title ?? `${lang
 const speedLabel = (record: PracticeRecord) => `${record.speed} ${record.language === 'zh' ? '字/分' : 'WPM'}`;
 const dateText = (date: Date) => date.toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 
-function RecordDetail({ record, ownerId, onClose, onReplay, onContinue }: {
+function RecordDetail({ record, ownerId, onClose, onReplay, onContinue, recovery }: {
   record: PracticeRecord;
   ownerId: string | null;
   onClose: () => void;
   onReplay: Props['onReplay'];
   onContinue: Props['onContinue'];
+  recovery?: ReturnType<NonNullable<Props['recoveryFor']>>;
 }) {
   const article = record.article;
   const remoteStatus = useScoreStatus(record.recordId, ownerId, !record.scoreStatus && record.localOnly === false && !!record.recordId, 0);
   const scoreStatus = record.scoreStatus ?? remoteStatus.status;
+  const finalized = scoreStatus && ['pending', 'ranked', 'published', 'rejected', 'removed', 'ineligible'].includes(scoreStatus.state);
+  const personal = !scoreStatus && (!!article?.custom || (record.offset ?? 0) > 0);
   const target = splitCharacters(article?.text ?? '');
   const typed = record.typed == null ? undefined : splitCharacters(record.typed);
   const articleTotal = article ? target.length : record.articleTotal;
@@ -63,7 +67,7 @@ function RecordDetail({ record, ownerId, onClose, onReplay, onContinue }: {
           {record.strict && <span>严格纠错</span>}
         </div>
       </div>
-      {scoreStatus ? <ScoreStatusView status={scoreStatus} /> : remoteStatus.loading ? <p role="status">正在读取成绩状态…</p> : remoteStatus.error ? <div><p className="form-error" role="alert">{remoteStatus.error}</p><button type="button" className="text-button" onClick={remoteStatus.retry}>重试状态</button></div> : <p className="score-status">{article?.custom || (record.offset ?? 0) > 0 ? '个人练习，不参与排行。' : record.localOnly ? '本机记录，排行状态未确认。' : '成绩状态暂不可用。'}</p>}
+      {scoreStatus ? <ScoreStatusView status={scoreStatus} /> : remoteStatus.loading ? <p role="status">正在读取成绩状态…</p> : remoteStatus.error ? <div><p className="form-error" role="alert">{remoteStatus.error}</p><button type="button" className="text-button" onClick={remoteStatus.retry}>重试状态</button></div> : <p className="score-status">{personal ? (recovery ? '无法恢复：个人练习不参与排行' : '个人练习，不参与排行。') : record.localOnly ? '本机记录，排行状态未确认。' : '成绩状态暂不可用。'}</p>}
       <dl className="feature-metrics">
         <div><dt>速度</dt><dd>{speedLabel(record)}</dd></div>
         <div><dt>准确率</dt><dd>{record.accuracy}%</dd></div>
@@ -82,6 +86,7 @@ function RecordDetail({ record, ownerId, onClose, onReplay, onContinue }: {
           </li>)}
         </ol>
       </details>}
+      {recovery && !personal && !remoteStatus.loading && (finalized ? <p className="feature-muted">无法恢复：{scoreStatus?.state === 'ineligible' ? '不符合排行条件' : '成绩已提交或审核结束'}</p> : recovery.available && recovery.recover ? <div className="feature-actions"><button type="button" className="outline-button" onClick={() => { onClose(); recovery.recover?.(); }}>恢复成绩</button></div> : <p className="feature-muted">无法恢复：{recovery.reason}</p>)}
       {article && <details className="feature-details">
         <summary>文章原文</summary>
         <p className="feature-scroll record-source" tabIndex={0}>{article.text}</p>
@@ -94,7 +99,7 @@ function RecordDetail({ record, ownerId, onClose, onReplay, onContinue }: {
   </Dialog>;
 }
 
-export function RecordsView({ records, ownerId = null, onReplay, onContinue, onDelete, routeRecordId, routeLoading, routePartial, onOpenRecord, onCloseRecord, onRetryRecords }: Props) {
+export function RecordsView({ records, ownerId = null, onReplay, onContinue, onDelete, routeRecordId, routeLoading, routePartial, onOpenRecord, onCloseRecord, onRetryRecords, recoveryFor }: Props) {
   const [filters, setFilters] = useState<HistoryFilters>(emptyHistoryFilters);
   const [limit, setLimit] = useState(20);
   const [selected, setSelected] = useState<PracticeRecord>();
@@ -169,6 +174,6 @@ export function RecordsView({ records, ownerId = null, onReplay, onContinue, onD
       </div>
     </Dialog>}
     {routeRecordId && !detail && <div className="feature-form">{routeLoading ? <p role="status">正在读取记录…</p> : routePartial ? <><p className="form-error" role="alert">记录尚未完整读取</p>{onRetryRecords && <button type="button" className="outline-button" onClick={onRetryRecords}>重试</button>}</> : <p role="status">记录未找到</p>}<button type="button" className="outline-button" onClick={onCloseRecord}>返回记录</button></div>}
-    {detail && <RecordDetail record={detail} ownerId={ownerId} onClose={closeDetail} onReplay={onReplay} onContinue={onContinue} />}
+    {detail && <RecordDetail record={detail} ownerId={ownerId} recovery={recoveryFor?.(detail)} onClose={closeDetail} onReplay={onReplay} onContinue={onContinue} />}
   </section>;
 }

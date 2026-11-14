@@ -45,13 +45,13 @@ import { StatsView } from './components/StatsView';
 import { SiteInfoView } from './components/SiteInfoView';
 import { articles, type Difficulty, type Language } from './data/articles';
 import { infoLabels, type InfoPage } from './data/site-content';
-import { continuationDraftId, deleteLocalHistory, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
+import { continuationDraftId, deleteLocalHistory, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, recoveryDraftFromSaved, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useSiteFeatures } from './hooks/useSiteFeatures';
 import { useScoreStatus } from './hooks/useScoreStatus';
 import { shortcutNames, useShortcuts, type ShortcutAction } from './hooks/useShortcuts';
 import { api, ApiError, type User } from './lib/api';
-import { catalogSnapshotKey, compareDraftProgress, defaultPace, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PaceSettings, type PracticePreset, type PracticeRecord, type PresetReading, type ReaderSettings, type SavedPractice } from './lib/models';
+import { catalogSnapshotKey, compareDraftProgress, defaultPace, sameCompletedDraftProgress, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PaceSettings, type PracticePreset, type PracticeRecord, type PresetReading, type ReaderSettings, type SavedPractice } from './lib/models';
 import type { PracticeSettingsFile } from './lib/practice-settings';
 import { calculatePace, selectPaceTarget } from './lib/pace';
 import { comparePersonalBest } from './lib/personal-best';
@@ -60,17 +60,18 @@ import { readableCharacter } from './lib/practice-lines';
 import { scoreTyping, splitCharacters } from './lib/scoring';
 import { createRoundMistakeDrill } from './lib/analysis';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
-import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, localAccountBlockPrefix, markWorkspaceDraftFallback, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
+import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, localAccountBlockPrefix, markWorkspaceDraftFallback, mutateWorkspaceValue, putWorkspaceValue, readWorkspace, workspaceValue } from './lib/workspace';
 import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from './lib/local-account-cleanup';
 import { resetWorkspaceFromCloud, WorkspaceResetIncompleteError } from './lib/workspace-recovery';
 import { collectGuestImport } from './lib/guest-import';
 import { readPagedHistory } from './lib/history';
 import { deletePracticeRecords } from './lib/history-delete';
+import { recordMatchesSavedRecovery, recoveryMatchesRecord } from './lib/result-recovery';
 import { mergePracticeRecords, stableRecordId } from './lib/records';
 import { articleIdFromPath, feedbackIdFromPath, mainRoute, navigationIndex, navigationState, pathForArticle, pathForFeedback, pathForRecord, pathForView, recordIdFromPath, type MainRoute, type MainView } from './lib/routes';
 
 type View = MainRoute;
-type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
+type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean; recoverCompleted?: boolean };
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
 const languageNames: Record<Language, string> = { zh: '中文', en: 'English' };
 const builtIns: ArticleSnapshot[] = articles.map(({ content, ...article }) => ({ ...article, text: content, custom: false }));
@@ -398,6 +399,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     if (!pendingLoad) return;
     setPendingLoad(undefined);
     if ('legacy' in pendingLoad) void loadCurrent.current.loadLegacy(pendingLoad.legacy);
+    else if (pendingLoad.recoverCompleted) void loadCurrent.current.loadCompletedSaved(pendingLoad.draft);
     else void loadCurrent.current.loadSaved(pendingLoad.draft, { newRound: pendingLoad.newRound });
   }, [pendingLoad]);
 
@@ -464,7 +466,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   }, [result, records, user, nickname, historyCheckedFor, historyError, workspace.cloudLoaded, workspace.syncState]);
 
   const draftBox = useMemo(() => {
-    if (!ready || view !== 'drafts') return { drafts: [], completed: [] };
+    if (!ready || (view !== 'drafts' && view !== 'history')) return { drafts: [], completed: [] };
     const drafts = new Map(workspace.drafts.map((draft) => [draft.recordId, draft]));
     const deleted = new Set(workspace.deletedDraftIds);
     const completed: PracticeDraft[] = [];
@@ -473,7 +475,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       if (draft.completed) {
         const synced = drafts.get(draft.recordId);
         const local = savedPracticeFromLegacy(draft);
-        if (synced && (compareDraftProgress(synced, local) > 0 ||
+        if (synced && !sameCompletedDraftProgress(synced, local) && (compareDraftProgress(synced, local) > 0 ||
           (compareDraftProgress(synced, local) === 0 && !sameDraftSnapshot(synced, local)))) continue;
         drafts.delete(draft.recordId);
         completed.push(draft);
@@ -722,6 +724,54 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       ownerId, savedAt: Date.now(), offline: true,
     };
     continueDraft(draft, true);
+  }
+
+  function recoverCompletedDraft(draft: PracticeDraft, rankingOnly = false) {
+    void afterPark(() => {
+      const latest = readDrafts(ownerId).find((item) => item.recordId === draft.recordId && item.completed);
+      if (!latest || !sameCompletedDraftProgress(savedPracticeFromLegacy(latest), savedPracticeFromLegacy(draft))) { setFeedback('恢复资料已变化，请重新查看'); return; }
+      if (rankingOnly) {
+        const available = practice.describeResultRecovery(latest);
+        if (!available.available) { setFeedback(available.reason); return; }
+      }
+      setShowResult(false); setFeedback(''); setSelection(legacyArticle(latest));
+      setPendingLoad({ legacy: latest }); commitView('practice');
+    });
+  }
+  function recoverSynchronizedResult(record: PracticeRecord, saved: SavedPractice) {
+    void afterPark(async () => {
+      let latest: SavedPractice | undefined;
+      try { latest = workspaceValue(await readWorkspace(ownerId), 'draft', saved.id); }
+      catch { setFeedback('恢复资料无法读取'); return; }
+      if (!live.current) return;
+      if (!latest || latest.ownerId !== ownerId || !recordMatchesSavedRecovery(record, latest)) { setFeedback('恢复资料已变化，请重新查看'); return; }
+      if (practice.isStoredDraftLeased(latest.recordId)) { setFeedback('进度正在其他页面使用'); return; }
+      const available = practice.describeResultRecovery(recoveryDraftFromSaved(latest));
+      if (!available.available) { setFeedback(available.reason); return; }
+      setShowResult(false); setFeedback(''); setSelection(latest.article);
+      setPendingLoad({ draft: latest, recoverCompleted: true }); commitView('practice');
+    });
+  }
+  function recoveryForRecord(record: PracticeRecord) {
+    if (record.article?.custom || (record.offset ?? 0) > 0) return { available: false, reason: '个人练习不参与排行' };
+    const matches = draftBox.completed.filter((draft) => recoveryMatchesRecord(draft, record.recordId));
+    for (const draft of matches) {
+      const result = practice.describeResultRecovery(draft);
+      if (result.available) return { available: true, recover: () => recoverCompletedDraft(draft, true) };
+    }
+    if (matches.length) {
+      const result = practice.describeResultRecovery(matches[0]);
+      return { available: false, reason: result.available ? '此设备没有可用或一致的恢复资料' : result.reason };
+    }
+    if (ownerId) {
+      for (const saved of workspace.drafts.filter((draft) => recordMatchesSavedRecovery(record, draft))) {
+        if (practice.isStoredDraftLeased(saved.recordId)) return { available: false, reason: '进度正在其他页面使用' };
+        const result = practice.describeResultRecovery(recoveryDraftFromSaved(saved));
+        if (result.available) return { available: true, recover: () => recoverSynchronizedResult(record, saved) };
+        return { available: false, reason: result.reason };
+      }
+    }
+    return { available: false, reason: '此设备没有可用或一致的恢复资料' };
   }
 
   function deleteDraft(id: string) {
@@ -994,17 +1044,11 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {view === 'rankings' && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} />}
         {view === 'history' && <RecordsView records={records} ownerId={ownerId} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} routeRecordId={routeRecordId}
           routeLoading={!workspace.ready || (!!ownerId && !historyLoaded)} routePartial={historyError || !!workspace.error || (!!ownerId && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory()}
-          onOpenRecord={openRecord} onCloseRecord={() => commitView('history')} onRetryRecords={() => { setHistoryRevision((revision) => revision + 1); void workspace.sync(); }} />}
+          onOpenRecord={openRecord} onCloseRecord={() => commitView('history')} onRetryRecords={() => { setHistoryRevision((revision) => revision + 1); void workspace.sync(); }} recoveryFor={recoveryForRecord} />}
         {view === 'drafts' && <DraftsView drafts={draftBox.drafts} onResume={(draft) => continueDraft(draft)} onDelete={deleteDraft}
           recovery={draftBox.completed.map((draft) => ({
             id: draft.recordId, title: draft.title, savedAt: draft.savedAt,
-            recover: () => void afterPark(() => {
-              setShowResult(false);
-              setFeedback('');
-              setSelection(legacyArticle(draft));
-              setPendingLoad({ legacy: draft });
-              commitView('practice');
-            }),
+            recover: () => recoverCompletedDraft(draft),
           }))}
         />}
         {view === 'mistakes' && <MistakesView records={records} states={workspace.settings.mistakeStates ?? {}} onStatus={(id, status) => void workspace.updateMistakeState(id, status).catch((problem: unknown) => {

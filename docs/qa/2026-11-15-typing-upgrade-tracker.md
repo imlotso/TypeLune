@@ -26,8 +26,8 @@
 | D01 | 待完善 | `55f7eea`、`780d58b`、`ff0ca0c`、`7a4bd23`、`bfb2ff5` | 主要页面、公共文章、记录／反馈详情及账号中心已接入地址；外部历史条目边界及总体回归仍待验收，见[页面](2026-11-15-main-routes.md)、[文章](2026-11-15-article-routes.md)、[记录](2026-11-15-record-routes.md)、[反馈](2026-11-15-feedback-routes.md)、[账号](2026-11-15-account-route.md)。 |
 | D02 | 待完善 | `6cb2ae2` | 公开接口只返回三个功能开关；前台提示并限制注册／游客上榜，游客新练习关闭时直接本机开始。已有在线练习可恢复，待最终整体回归。 |
 | D03 | 待完善 | `e20806e`、`673152d`、`80c3e2b` | 已有组合筛选、分批加载、删除及成绩撤回；旧版本机历史不再截断，极早期云记录 ID 差异及总体回归仍待完成，见[筛选](2026-11-15-history-filters.md)、[删除](2026-11-15-history-deletion.md)、[旧历史](2026-11-15-legacy-history.md)。 |
-| D04 | 待完善 | 本阶段 | 服务端与结果／历史已区分提交、审核及榜单状态，并支持用户可见处理说明；恢复原因及最终回归仍待完成，见[说明](2026-11-15-score-status.md)。 |
-| D05 | 待完善 | — | 草稿有恢复成绩入口；历史详情尚无对应入口。 |
+| D04 | 待完善 | `da1103e` | 服务端与结果／历史已区分提交、审核及榜单状态，并支持用户可见处理说明；恢复原因及最终回归仍待完成，见[说明](2026-11-15-score-status.md)。 |
+| D05 | 待完善 | 本阶段 | 历史详情已复用本机及匹配的账号同步草稿恢复流程，显示不可恢复原因；最终整体回归仍待完成，见[说明](2026-11-15-history-recovery.md)。 |
 | D06 | 待完善 | `a77e3e9` | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
 | E01 | 待完善 | `3608105` | 已有条件分组、个人最佳、最近 10 次比较、服务端历史分页及不完整范围提示；记录删除后的重算待 D03 完成，见 [口径](2026-11-15-personal-best.md)。 |
 | E02 | 待完善 | `7b9bd92` | 已有本轮复练、重复次数、状态和筛选、跨设备同步及截断提示；待最终整体回归，见 [说明](2026-11-15-mistake-training.md)。 |
@@ -177,3 +177,7 @@
 | 成绩状态 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；89 个测试文件、466 项通过；构建仍提示客户端包大于 500 kB。 |
 | 成绩状态 | `npx playwright test e2e/score-status.e2e.ts e2e/recovery.e2e.ts` | 8 项通过，含管理员用户可见说明、结果／历史更新、回包丢失和游客恢复。 |
 | 成绩状态 | 隔离测试服务实际页面 | 已查看[手机夜间](screenshots/score-status-mobile-dark.png)和[桌面日间](screenshots/score-status-desktop-light.png)待复核结果。 |
+| 历史成绩恢复 | 中间浏览器回归 | 发现失败恢复请求的标记差异会掩盖同一份完成草稿；按内容、进度和认领版本核对后修复，并保留草稿箱个人成绩查看。 |
+| 历史成绩恢复 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；91 个测试文件、471 项通过；构建仍提示客户端包大于 500 kB。 |
+| 历史成绩恢复 | `npx playwright test e2e/history-recovery.e2e.ts e2e/recovery.e2e.ts e2e/score-status.e2e.ts e2e/record-route.e2e.ts` | 14 项通过，含本机与另一账号设备恢复、租约冲突及服务端审核回归。 |
+| 历史成绩恢复补充 | `npx vitest run tests/result-recovery-ui.test.tsx tests/feature-views.test.tsx`；`npx playwright test e2e/history-recovery.e2e.ts` | 9 项单元／组件测试及 4 项浏览器流程通过；合并了个人练习重复状态文案。 |

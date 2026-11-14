@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CompositionEvent, type KeyboardEvent } from 'react';
 import type { Difficulty, Language } from '../data/articles';
 import { api, ApiError } from '../lib/api';
-import { catalogSnapshotKey, compareDraftProgress, sameDraftSnapshot, snapshotKey, type ArticleSnapshot, type MistakeSample, type PracticeMode, type PracticeRecord, type SavedPractice } from '../lib/models';
+import { catalogSnapshotKey, compareDraftProgress, sameCompletedDraftProgress, sameDraftSnapshot, snapshotKey, type ArticleSnapshot, type MistakeSample, type PracticeMode, type PracticeRecord, type SavedPractice } from '../lib/models';
 import { scoreTyping, splitCharacters, type Score } from '../lib/scoring';
 import { stableRecordId } from '../lib/records';
+import { resultRecoveryAvailability } from '../lib/result-recovery';
 import { isLocalAccountBlocked, readWorkspaceGeneration } from '../lib/workspace';
 
 export type PracticePhase = 'ready' | 'starting' | 'running' | 'pausing' | 'paused' | 'resuming' | 'restoring' | 'finishing' | 'finished';
@@ -339,6 +340,11 @@ function attemptFromSaved(saved: SavedPractice, typed: string, revision = 0): At
     elapsedMs: Math.min(durationLimit(saved), Math.max(0, saved.elapsedMs)), startedAt: null, nextCheckpointMs: saved.elapsedMs + 5000,
     backspaces: saved.backspaces, suspicious: !!saved.suspicious, offset: Math.min(saved.offset, splitCharacters(typed).length), mistakes: [...(saved.mistakes ?? []).slice(0, mistakeLimit)], mistakesTruncated: saved.mistakesTruncated || (saved.mistakes?.length ?? 0) > mistakeLimit, paceTarget: validPaceTarget(saved.paceTarget) ? saved.paceTarget : undefined,
   };
+}
+
+export function recoveryDraftFromSaved(saved: SavedPractice): PracticeDraft {
+  const { startedAt: _startedAt, nextCheckpointMs: _nextCheckpointMs, ...attempt } = attemptFromSaved(saved, saved.typed);
+  return { ...attempt, version: 1, typed: saved.typed, completed: true, early: true };
 }
 
 export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft | null) {
@@ -1044,6 +1050,22 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     if (attempt && attempt.id === attemptId && phaseRef.current === 'finished' && clearDraft(attempt, ownerToken.current) && !isDeleted(attempt)) removeWorkspaceDraft(attempt);
   }
 
+  async function loadCompletedSaved(saved: SavedPractice) {
+    if (saved.ownerId !== liveConfig.current.ownerId || !validDuration(saved.duration) || !saved.article.text || saved.article.text.length > maxTextLength) return;
+    const previous = attemptRef.current;
+    if (previous && phaseRef.current === 'running' && !await park()) return;
+    if (previous !== attemptRef.current || !mounted.current || saved.ownerId !== liveConfig.current.ownerId) return;
+    const local = storedDraft(saved.recordId);
+    if (local && leaseTaken(local, ownerToken.current)) { setFeedback('进度正在其他页面使用'); return; }
+    if (local && !sameCompletedDraftProgress(savedPracticeFromLegacy(local), saved)) { setFeedback('本机恢复资料已变化，请重新查看'); return; }
+    const candidate = recoveryDraftFromSaved(saved);
+    const available = resultRecoveryAvailability(candidate, liveConfig.current.ownerId, ownerToken.current);
+    if (!available.available) { setFeedback(available.reason); return; }
+    const attempt = attemptFromSaved(saved, saved.typed, local?.revision ?? 0);
+    bindAttempt(attempt, saved.typed); setCurrentPhase('restoring');
+    await restoreAttempt(attempt, { ...candidate, revision: attempt.revision });
+  }
+
   async function loadSaved(saved: SavedPractice, options?: { newRound?: boolean }) {
     if (saved.ownerId !== liveConfig.current.ownerId || !validDuration(saved.duration) || !saved.article.text || saved.article.text.length > maxTextLength) return;
     const previous = attemptRef.current;
@@ -1189,5 +1211,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   const draftId = attempt ? practiceDraftId(attempt.recordId) : undefined;
   const canRetryOnline = !!(result?.offline && result.elapsedMs >= 1000 && attempt && recoverableId(attempt));
   const getClaimHeaders = () => attemptRef.current ? practiceClaim(attemptRef.current) : undefined;
-  return { phase, target, raw, typed, elapsedMs, backspaces, feedback, result, restored, mode, strict, duration, offset, paceTarget: attempt?.paceTarget, draftId, textareaRef, start, pause, resume, retryOnline, recoverForRanking, markRankSubmitted, getClaimHeaders, canRetryOnline, reset, finish, park, releaseParkedLease, loadSaved, loadLegacy, updateTyped, deletePreviousCharacter, onChange, onKeyDown, onCompositionStart, onCompositionEnd, markSuspicious };
+  const describeResultRecovery = (draft: PracticeDraft) => resultRecoveryAvailability(draft, liveConfig.current.ownerId, ownerToken.current);
+  const isStoredDraftLeased = (id: string) => { const local = storedDraft(id); return !!local && leaseTaken(local, ownerToken.current); };
+  return { phase, target, raw, typed, elapsedMs, backspaces, feedback, result, restored, mode, strict, duration, offset, describeResultRecovery, isStoredDraftLeased, paceTarget: attempt?.paceTarget, draftId, textareaRef, start, pause, resume, retryOnline, recoverForRanking, markRankSubmitted, getClaimHeaders, canRetryOnline, reset, finish, park, releaseParkedLease, loadSaved, loadCompletedSaved, loadLegacy, updateTyped, deletePreviousCharacter, onChange, onKeyDown, onCompositionStart, onCompositionEnd, markSuspicious };
 }

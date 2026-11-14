@@ -57,6 +57,18 @@ export function sameDraftSnapshot(a: SavedPractice, b: SavedPractice) {
     a.claimVersion === b.claimVersion && a.recoveryRequestId === b.recoveryRequestId && a.recoveryMarker === b.recoveryMarker &&
     a.recoveryBaseVersion === b.recoveryBaseVersion && !!a.personalOnly === !!b.personalOnly && !!a.mistakesTruncated === !!b.mistakesTruncated && a.paceTarget === b.paceTarget;
 }
+// A failed recovery request can change its marker without changing the
+// completed input. Treat only identical progress and claim versions as equal.
+export function sameCompletedDraftProgress(a: SavedPractice, b: SavedPractice) {
+  const x = a.article; const y = b.article;
+  return a.id === b.id && a.recordId === b.recordId && a.ownerId === b.ownerId && a.duration === b.duration && a.mode === b.mode && a.strict === b.strict &&
+    a.attemptId === b.attemptId && a.offline === b.offline && a.progressVersion === b.progressVersion && a.claimVersion === b.claimVersion &&
+    !!a.suspicious === !!b.suspicious && JSON.stringify(a.mistakes ?? []) === JSON.stringify(b.mistakes ?? []) &&
+    x.id === y.id && x.title === y.title && x.text === y.text && x.language === y.language && x.difficulty === y.difficulty && x.custom === y.custom &&
+    x.author === y.author && x.theme === y.theme && x.source?.name === y.source?.name && x.source?.url === y.source?.url && x.source?.license === y.source?.license &&
+    sameDraftSnapshot({ ...a, recoveryMarker: undefined, recoveryBaseVersion: undefined, claimId: undefined, recoveryRequestId: undefined },
+      { ...b, recoveryMarker: undefined, recoveryBaseVersion: undefined, claimId: undefined, recoveryRequestId: undefined });
+}
 export function staleDraftBase(incoming: SavedPractice, previous: SavedPractice) {
   return (incoming.claimVersion ?? 0) === (previous.claimVersion ?? 0) && !!incoming.recoveryMarker &&
     incoming.recoveryMarker !== previous.recoveryMarker && previous.progressVersion !== undefined &&
