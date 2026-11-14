@@ -172,6 +172,7 @@ export function RecordsView({ records, ownerId = null, onReplay, onContinue, onD
     {limit < filtered.length && <div className="feature-actions"><button type="button" className="outline-button" onClick={() => setLimit((current) => current + 20)}>加载更多</button></div>}
     {deleting && <Dialog title="删除记录" onClose={() => setDeleting(undefined)} dismissible={!busy}>
       <div className="feature-form"><p>删除 {deleting.length} 条记录并撤回关联的公开成绩；统计和个人最佳会重新计算。此操作无法撤销。</p>
+        {deleting.some((record) => record.legacyIdConflict) && <p>标识冲突的本机旧副本会单独删除，其他记录保留。</p>}
         {deleteError && <p className="form-error" role="alert">{deleteError}</p>}
         <div className="feature-actions"><button type="button" className="outline-button" disabled={busy} onClick={() => setDeleting(undefined)}>取消</button><button type="button" className="primary-button" disabled={busy} onClick={() => void confirmDelete()}>删除</button></div>
       </div>

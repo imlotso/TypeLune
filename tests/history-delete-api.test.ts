@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../server/app';
-import { stableRecordId } from '../src/lib/records';
+import { legacyConflictId, stableRecordId } from '../src/lib/records';
 
 describe('history deletion and score withdrawal', () => {
   let app: Awaited<ReturnType<typeof createApp>>;
@@ -145,6 +145,51 @@ describe('history deletion and score withdrawal', () => {
     expect((await post('/api/workspace/sync', { generation: 1, items: [{ kind: 'record', id: 'old-cloud-id', updatedAt: now, baseRevision: 0, value: legacy }] }, alice.headers)).statusCode).toBe(200);
     expect((await post('/api/history/delete', { ids: ['old-cloud-id', alias], legacyPairs: [{ id: 'old-cloud-id', alias }] }, bob.headers)).statusCode).toBe(200);
     expect((await app.inject({ url: '/api/workspace/usage', headers: bob.headers })).json()).toMatchObject({ count: 2, aliasTombstones: 0 });
+    const conflictId = legacyConflictId(legacy);
+    expect((await post('/api/history/delete', { ids: [conflictId], localConflicts: [conflictId] }, bob.headers)).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/workspace/usage', headers: bob.headers })).json()).toMatchObject({ count: 2, aliasTombstones: 1 });
     expect((await app.inject({ url: '/api/workspace', headers: alice.headers })).json().items[0]).toMatchObject({ id: 'old-cloud-id', value: legacy });
+  });
+  it('allows a bounded local conflict tombstone at full quota without reviving it after compaction', async () => {
+    const alice = await register('alice');
+    for (let batch = 0; batch < 20; batch++) {
+      const items = Array.from({ length: 100 }, (_, index) => { const id = `full-${batch * 100 + index}`; return { kind: 'favorite', id, updatedAt: now, baseRevision: 0, value: { articleId: id } }; });
+      expect((await post('/api/workspace/sync', { generation: 1, items }, alice.headers)).statusCode).toBe(200);
+    }
+    const legacy = { ownerId: alice.id, language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: now };
+    const conflictId = legacyConflictId(legacy);
+    const conflictIds = [conflictId, ...Array.from({ length: 99 }, (_, index) => `legacy-conflict-${index.toString(16).padStart(64, '0')}`)];
+    const removed = await post('/api/history/delete', { ids: conflictIds, localConflicts: conflictIds }, alice.headers);
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().items.every((item: { localConflict?: boolean }) => item.localConflict === true)).toBe(true);
+    expect((await app.inject({ url: '/api/workspace/usage', headers: alice.headers })).json()).toMatchObject({ count: 2000, aliasTombstones: 100 });
+    const extra = `legacy-conflict-${'f'.repeat(64)}`;
+    expect((await post('/api/history/delete', { ids: [extra], localConflicts: [extra] }, alice.headers)).statusCode).toBe(413);
+    expect((await post('/api/history/delete', { ids: ['invalid'], localConflicts: ['invalid'] }, alice.headers)).statusCode).toBe(400);
+    expect((await post('/api/workspace/compact', { generation: 1 }, alice.headers)).json()).toMatchObject({ removed: 100, generation: 2 });
+    expect((await post('/api/history/delete', { ids: [extra], localConflicts: [extra] }, alice.headers)).statusCode).toBe(200);
+    const staleDeletes = conflictIds.map((id) => ({ kind: 'record', id, updatedAt: now, baseRevision: 0, deleted: true }));
+    expect((await post('/api/workspace/sync', { generation: 2, items: staleDeletes }, alice.headers)).json().code).toBe('SYNC_CLIENT_UPDATE_REQUIRED');
+    const capable = { ...alice.headers, 'x-workspace-capabilities': 'local-conflict-v1' };
+    expect((await post('/api/workspace/sync', { generation: 2, items: staleDeletes }, capable)).statusCode).toBe(413);
+    expect((await app.inject({ url: '/api/workspace/usage', headers: alice.headers })).json()).toMatchObject({ count: 2000, aliasTombstones: 1 });
+    expect((await post('/api/workspace/sync', { generation: 2, items: [{ kind: 'record', id: conflictId, updatedAt: ++now, baseRevision: 0, value: { ...legacy, recordId: conflictId } }] }, capable)).statusCode).toBe(409);
+  });
+
+  it('rejects occupied conflict IDs atomically and never trusts a client-supplied marker', async () => {
+    const alice = await register('alice'); const bob = await register('bobby');
+    const id = `legacy-conflict-${'a'.repeat(64)}`;
+    const value = { recordId: id, language: 'zh', difficulty: 'beginner', duration: 300, speed: 12, accuracy: 100, finishedAt: now };
+    expect((await post('/api/workspace/sync', { generation: 1, items: [{ kind: 'record', id, updatedAt: now, baseRevision: 0, value }] }, alice.headers)).statusCode).toBe(200);
+    const failed = await post('/api/history/delete', { ids: [id, 'other'], localConflicts: [id] }, alice.headers);
+    expect(failed.statusCode).toBe(409);
+    const after = (await app.inject({ url: '/api/workspace', headers: alice.headers })).json().items;
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ id, value });
+    expect((await post('/api/workspace/sync', { generation: 1, items: [{ kind: 'record', id, updatedAt: now, baseRevision: 0, deleted: true, localConflict: true }] }, bob.headers)).statusCode).toBe(200);
+    const bobItem = (await app.inject({ url: '/api/workspace', headers: bob.headers })).json().items[0];
+    expect(bobItem).toMatchObject({ id, deleted: true });
+    expect(bobItem.localConflict).toBeUndefined();
+    expect((await post('/api/workspace/sync', { generation: 1, items: [] }, bob.headers)).statusCode).toBe(200);
   });
 });

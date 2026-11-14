@@ -153,13 +153,20 @@ export function createWorkspaceStore(db: Database.Database) {
     ensureGeneration.run(owner);
     return (readGeneration.get(owner) as { generation: number }).generation;
   };
-  const read = db.prepare(`SELECT kind, item_id AS id, updated_at AS updatedAt, revision AS serverRevision, value
+  const read = db.prepare(`SELECT kind, item_id AS id, updated_at AS updatedAt, revision AS serverRevision, value,
+    CASE WHEN kind='record' AND value IS NULL AND EXISTS (SELECT 1 FROM workspace_legacy_record_aliases a
+      WHERE a.user_id=workspace_items.user_id AND a.alias_id=workspace_items.item_id AND a.source_id=char(0)||'local-conflict') THEN 1 ELSE 0 END AS localConflict
     FROM workspace_items WHERE user_id=? ORDER BY kind, item_id`);
   const readItem = db.prepare('SELECT updated_at AS updatedAt,value,revision FROM workspace_items WHERE user_id=? AND kind=? AND item_id=?');
   const deletedDraft = db.prepare('SELECT 1 FROM workspace_deleted_drafts WHERE user_id=? AND draft_id=?');
   const deletedRecord = db.prepare('SELECT 1 FROM workspace_deleted_records WHERE user_id=? AND record_id=?');
   const exemptAlias = "kind='record' AND value IS NULL AND EXISTS (SELECT 1 FROM workspace_legacy_record_aliases a WHERE a.user_id=workspace_items.user_id AND a.alias_id=workspace_items.item_id)";
   const limits = db.prepare(`SELECT COUNT(CASE WHEN NOT (${exemptAlias}) THEN 1 END) AS count, COALESCE(SUM(length(CAST(value AS BLOB))), 0) AS bytes FROM workspace_items WHERE user_id=?`);
+  // A control character makes this sentinel impossible to confuse with an API record ID.
+  const localMarker = '\u0000local-conflict';
+  const requiresConflictCapability = db.prepare('SELECT 1 FROM workspace_legacy_record_aliases WHERE user_id=? AND source_id=? LIMIT 1');
+  const localConflictCount = db.prepare(`SELECT COUNT(*) AS count FROM workspace_legacy_record_aliases a JOIN workspace_items i
+    ON i.user_id=a.user_id AND i.kind='record' AND i.item_id=a.alias_id WHERE a.user_id=? AND a.source_id=? AND i.value IS NULL`);
   const storedClaim = "COALESCE(json_extract(workspace_items.value, '$.claimVersion'), 0)";
   const incomingClaim = "COALESCE(json_extract(excluded.value, '$.claimVersion'), 0)";
   const storedProgress = "json_extract(workspace_items.value, '$.progressVersion')";
@@ -186,8 +193,11 @@ export function createWorkspaceStore(db: Database.Database) {
         THEN ${incomingProgress} > ${storedProgress}
       ELSE excluded.updated_at > workspace_items.updated_at
     END`);
-  const merge = db.transaction((owner: string, requestedGeneration: number, items: WorkspaceItem[]) => {
+  const merge = db.transaction((owner: string, requestedGeneration: number, items: WorkspaceItem[], supportsLocalConflicts = false) => {
     if (generation(owner) !== requestedGeneration) throw new WorkspaceGenerationError();
+    // Check inside the write transaction so a concurrent deletion cannot slip
+    // between the capability check and an old client's write.
+    if (!supportsLocalConflicts && requiresConflictCapability.get(owner, localMarker)) throw new WorkspaceClientUpdateRequiredError();
     for (const { kind, id, updatedAt, deleted, value, baseRevision } of items) {
       const previous = readItem.get(owner, kind, id) as { updatedAt: number; value: string | null; revision: number } | undefined;
       let mergedValue = value;
@@ -224,11 +234,11 @@ export function createWorkspaceStore(db: Database.Database) {
       if (!written.changes && !(previous && previous.updatedAt === updatedAt && previous.value === serialized)) throw new WorkspaceConflictError();
     }
     const { count, bytes } = limits.get(owner) as { count: number; bytes: number };
-    if (count > maxWorkspaceItems || bytes > maxWorkspaceBytes) throw new WorkspaceLimitError();
+    if (count > maxWorkspaceItems || bytes > maxWorkspaceBytes || (localConflictCount.get(owner, localMarker) as { count: number }).count > 100) throw new WorkspaceLimitError();
   });
   const get = (owner: string): WorkspaceItem[] =>
-    (read.all(owner) as Array<Omit<WorkspaceItem, 'value'> & { value: string | null }>).map(({ value, ...item }) => {
-      if (value === null) return { ...item, deleted: true };
+    (read.all(owner) as Array<Omit<WorkspaceItem, 'value' | 'localConflict'> & { value: string | null; localConflict: number }>).map(({ value, localConflict, ...item }) => {
+      if (value === null) return { ...item, deleted: true, ...(localConflict === 1 && { localConflict: true }) };
       const data: unknown = JSON.parse(value);
       return { ...item, value: item.kind === 'draft' ? stripDraftLease(data) : data };
     });
@@ -243,7 +253,7 @@ export function createWorkspaceStore(db: Database.Database) {
   // Called inside the history deletion transaction so score withdrawal and the
   // tombstones either both commit or neither does. Registry entries survive
   // compaction and reject any later upload of the same record ID.
-  const deleteRecords = (owner: string, ids: string[], time: number, legacyPairs: Array<{ id: string; alias: string; proof?: LegacyRecordProof }> = []) => {
+  const deleteRecords = (owner: string, ids: string[], time: number, legacyPairs: Array<{ id: string; alias: string; proof?: LegacyRecordProof }> = [], localConflicts: string[] = []) => {
     for (const { id, alias, proof } of legacyPairs) {
       const source = readItem.get(owner, 'record', id) as { value: string | null } | undefined;
       const existingAlias = readItem.get(owner, 'record', alias) as { value: string | null } | undefined;
@@ -254,6 +264,18 @@ export function createWorkspaceStore(db: Database.Database) {
       if (proof) { delete candidate.localOnly; delete candidate.status; delete candidate.localSyncGeneration; Object.assign(candidate, proof); }
       if (stableRecordId(candidate) !== alias) continue;
       db.prepare('INSERT OR IGNORE INTO workspace_legacy_record_aliases(user_id,alias_id,source_id) VALUES (?,?,?)').run(owner, alias, id);
+    }
+    let liveLocal = (localConflictCount.get(owner, localMarker) as { count: number }).count;
+    for (const id of localConflicts) {
+      if (!ids.includes(id) || !/^legacy-conflict-[0-9a-f]{64}$/u.test(id)) continue;
+      const existing = readItem.get(owner, 'record', id) as { value: string | null } | undefined;
+      if (existing?.value) throw new WorkspaceConflictError();
+      const mapping = db.prepare('SELECT source_id FROM workspace_legacy_record_aliases WHERE user_id=? AND alias_id=?').get(owner, id) as { source_id: string } | undefined;
+      if (existing && mapping?.source_id === localMarker) continue;
+      if (mapping && mapping.source_id !== localMarker) throw new WorkspaceConflictError();
+      if (liveLocal >= 100) throw new WorkspaceLimitError();
+      db.prepare('INSERT OR IGNORE INTO workspace_legacy_record_aliases(user_id,alias_id,source_id) VALUES (?,?,?)').run(owner, id, localMarker);
+      liveLocal++;
     }
     for (const id of ids) {
       const previous = readItem.get(owner, 'record', id) as { updatedAt: number; value: string | null; revision: number } | undefined;
@@ -281,3 +303,4 @@ export function createWorkspaceStore(db: Database.Database) {
 export class WorkspaceLimitError extends Error {}
 export class WorkspaceGenerationError extends Error {}
 export class WorkspaceConflictError extends Error {}
+export class WorkspaceClientUpdateRequiredError extends Error {}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from 'vitest';
 import { localHistory } from '../src/hooks/usePractice';
-import { mergePracticeRecords, normalizeWorkspaceRecord, stableRecordId } from '../src/lib/records';
+import { legacyConflictId, mergePracticeRecords, normalizeWorkspaceRecord, stableRecordId } from '../src/lib/records';
 import type { PracticeRecord, WorkspaceItem } from '../src/lib/models';
 
 const legacy = { ownerId: 'alice', language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山',
@@ -27,21 +27,40 @@ it('does not silently merge ambiguous local copies or an alias used by a differe
   const duplicate = { ...local, recordId: 'another-local', legacyLocalIds: ['another-local'] };
   expect(mergePracticeRecords([local, duplicate], [], [cloud])).toHaveLength(3);
   const collision: PracticeRecord = { ...legacy, recordId: local.recordId, typed: '海' };
-  expect(mergePracticeRecords([local], [], [cloud, collision])).toHaveLength(3);
+  const collided = mergePracticeRecords([local], [], [cloud, collision]);
+  expect(collided).toHaveLength(3);
+  expect(collided.find((item) => item.legacyIdConflict)).toMatchObject({ recordId: legacyConflictId(local), legacyIdConflict: true });
+});
+
+it('uses a content-specific conflict ID stable across volatile legacy metadata', () => {
+  expect(legacyConflictId({ ...legacy, status: 'review', localOnly: true })).toBe(legacyConflictId({ ...legacy, status: 'finished', localOnly: false }));
+  expect(legacyConflictId(legacy)).not.toBe(legacyConflictId({ ...legacy, typed: '海' }));
+  expect(legacyConflictId(legacy)).not.toBe(legacyConflictId({ ...legacy, ownerId: 'bobby' }));
+  expect(legacyConflictId(legacy)).toMatch(/^legacy-conflict-[a-f0-9]{64}$/u);
 });
 
 it('does not trust persisted compatibility metadata as an instruction to delete other IDs', () => {
-  const forged = { ...legacy, recordId: 'actual', legacyLocalIds: ['unrelated'], legacyWorkspaceId: true, legacyIdConflict: true, legacyProof: { status: 'review' } };
+  const forged = { ...legacy, recordId: 'actual', legacyLocalIds: ['unrelated'], legacyWorkspaceId: true, legacyIdConflict: true, legacyDeletionBlocked: true, legacyProof: { status: 'review' } };
   localStorage.setItem('cloudtyping.history.v1', JSON.stringify([forged]));
   expect(localHistory()[0]).not.toHaveProperty('legacyLocalIds');
   expect(localHistory()[0]).not.toHaveProperty('legacyIdConflict');
   expect(localHistory()[0]).not.toHaveProperty('legacyProof');
+  expect(localHistory()[0]).not.toHaveProperty('legacyDeletionBlocked');
   const cloud = normalizeWorkspaceRecord({ kind: 'record', id: 'actual', updatedAt: 1000, value: forged })!;
   expect(cloud).not.toHaveProperty('legacyLocalIds');
   expect(cloud).not.toHaveProperty('legacyWorkspaceId');
   expect(cloud).not.toHaveProperty('legacyProof');
   localStorage.setItem('cloudtyping.history.v1', JSON.stringify([{ ...legacy, status: 'unexpected-secret-value' }]));
   expect(localHistory()[0].legacyProof).toBeUndefined();
+});
+
+it('blocks deletion if even the content-specific ID is already used by a different record', () => {
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));
+  const [local] = localHistory();
+  const collision: PracticeRecord = { ...legacy, recordId: local.recordId, typed: '海' };
+  const second: PracticeRecord = { ...legacy, recordId: legacyConflictId(local), typed: '风' };
+  const merged = mergePracticeRecords([local], [], [collision, second]);
+  expect(merged.find((item) => item.legacyIdConflict)).toMatchObject({ legacyDeletionBlocked: true });
 });
 
 it('retains bounded local metadata for server-side alias verification', () => {

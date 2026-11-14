@@ -82,7 +82,7 @@ const isArticle = (value: unknown) => isObject(value) && typeof value.id === 'st
 
 export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
   if (!isObject(value)) return false;
-  const { kind, id, updatedAt, deleted, value: payload, serverRevision, baseRevision, baseUpdatedAt, clientGeneration, localFallback } = value;
+  const { kind, id, updatedAt, deleted, value: payload, serverRevision, baseRevision, baseUpdatedAt, clientGeneration, localFallback, localConflict } = value;
   if (!['favorite', 'article', 'draft', 'record', 'settings', 'background'].includes(kind as string) ||
     typeof id !== 'string' || !id || typeof updatedAt !== 'number' || !Number.isSafeInteger(updatedAt) || updatedAt < 0 ||
     (deleted !== undefined && typeof deleted !== 'boolean') ||
@@ -90,7 +90,8 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
     (baseRevision !== undefined && (!Number.isSafeInteger(baseRevision) || (baseRevision as number) < 0)) ||
     (baseUpdatedAt !== undefined && (!Number.isSafeInteger(baseUpdatedAt) || (baseUpdatedAt as number) < 0)) ||
     (clientGeneration !== undefined && (!Number.isSafeInteger(clientGeneration) || (clientGeneration as number) < 1)) ||
-    (localFallback !== undefined && typeof localFallback !== 'boolean')) return false;
+    (localFallback !== undefined && typeof localFallback !== 'boolean') ||
+    (localConflict !== undefined && (typeof localConflict !== 'boolean' || (localConflict && (kind !== 'record' || deleted !== true))))) return false;
   if (kind === 'background' && !isTheme(id)) return false;
   if (deleted) return true;
   if (!isObject(payload)) return false;
@@ -523,7 +524,7 @@ export function mergeRemoteWorkspace(ownerId: string, items: WorkspaceItem[], se
     const previous = new Map(current.map((item) => [keyOf(item), item]));
     const next = merged.map((item) => {
       const stored = previous.get(keyOf(item));
-      return stored && stored.updatedAt === item.updatedAt && stored.serverRevision === item.serverRevision && stored.baseUpdatedAt === item.baseUpdatedAt && stored.clientGeneration === item.clientGeneration && stored.localFallback === item.localFallback &&
+      return stored && stored.updatedAt === item.updatedAt && stored.serverRevision === item.serverRevision && stored.baseUpdatedAt === item.baseUpdatedAt && stored.clientGeneration === item.clientGeneration && stored.localFallback === item.localFallback && stored.localConflict === item.localConflict &&
         !!stored.deleted === !!item.deleted && JSON.stringify(stored.value) === JSON.stringify(item.value) ? stored : item;
     });
     return next.length === current.length && next.every((item, index) => item === current[index]) ? current : next;
@@ -589,6 +590,17 @@ export function putWorkspaceValue<K extends WorkspaceKind>(ownerId: string | nul
 
 export function deleteWorkspaceValue(ownerId: string | null, kind: WorkspaceKind, id: string) {
   return mutateWorkspaceValue(ownerId, kind, id, () => undefined);
+}
+
+// Guest conflicts are local-only. Check and write the marker in one protected
+// workspace transaction so a newly occupied ID cannot delete another record.
+export function deleteGuestConflict(id: string): Promise<void> {
+  return editWorkspace(null, (items) => {
+    const old = items.find((item) => item.kind === 'record' && item.id === id);
+    if (old?.deleted && old.localConflict) return items;
+    if (old) throw new Error('记录标识已被占用，请刷新后重试');
+    return mergeWorkspaceItems(items, [{ kind: 'record', id, updatedAt: estimatedServerTime(null), deleted: true, localConflict: true }]);
+  }, true).then(() => {});
 }
 
 export function markWorkspaceDraftFallback(ownerId: string | null, draft: SavedPractice): Promise<void> {

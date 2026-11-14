@@ -72,7 +72,7 @@ import { collectGuestImport } from './lib/guest-import';
 import { readPagedHistory } from './lib/history';
 import { deletePracticeRecords } from './lib/history-delete';
 import { recordMatchesSavedRecovery, recoveryMatchesRecord } from './lib/result-recovery';
-import { mergePracticeRecords, stableRecordId } from './lib/records';
+import { legacyConflictId, mergePracticeRecords, stableRecordId } from './lib/records';
 import { articleIdFromPath, feedbackIdFromPath, mainRoute, navigationEntryIndex, navigationIndex, navigationState, pathForArticle, pathForFeedback, pathForRecord, pathForView, recordIdFromPath, type MainRoute, type MainView } from './lib/routes';
 
 type View = MainRoute;
@@ -448,9 +448,9 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
 
   useEffect(() => {
     if (!workspace.ready || !workspace.deletedRecordIds.length) return;
-    try { if (deleteLocalHistory(ownerId, [...workspace.deletedRecordIds])) setLocalRecordVersion((version) => version + 1); }
+    try { if (deleteLocalHistory(ownerId, [...workspace.deletedRecordIds], [...workspace.deletedLocalConflictIds])) setLocalRecordVersion((version) => version + 1); }
     catch { reportSaveError(); }
-  }, [ownerId, workspace.ready, workspace.deletedRecordIds, reportSaveError]);
+  }, [ownerId, workspace.ready, workspace.deletedRecordIds, workspace.deletedLocalConflictIds, reportSaveError]);
 
   useEffect(() => {
     if (view !== 'stats' || !workspace.settingsReady || workspace.settings.statisticsTimezone || (ownerId && !workspace.cloudLoaded)) return;
@@ -461,8 +461,10 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     if (!authReady) return [];
     const local = localHistory().filter((record) => (record.ownerId ?? null) === ownerId);
     const deleted = new Set(workspace.deletedRecordIds);
-    return mergePracticeRecords(local, remoteHistory, workspace.records).filter((record) => !deleted.has(stableRecordId(record)));
-  }, [authReady, ownerId, remoteHistory, workspace.records, workspace.deletedRecordIds, localRecordVersion, result, view]);
+    const conflicts = new Set(workspace.deletedLocalConflictIds);
+    return mergePracticeRecords(local, remoteHistory, workspace.records).filter((record) => !deleted.has(stableRecordId(record)) &&
+      !(conflicts.size && record.legacyLocalIds?.length && conflicts.has(legacyConflictId(record))));
+  }, [authReady, ownerId, remoteHistory, workspace.records, workspace.deletedRecordIds, workspace.deletedLocalConflictIds, localRecordVersion, result, view]);
   async function deleteRecords(selected: PracticeRecord[]) {
     const ids = new Set(await deletePracticeRecords(ownerId, selected));
     if (!live.current) return;

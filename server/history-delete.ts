@@ -2,15 +2,17 @@ import type Database from 'better-sqlite3';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AccountUser } from './account';
-import { WorkspaceLimitError, type createWorkspaceStore } from './workspace';
+import { WorkspaceConflictError, WorkspaceLimitError, type createWorkspaceStore } from './workspace';
 import { legacyProofStatuses, type LegacyRecordProof } from '../src/lib/records';
 
 const recordId = z.string().min(1).max(200).regex(/^[^\p{Cc}\p{Cf}]+$/u);
 const requestBody = z.strictObject({ ids: z.array(recordId).min(1).max(200), expectedOnlineIds: z.array(recordId).max(100).optional().default([]),
+  localConflicts: z.array(z.string().regex(/^legacy-conflict-[0-9a-f]{64}$/u)).max(100).optional().default([]),
   legacyPairs: z.array(z.strictObject({ id: recordId, alias: z.string().regex(/^guest-[0-9a-f]{16}$/u), proof: z.strictObject({
     localOnly: z.boolean().optional(), status: z.enum(legacyProofStatuses).optional(), localSyncGeneration: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
   }).optional() })).max(100).optional().default([]) })
-  .refine(({ ids, expectedOnlineIds, legacyPairs }) => new Set(ids).size === ids.length && new Set(expectedOnlineIds).size === expectedOnlineIds.length &&
+  .refine(({ ids, expectedOnlineIds, legacyPairs, localConflicts }) => new Set(ids).size === ids.length && new Set(expectedOnlineIds).size === expectedOnlineIds.length &&
+    new Set(localConflicts).size === localConflicts.length && localConflicts.every((id) => ids.includes(id)) &&
     expectedOnlineIds.every((id) => ids.includes(id)) && new Set(legacyPairs.map((pair) => pair.alias)).size === legacyPairs.length && new Set(legacyPairs.map((pair) => pair.id)).size === legacyPairs.length &&
     legacyPairs.every(({ id, alias }) => id !== alias && ids.includes(id) && ids.includes(alias)));
 type Dependencies = { db: Database.Database; now: () => number; workspace: ReturnType<typeof createWorkspaceStore>;
@@ -26,12 +28,12 @@ export function registerHistoryDeletion(app: FastifyInstance, { db, now, workspa
   const owned = db.prepare('SELECT id,finished_at,published FROM challenges WHERE id=? AND owner=?');
   const receipt = db.prepare('SELECT 1 FROM history_deletion_receipts WHERE owner=? AND id=?');
   const erase = db.prepare('DELETE FROM challenges WHERE id=? AND owner=? AND finished_at IS NOT NULL');
-  const withdraw = db.transaction((owner: string, userId: string | undefined, ids: string[], expectedOnlineIds: string[], legacyPairs: Array<{ id: string; alias: string; proof?: LegacyRecordProof }>) => {
+  const withdraw = db.transaction((owner: string, userId: string | undefined, ids: string[], expectedOnlineIds: string[], legacyPairs: Array<{ id: string; alias: string; proof?: LegacyRecordProof }>, localConflicts: string[]) => {
     const challenges = ids.map((id) => owned.get(id, owner) as { id: string; finished_at: number | null; published: number } | undefined);
     if (challenges.some((item) => item && item.finished_at === null)) return 'active' as const;
     const found = new Set(challenges.filter((item): item is NonNullable<typeof item> => !!item).map((item) => item.id));
     if (expectedOnlineIds.some((id) => !found.has(id) && !receipt.get(owner, id))) return 'missing' as const;
-    if (userId) workspace.deleteRecords(userId, ids, now(), legacyPairs);
+    if (userId) workspace.deleteRecords(userId, ids, now(), legacyPairs, localConflicts);
     for (const challenge of challenges) {
       if (!challenge) continue;
       db.prepare('INSERT OR IGNORE INTO retired_attempts(id) VALUES (?)').run(challenge.id);
@@ -55,11 +57,12 @@ export function registerHistoryDeletion(app: FastifyInstance, { db, now, workspa
     if (!parsed.success) return reply.code(400).send({ error: '请选择有效记录' });
     const owner = getOwner(request, reply, true)!;
     try {
-      const outcome = withdraw.immediate(owner, user?.id, parsed.data.ids, parsed.data.expectedOnlineIds, parsed.data.legacyPairs);
+      const outcome = withdraw.immediate(owner, user?.id, parsed.data.ids, parsed.data.expectedOnlineIds, parsed.data.legacyPairs, parsed.data.localConflicts);
       if (outcome === 'active') return reply.code(409).send({ error: '练习仍在进行，无法删除' });
       if (outcome === 'missing') return reply.code(409).send({ error: '无法确认部分在线成绩，请检查登录状态后重试' });
     } catch (error) {
       if (error instanceof WorkspaceLimitError) return reply.code(413).send({ error: '同步空间已满，请先整理后重试' });
+      if (error instanceof WorkspaceConflictError) return reply.code(409).send({ error: '记录标识已被占用，请刷新后重试' });
       throw error;
     }
     if (!user) return { ok: true };

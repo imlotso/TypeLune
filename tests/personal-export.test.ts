@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { buildPersonalExport, recordsCsv } from '../src/lib/personal-export';
 import { defaultSettings, type SavedPractice, type WorkspaceItem } from '../src/lib/models';
 import { makePracticePreset } from '../src/lib/practice-settings';
-import { stableRecordId } from '../src/lib/records';
+import { legacyConflictId, stableRecordId } from '../src/lib/records';
 
 it('merges stable IDs, honors deletions and excludes authentication and recovery material', () => {
   const article = { id: 'private', title: '私文', text: '原文', language: 'zh' as const, difficulty: 'beginner' as const, custom: true as const, password: 'article-secret' };
@@ -126,4 +126,22 @@ it('retains an older workspace draft when a newer legacy draft becomes the main 
     remote: [{ kind: 'draft', id: older.id, updatedAt: 1, value: older }], legacyDrafts: [newer], localHistory: [], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
   expect(exported.data.drafts).toMatchObject([{ id: 'draft-1', typed: '山海' }]);
   expect(exported.data.cloudRecoveryCopies?.workspace).toMatchObject([{ kind: 'draft', id: 'draft-1', value: { typed: '山' } }]);
+});
+
+it('does not return a conflict-tombstoned legacy copy in the main record collection', () => {
+  const legacy = { ownerId: 'user', language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: 10, typed: '山' };
+  const alias = stableRecordId(legacy);
+  const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false }, local: [],
+    remote: [{ kind: 'record', id: legacyConflictId(legacy), updatedAt: 11, deleted: true, localConflict: true }], legacyDrafts: [],
+    localHistory: [{ ...legacy, recordId: alias, legacyLocalIds: [alias] }], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
+  expect(exported.data.records).toEqual([]);
+});
+
+it('does not discard a legacy copy for an ordinary similarly named tombstone', () => {
+  const legacy = { ownerId: 'user', language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: 10, typed: '山' };
+  const alias = stableRecordId(legacy);
+  const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false }, local: [],
+    remote: [{ kind: 'record', id: legacyConflictId(legacy), updatedAt: 11, deleted: true }], legacyDrafts: [],
+    localHistory: [{ ...legacy, recordId: alias, legacyLocalIds: [alias] }], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
+  expect(exported.data.records).toHaveLength(1);
 });

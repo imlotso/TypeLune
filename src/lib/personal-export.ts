@@ -3,7 +3,7 @@ import { compareDraftProgress, type ArticleSnapshot, type MistakeSample, type Pr
 import type { BackgroundConfig } from './background';
 import { isWorkspaceItem, mergeWorkspaceItems, workspaceSettings } from './workspace';
 import { cleanPracticePreset } from './practice-settings';
-import { mergePracticeRecords, normalizeWorkspaceRecord, stableRecordId } from './records';
+import { legacyConflictId, mergePracticeRecords, normalizeWorkspaceRecord, stableRecordId } from './records';
 import { isProcessTrace } from './process-trace';
 
 export type FeedbackExport = { id: string; category: string; title: string; description: string; status: string; createdAt: number; updatedAt: number;
@@ -107,7 +107,9 @@ export function buildPersonalExport(input: Inputs) {
   }
   const workspaceRecords = items.map(normalizeWorkspaceRecord).filter((item): item is PracticeRecord => !!item);
   const deletedRecords = new Set(items.filter((item) => item.kind === 'record' && item.deleted).map((item) => item.id));
-  const active = (values: PracticeRecord[]) => values.filter((value) => !deletedRecords.has(stableRecordId(value)));
+  const conflicts = new Set(items.filter((item) => item.kind === 'record' && item.deleted && item.localConflict === true).map((item) => item.id));
+  const active = (values: PracticeRecord[]) => values.filter((value) => !deletedRecords.has(stableRecordId(value)) &&
+    !(conflicts.size && value.legacyLocalIds?.length && conflicts.has(legacyConflictId(value))));
   const mergedRecords = mergePracticeRecords(active(input.localHistory), active(input.remoteHistory), active(workspaceRecords));
   const records = mergeRecords(mergedRecords);
   const selectedItems = new Map(items.map((item) => [`${item.kind}:${item.id}`, item]));

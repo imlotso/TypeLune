@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures';
-import { stableRecordId } from '../src/lib/records';
+import { legacyConflictId, stableRecordId } from '../src/lib/records';
 
 test('deduplicates and deletes id-less legacy copies across devices without revival', async ({ page, browser, baseURL, clientIp }, testInfo) => {
   const username = 'legacy_records'; const email = `${username}@example.test`; const password = 'legacy-password-123';
@@ -42,4 +42,64 @@ test('deduplicates and deletes id-less legacy copies across devices without revi
     expect(stale.status()).toBe(409);
   }
   await device.close();
+});
+
+test('deletes a collided local legacy record while preserving the unrelated cloud record', async ({ page, browser, baseURL, clientIp }) => {
+  test.setTimeout(45_000);
+  const username = 'legacy_collision'; const email = `${username}@example.test`; const password = 'legacy-password-123';
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  const registered = await page.request.post('/api/auth/register', { data: { username, email, password, code } });
+  const ownerId = (await registered.json()).user.id as string;
+  const legacy = { ownerId, language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: Date.now() - 1000, typed: '山',
+    article: { id: 'local-article', title: '本机旧记录', text: '山海', language: 'zh' as const, difficulty: 'beginner' as const, custom: true } };
+  const alias = stableRecordId(legacy); const conflictId = legacyConflictId(legacy);
+  const cloud = { ...legacy, recordId: alias, typed: '海', article: { ...legacy.article, id: 'cloud-article', title: '云端不同记录' } };
+  const headers = { 'X-Workspace-Owner': ownerId, 'X-Workspace-Protocol': '2', 'X-Workspace-Capabilities': 'local-conflict-v1' };
+  expect((await page.request.post('/api/workspace/sync', { headers, data: { generation: 1, items: [{ kind: 'record', id: alias, updatedAt: Date.now(), baseRevision: 0, value: cloud }] } })).ok()).toBe(true);
+  await page.goto('/');
+  await page.evaluate((record) => localStorage.setItem('cloudtyping.history.v1', JSON.stringify([record])), legacy);
+  await page.getByRole('button', { name: '我的记录', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '本机旧记录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '云端不同记录' })).toBeVisible();
+  const device = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
+  expect((await device.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
+  const other = await device.newPage(); await other.goto('/');
+  await other.evaluate((record) => localStorage.setItem('cloudtyping.history.v1', JSON.stringify([record])), legacy);
+  await other.goto('/records');
+  await expect(other.getByRole('heading', { name: '本机旧记录' })).toBeVisible();
+  const staleDevice = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
+  expect((await staleDevice.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
+  const stalePage = await staleDevice.newPage(); await stalePage.goto('/');
+  await stalePage.evaluate((record) => localStorage.setItem('cloudtyping.history.v1', JSON.stringify([record])), legacy);
+  await stalePage.goto('/records');
+  await expect(stalePage.getByRole('heading', { name: '本机旧记录' })).toBeVisible();
+  await staleDevice.setOffline(true);
+  await page.getByRole('button', { name: '删除《本机旧记录》' }).click();
+  const confirm = page.getByRole('dialog', { name: '删除记录' });
+  await expect(confirm.getByText('标识冲突的本机旧副本会单独删除，其他记录保留。')).toBeVisible();
+  await confirm.getByRole('button', { name: '删除' }).click();
+  await expect(page.getByRole('heading', { name: '本机旧记录' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '云端不同记录' })).toBeVisible();
+  const workspace = (await (await page.request.get('/api/workspace', { headers })).json()).items as Array<{ id: string; deleted?: boolean; localConflict?: boolean }>;
+  expect(workspace.find((item) => item.id === alias)?.deleted).not.toBe(true);
+  expect(workspace.find((item) => item.id === conflictId)?.deleted).toBe(true);
+  expect(workspace.find((item) => item.id === conflictId)?.localConflict).toBe(true);
+  await other.reload();
+  await expect(other.getByRole('heading', { name: '本机旧记录' })).toHaveCount(0);
+  await expect(other.getByRole('heading', { name: '云端不同记录' })).toBeVisible();
+  await expect.poll(() => other.evaluate(() => JSON.parse(localStorage.getItem('cloudtyping.history.v1') || '[]').length)).toBe(0);
+  const compacted = await page.request.post('/api/workspace/compact', { headers, data: { generation: 1 } });
+  expect((await compacted.json()).generation).toBe(2);
+  await staleDevice.setOffline(false);
+  await stalePage.getByRole('button', { name: '更多' }).click();
+  await stalePage.getByRole('button', { name: '设置', exact: true }).click();
+  const settings = stalePage.getByRole('dialog', { name: '练习设置' });
+  await settings.getByRole('button', { name: '立即同步' }).click();
+  const recovery = stalePage.getByRole('dialog', { name: '处理同步冲突' });
+  if (!await recovery.isVisible()) await settings.getByRole('button', { name: '处理同步冲突' }).click();
+  await expect(recovery.getByRole('button', { name: '导出本机资料' })).toBeVisible();
+  const stale = await page.request.post('/api/workspace/sync', { headers, data: { generation: 2, items: [{ kind: 'record', id: conflictId, updatedAt: Date.now(), baseRevision: 0, value: { ...legacy, recordId: conflictId } }] } });
+  expect(stale.status()).toBe(409);
+  await staleDevice.close(); await device.close();
 });

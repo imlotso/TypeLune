@@ -1,5 +1,7 @@
 import type { PracticeRecord, WorkspaceItem } from './models';
 import { isProcessTrace } from './process-trace';
+import { sha256 } from '@noble/hashes/sha2';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
 
 export const legacyProofStatuses = ['finished', 'review', 'ranked', 'published', 'rejected', 'removed', 'ineligible', 'expired'] as const;
 export type LegacyRecordProof = { localOnly?: boolean; status?: typeof legacyProofStatuses[number]; localSyncGeneration?: number };
@@ -29,7 +31,7 @@ function canonicalRecord(value: unknown): unknown {
 // Keep the existing guest-import ID for old records without an explicit ID.
 export function stableRecordId(value: PracticeRecord) {
   if (value.recordId) return value.recordId;
-  const { legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, legacyProof: _proof, ...stored } = value;
+  const { legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, legacyDeletionBlocked: _blocked, legacyProof: _proof, ...stored } = value;
   const text = JSON.stringify(canonicalRecord(stored));
   let first = 2166136261; let second = 2246822519;
   for (let index = 0; index < text.length; index++) { first = Math.imul(first ^ text.charCodeAt(index), 16777619); second = Math.imul(second ^ text.charCodeAt(index), 3266489917); }
@@ -38,15 +40,20 @@ export function stableRecordId(value: PracticeRecord) {
 
 export function normalizeWorkspaceRecord(item: WorkspaceItem): PracticeRecord | undefined {
   if (item.kind !== 'record' || item.deleted || !item.value || typeof item.value !== 'object') return undefined;
-  const { legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, legacyProof: _proof, ...value } = item.value as PracticeRecord;
+  const { legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, legacyDeletionBlocked: _blocked, legacyProof: _proof, ...value } = item.value as PracticeRecord;
   return value.recordId ? value : { ...value, recordId: item.id, localOnly: true, legacyWorkspaceId: true };
 }
 
 function legacyContent(record: PracticeRecord) {
   const { recordId: _id, ownerId: _owner, localOnly: _localOnly, status: _status, scoreStatus: _scoreStatus,
-    legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, legacyProof: _proof, ...content } = record;
+    legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, legacyDeletionBlocked: _blocked, legacyProof: _proof, ...content } = record;
   delete (content as Record<string, unknown>).localSyncGeneration;
   return JSON.stringify(canonicalRecord(content));
+}
+
+export function legacyConflictId(record: PracticeRecord) {
+  const content = `typing-legacy-conflict-v1\0${record.ownerId ?? 'guest'}\0${legacyContent(record)}`;
+  return `legacy-conflict-${bytesToHex(sha256(utf8ToBytes(content)))}`;
 }
 
 function reconcileLegacyRecords(local: PracticeRecord[], workspace: PracticeRecord[], remote: PracticeRecord[]) {
@@ -62,6 +69,11 @@ function reconcileLegacyRecords(local: PracticeRecord[], workspace: PracticeReco
     const group = byId.get(record.recordId) ?? []; group.push(record); byId.set(record.recordId, group);
   }
   const reserved = new Set(byId.keys());
+  const localById = new Map<string, PracticeRecord[]>();
+  for (const record of local) {
+    const id = stableRecordId(record); const group = localById.get(id) ?? []; group.push(record); localById.set(id, group);
+  }
+  const conflictContents = new Map<string, string>();
   const matches = new Map<PracticeRecord, string>();
   for (const [key, candidates] of localGroups) {
     const targets = workspaceGroups.get(key);
@@ -74,11 +86,13 @@ function reconcileLegacyRecords(local: PracticeRecord[], workspace: PracticeReco
     const target = matches.get(record);
     if (target) return { ...record, recordId: target, legacyLocalIds: [...new Set([...(record.legacyLocalIds ?? []), stableRecordId(record)])] };
     const id = stableRecordId(record);
-    const collision = record.legacyLocalIds?.length && byId.get(id)?.some((other) => legacyContent(other) !== legacyContent(record));
+    const collision = record.legacyLocalIds?.length && (byId.get(id)?.some((other) => legacyContent(other) !== legacyContent(record)) ||
+      localById.get(id)?.some((other) => other !== record && legacyContent(other) !== legacyContent(record)));
     if (!collision) return record;
-    let safeId = `legacy-conflict-${id}`;
-    while (reserved.has(safeId)) safeId += '-local';
-    reserved.add(safeId);
+    const safeId = legacyConflictId(record); const content = legacyContent(record);
+    const blocked = byId.has(safeId) || localById.has(safeId) || (conflictContents.has(safeId) && conflictContents.get(safeId) !== content);
+    if (blocked) return { ...record, recordId: `${safeId}-blocked-${id}`, legacyIdConflict: true, legacyDeletionBlocked: true };
+    conflictContents.set(safeId, content); reserved.add(safeId);
     return { ...record, recordId: safeId, legacyIdConflict: true };
   });
 }

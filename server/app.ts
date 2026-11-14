@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { difficulties, type Difficulty, type Language } from '../src/data/articles';
 import { scoreTyping, splitCharacters } from '../src/lib/scoring';
 import { catalogSnapshotKey, type ArticleSnapshot, type PracticeMode, type RankingEntry } from '../src/lib/models';
-import { createWorkspaceStore, recoveryIdPattern, recoveryKeyPattern, syncBodyLimit, validateWorkspaceItems, WorkspaceConflictError, WorkspaceGenerationError, WorkspaceLimitError } from './workspace';
+import { createWorkspaceStore, recoveryIdPattern, recoveryKeyPattern, syncBodyLimit, validateWorkspaceItems, WorkspaceClientUpdateRequiredError, WorkspaceConflictError, WorkspaceGenerationError, WorkspaceLimitError } from './workspace';
 import { AdminAccessError, createAdminAudit, migrateAdministration, registerAdminRoutes } from './admin';
 import { createCatalogStore, registerCatalogRoutes } from './catalog';
 import { createSiteSettings, registerSiteSettingsRoutes } from './site-settings';
@@ -488,10 +488,11 @@ export async function createApp(options: AppOptions) {
     const body = bodyOf(request);
     const items = validateWorkspaceItems(body.items, user.id, serverTime);
     if (!items || items.some((item) => item.baseRevision === undefined) || typeof body.generation !== 'number' || !Number.isSafeInteger(body.generation) || body.generation < 1) return invalid(reply, '同步数据无效');
-    try { workspace.merge(user.id, body.generation, items); }
+    try { workspace.merge(user.id, body.generation, items, request.headers['x-workspace-capabilities'] === 'local-conflict-v1'); }
     catch (error) {
       if (error instanceof WorkspaceLimitError) return invalid(reply, '同步空间已满', 413);
       if (error instanceof WorkspaceGenerationError) return reply.code(409).send({ error: '云端资料已整理，请先导出本机资料并重新同步', code: 'SYNC_RESYNC_REQUIRED' });
+      if (error instanceof WorkspaceClientUpdateRequiredError) return reply.code(426).send({ error: '同步版本过旧，请更新页面后重试；更新前可先导出本机资料', code: 'SYNC_CLIENT_UPDATE_REQUIRED' });
       if (error instanceof WorkspaceConflictError) return reply.code(409).send({ error: '部分资料已在其他设备更改，请先保留本机资料', code: 'SYNC_CONFLICT' });
       throw error;
     }
