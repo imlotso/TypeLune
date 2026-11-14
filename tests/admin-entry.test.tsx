@@ -97,7 +97,8 @@ it('returns from an explicit site preview through the account entry and preserve
   const input = screen.getByRole('textbox', { name: '当前行输入' }) as HTMLTextAreaElement;
   await waitFor(() => expect(input.disabled).toBe(false));
   fireEvent.change(input, { target: { value: '甲乙' } });
-  fireEvent.click(screen.getByTitle('返回管理界面'));
+  fireEvent.click(screen.getByRole('button', { name: admin.username }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '返回后台' }));
   await screen.findByRole('heading', { name: '管理后台' });
   fireEvent.click(screen.getByRole('button', { name: '预览网站' }));
   await screen.findByRole('button', { name: '继续练习' });

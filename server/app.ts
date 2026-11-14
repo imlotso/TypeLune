@@ -14,6 +14,8 @@ import { AdminAccessError, createAdminAudit, migrateAdministration, registerAdmi
 import { createCatalogStore, registerCatalogRoutes } from './catalog';
 import { createSiteSettings, registerSiteSettingsRoutes } from './site-settings';
 import { createSmtpSettings, type Mailer, type SmtpConfiguration, type SmtpDelivery } from './smtp';
+import { isValidPassword, isValidUsername } from '../src/lib/account-validation';
+import { migrateAccounts, registerAccountRoutes, type AccountUser } from './account';
 
 export type { Mailer } from './smtp';
 export type AppOptions = {
@@ -29,7 +31,7 @@ export type AppOptions = {
   trustProxy?: boolean;
 };
 
-type User = { id: string; username: string; email: string; password_hash: string; role: 'user' | 'admin'; auth_version: number };
+type User = AccountUser;
 type Challenge = {
   id: string; owner: string; language: Language; difficulty: Difficulty; duration: number;
   target: string; started_at: number; finished_at: number | null; status: string;
@@ -191,6 +193,7 @@ export async function createApp(options: AppOptions) {
   })();
   const workspace = createWorkspaceStore(db);
   migrateAdministration(db, adminEmail);
+  migrateAccounts(db);
   const catalog = createCatalogStore(db, now);
   const audit = createAdminAudit(db, now);
   const siteSettings = createSiteSettings(db, audit);
@@ -216,7 +219,10 @@ export async function createApp(options: AppOptions) {
   const expectedAccount = (request: FastifyRequest) => request.headers['x-workspace-owner'];
   const accountMatches = (request: FastifyRequest, user: User) =>
     expectedAccount(request) === undefined || expectedAccount(request) === user.id;
-  const publicUser = (user: User) => ({ id: user.id, username: user.username, email: user.email, isAdmin: user.role === 'admin' });
+  const publicUser = (user: User) => ({ id: user.id, username: user.username, email: user.email, isAdmin: user.role === 'admin', displayName: user.display_name || user.username, avatar: user.avatar || null });
+  registerAccountRoutes(app, { db, userFor, accountMatches, publicUser, clearSession: (request, reply) => {
+    if (expectedAccount(request) === undefined) reply.clearCookie('session', cookieOptions);
+  } });
   const startSession = (reply: FastifyReply, user: User) => {
     const token = randomBytes(32).toString('base64url');
     const inserted = db.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) SELECT ?,id,? FROM users WHERE id=? AND password_hash=? AND auth_version=? AND disabled_at IS NULL')
@@ -331,7 +337,7 @@ export async function createApp(options: AppOptions) {
     const username = typeof body.username === 'string' ? body.username.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const code = typeof body.code === 'string' ? body.code : '';
-    if (!emailPattern.test(email) || email.length > 254 || !/^[\p{L}\p{N}_-]{3,24}$/u.test(username) || password.length < 10 || password.length > 128) return invalid(reply, '用户名需为 3–24 位字母、数字或下划线，密码至少 10 位');
+    if (!emailPattern.test(email) || email.length > 254 || !isValidUsername(username) || !isValidPassword(password)) return invalid(reply, '用户名需为 3–24 位字母、数字、下划线或连字符，密码为 10–128 位');
     if (db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(email, username)) return invalid(reply, '账号信息不可用，请检查后重试', 409);
     if (!verifyCode(email, 'register', code, false)) return invalid(reply, '验证码错误或已过期');
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
@@ -342,9 +348,9 @@ export async function createApp(options: AppOptions) {
       }
       if (!verifyCode(email, 'register', code)) return { error: '验证码错误或已过期', status: 400 };
       const bootstrap = email === adminEmail && !db.prepare("SELECT 1 FROM users WHERE role='admin' LIMIT 1").get();
-      const account: User = { id: randomUUID(), username, email, password_hash: passwordHash, role: bootstrap ? 'admin' : 'user', auth_version: 0 };
-      db.prepare('INSERT INTO users(id,username,email,password_hash,role,created_at) VALUES (?,?,?,?,?,?)')
-        .run(account.id, account.username, account.email, account.password_hash, account.role, now());
+      const account: User = { id: randomUUID(), username, email, password_hash: passwordHash, role: bootstrap ? 'admin' : 'user', auth_version: 0, display_name: username, avatar: null };
+      db.prepare('INSERT INTO users(id,username,email,password_hash,role,created_at,display_name) VALUES (?,?,?,?,?,?,?)')
+        .run(account.id, account.username, account.email, account.password_hash, account.role, now(), username);
       return { user: account };
     }).immediate();
     if ('error' in registration) return invalid(reply, registration.error, registration.status);
@@ -873,7 +879,7 @@ export async function createApp(options: AppOptions) {
     const owner = getOwner(request, reply, false);
     if (typeof body.attemptId !== 'string' || !owner) return invalid(reply, '练习记录不存在', 404);
     const user = userFor(request);
-    const nickname = user ? user.username : typeof body.nickname === 'string' ? body.nickname.trim() : '';
+    const nickname = user ? user.display_name || user.username : typeof body.nickname === 'string' ? body.nickname.trim() : '';
     const maxNicknameLength = user ? 24 : 16;
     const result = publishScore.immediate(body.attemptId, owner, nickname, maxNicknameLength, request.headers['x-practice-claim']);
     if (result.conflict) return reply.code(409).send(result.conflict);
@@ -908,7 +914,8 @@ export async function createApp(options: AppOptions) {
           AND nickname IS NOT NULL AND speed IS NOT NULL
           AND (@duration IS NULL OR duration=@duration) AND (@articleId IS NULL OR article_id=@articleId)
       ), ranked AS (
-        SELECT owner, nickname, speed, accuracy, id AS attemptId, finished_at AS createdAt, article_id AS articleId,
+        SELECT owner, COALESCE((SELECT display_name FROM users WHERE 'u:' || users.id=candidates.owner), nickname) AS nickname,
+          speed, accuracy, id AS attemptId, finished_at AS createdAt, article_id AS articleId,
           CASE WHEN owner LIKE 'g:%' THEN 1 ELSE 0 END AS guest,
           ROW_NUMBER() OVER (ORDER BY speed DESC, accuracy DESC, finished_at, id) AS rank,
           COUNT(*) OVER () AS total

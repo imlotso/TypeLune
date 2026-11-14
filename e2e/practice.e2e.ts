@@ -268,7 +268,8 @@ test('submits an online result, registers an admin with a test email and publish
   const ranked = page.locator('li').filter({ hasText: 'CI 访客' });
   await expect(ranked.locator('strong')).toHaveText(`${expectedSpeed} 字/分`);
   await expect(ranked).toContainText('100%');
-  await page.getByTitle('返回管理界面').click();
+  await page.getByRole('button', { name: 'ci_admin', exact: true }).click();
+  await page.getByRole('menuitem', { name: '返回后台' }).click();
   await expect(page.getByRole('heading', { name: '管理后台' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: '主要导航' })).toHaveCount(0);
 });
@@ -292,7 +293,7 @@ test('manages a live account and publishes a sourced article into the practice c
   await memberLogin.getByLabel('用户名或邮箱').fill('admin_e2e_reader');
   await memberLogin.getByLabel('密码', { exact: true }).fill(password);
   await memberLogin.getByRole('button', { name: '登录', exact: true }).click();
-  await expect(reader.getByTitle('退出登录')).toContainText('admin_e2e_reader');
+  await expect(reader.getByRole('button', { name: 'admin_e2e_reader', exact: true })).toBeVisible();
   await expect(reader.getByRole('textbox', { name: '当前行输入' })).toBeEnabled();
   await expect(reader.getByRole('button', { name: '管理后台', exact: true })).toHaveCount(0);
   expect((await reader.request.get('/api/admin/overview')).status()).toBe(403);

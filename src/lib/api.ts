@@ -46,4 +46,4 @@ export async function api<T>(path: string, options?: { method?: 'GET' | 'POST'; 
   }
 }
 
-export type User = { id: string; username: string; email: string; isAdmin: boolean };
+export type User = { id: string; username: string; email: string; isAdmin: boolean; displayName?: string; avatar?: 'cloud' | 'star' | 'moon' | null };
