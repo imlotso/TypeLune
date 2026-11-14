@@ -7,10 +7,13 @@ import type { ArticleSnapshot, PracticeRecord } from '../lib/models';
 import { readableCharacter } from '../lib/practice-lines';
 import { stableRecordId } from '../lib/records';
 import { splitCharacters } from '../lib/scoring';
+import { useScoreStatus } from '../hooks/useScoreStatus';
+import { ScoreStatusView, scoreStatusText } from './ScoreStatusView';
 import { Dialog } from './Dialog';
 
 type Props = {
   records: PracticeRecord[];
+  ownerId?: string | null;
   onReplay: (article: ArticleSnapshot) => void;
   onContinue: (record: PracticeRecord) => void;
   onDelete: (records: PracticeRecord[]) => Promise<void>;
@@ -25,17 +28,19 @@ type Props = {
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
 const languageNames: Record<Language, string> = { zh: '中文', en: 'English' };
 const recordTitle = (record: PracticeRecord) => record.article?.title ?? `${languageNames[record.language]} · ${difficultyNames[record.difficulty]}`;
-const statusLabel = (status?: string) => status === 'rejected' ? '复核未通过' : status === 'review' ? '待复核' : '';
 const speedLabel = (record: PracticeRecord) => `${record.speed} ${record.language === 'zh' ? '字/分' : 'WPM'}`;
 const dateText = (date: Date) => date.toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 
-function RecordDetail({ record, onClose, onReplay, onContinue }: {
+function RecordDetail({ record, ownerId, onClose, onReplay, onContinue }: {
   record: PracticeRecord;
+  ownerId: string | null;
   onClose: () => void;
   onReplay: Props['onReplay'];
   onContinue: Props['onContinue'];
 }) {
   const article = record.article;
+  const remoteStatus = useScoreStatus(record.recordId, ownerId, !record.scoreStatus && record.localOnly === false && !!record.recordId, 0);
+  const scoreStatus = record.scoreStatus ?? remoteStatus.status;
   const target = splitCharacters(article?.text ?? '');
   const typed = record.typed == null ? undefined : splitCharacters(record.typed);
   const articleTotal = article ? target.length : record.articleTotal;
@@ -56,9 +61,9 @@ function RecordDetail({ record, onClose, onReplay, onContinue }: {
           <time dateTime={date.toISOString()}>{dateText(date)}</time>
           <span>{record.mode === 'article' ? '整篇' : `限时 ${record.duration / 60} 分钟`}</span>
           {record.strict && <span>严格纠错</span>}
-          {statusLabel(record.status) && <span>{statusLabel(record.status)}</span>}
         </div>
       </div>
+      {scoreStatus ? <ScoreStatusView status={scoreStatus} /> : remoteStatus.loading ? <p role="status">正在读取成绩状态…</p> : remoteStatus.error ? <div><p className="form-error" role="alert">{remoteStatus.error}</p><button type="button" className="text-button" onClick={remoteStatus.retry}>重试状态</button></div> : <p className="score-status">{article?.custom || (record.offset ?? 0) > 0 ? '个人练习，不参与排行。' : record.localOnly ? '本机记录，排行状态未确认。' : '成绩状态暂不可用。'}</p>}
       <dl className="feature-metrics">
         <div><dt>速度</dt><dd>{speedLabel(record)}</dd></div>
         <div><dt>准确率</dt><dd>{record.accuracy}%</dd></div>
@@ -89,7 +94,7 @@ function RecordDetail({ record, onClose, onReplay, onContinue }: {
   </Dialog>;
 }
 
-export function RecordsView({ records, onReplay, onContinue, onDelete, routeRecordId, routeLoading, routePartial, onOpenRecord, onCloseRecord, onRetryRecords }: Props) {
+export function RecordsView({ records, ownerId = null, onReplay, onContinue, onDelete, routeRecordId, routeLoading, routePartial, onOpenRecord, onCloseRecord, onRetryRecords }: Props) {
   const [filters, setFilters] = useState<HistoryFilters>(emptyHistoryFilters);
   const [limit, setLimit] = useState(20);
   const [selected, setSelected] = useState<PracticeRecord>();
@@ -144,8 +149,8 @@ export function RecordsView({ records, onReplay, onContinue, onDelete, routeReco
             <div className="feature-meta">
               <time dateTime={date.toISOString()}>{dateText(date)}</time>
               {record.article && <span>{languageNames[record.language]} · {difficultyNames[record.difficulty]}</span>}
-              {record.localOnly && <span>{record.ownerId ? '个人练习' : '本机'}</span>}
-              {statusLabel(record.status) && <span>{statusLabel(record.status)}</span>}
+              {record.localOnly && <span>{record.article?.custom || (record.offset ?? 0) > 0 ? '个人练习' : '本机记录'}</span>}
+              {record.scoreStatus && <span>{scoreStatusText(record.scoreStatus)}</span>}
             </div>
           </div>
           <div className="feature-actions">
@@ -164,6 +169,6 @@ export function RecordsView({ records, onReplay, onContinue, onDelete, routeReco
       </div>
     </Dialog>}
     {routeRecordId && !detail && <div className="feature-form">{routeLoading ? <p role="status">正在读取记录…</p> : routePartial ? <><p className="form-error" role="alert">记录尚未完整读取</p>{onRetryRecords && <button type="button" className="outline-button" onClick={onRetryRecords}>重试</button>}</> : <p role="status">记录未找到</p>}<button type="button" className="outline-button" onClick={onCloseRecord}>返回记录</button></div>}
-    {detail && <RecordDetail record={detail} onClose={closeDetail} onReplay={onReplay} onContinue={onContinue} />}
+    {detail && <RecordDetail record={detail} ownerId={ownerId} onClose={closeDetail} onReplay={onReplay} onContinue={onContinue} />}
   </section>;
 }

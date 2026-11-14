@@ -25,6 +25,7 @@ import { AuthDialog } from './components/AuthDialog';
 import { Dialog } from './components/Dialog';
 import { DraftsView } from './components/DraftsView';
 import { EnglishSpeed } from './components/EnglishSpeed';
+import { ScoreStatusView } from './components/ScoreStatusView';
 import { FeedbackView, newFeedbackDraft, type FeedbackDraft } from './components/FeedbackView';
 import { GuestImportDialog } from './components/GuestImportDialog';
 import { MistakesView } from './components/MistakesView';
@@ -47,6 +48,7 @@ import { infoLabels, type InfoPage } from './data/site-content';
 import { continuationDraftId, deleteLocalHistory, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useSiteFeatures } from './hooks/useSiteFeatures';
+import { useScoreStatus } from './hooks/useScoreStatus';
 import { shortcutNames, useShortcuts, type ShortcutAction } from './hooks/useShortcuts';
 import { api, ApiError, type User } from './lib/api';
 import { catalogSnapshotKey, compareDraftProgress, defaultPace, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PaceSettings, type PracticePreset, type PracticeRecord, type PresetReading, type ReaderSettings, type SavedPractice } from './lib/models';
@@ -240,6 +242,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [nickname, setNickname] = useState('');
   const [rankMessage, setRankMessage] = useState('');
   const [rankSubmitted, setRankSubmitted] = useState(false);
+  const [scoreStatusRevision, setScoreStatusRevision] = useState(0);
   const [mistakeRepeats, setMistakeRepeats] = useState('3');
   const [busy, setBusy] = useState(false);
   const [accountBusy, setAccountBusy] = useState(false);
@@ -321,6 +324,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     },
   }, null);
   const { phase, target, typed, result } = practice;
+  const resultStatus = useScoreStatus(result?.attemptId, ownerId, !!result && !result.offline && showResult, scoreStatusRevision);
   const roundDrillAvailable = useMemo(() => result?.record ? createRoundMistakeDrill(result.record, 1) : undefined, [result]);
   const roundDrill = useMemo(() => result?.record ? createRoundMistakeDrill(result.record, Number(mistakeRepeats)) : undefined, [result, mistakeRepeats]);
   const currentResult = useRef(result);
@@ -410,8 +414,13 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   }, [minutes, minutesText, validDuration, workspace.settings.minutes]);
 
   useEffect(() => {
-    if (result) { setRankMessage(result.submitted ? (result.status === 'review' ? '已提交，待复核。' : '已上榜。') : ''); setRankSubmitted(!!result.submitted); setShowResult(true); }
+    if (result) { setRankMessage(result.submitted ? '已提交，正在确认排行状态。' : ''); setRankSubmitted(!!result.submitted); setShowResult(true); }
   }, [result]);
+  useEffect(() => {
+    if (resultStatus.status && ['pending', 'ranked', 'published', 'rejected', 'removed'].includes(resultStatus.status.state)) {
+      setRankSubmitted(true); setRankMessage('');
+    }
+  }, [resultStatus.status]);
 
   useEffect(() => {
     const needsPaceHistory = view === 'practice' && paceSettings.enabled && paceSettings.source !== 'custom';
@@ -793,10 +802,11 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         data = await submit();
       }
       if (!current()) return;
-      setRankMessage(data.status === 'review' ? '已提交，待复核。' : '已上榜。');
-      setRankSubmitted(true);
+      if (data.status !== 'review' && data.status !== 'ranked') throw new Error('提交结果无法确认，请重试');
+      setRankMessage(data.status === 'review' ? '已提交，待复核。' : '已提交，正在确认排行状态。');
+      setRankSubmitted(true); setScoreStatusRevision((value) => value + 1);
       practice.markRankSubmitted(attemptId);
-    } catch (problem) { if (current()) { setRankMessage((problem as Error).message); setRankSubmitted(false); } }
+    } catch (problem) { if (current()) { setRankMessage((problem as Error).message); setRankSubmitted(false); setScoreStatusRevision((value) => value + 1); } }
     finally { if (current()) setBusy(false); }
   }
 
@@ -982,7 +992,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
           return <section className="content-panel feature-panel"><div className="content-heading"><h1>文章未找到</h1></div><button type="button" className="outline-button" onClick={() => navigate('library')}>返回文章库</button></section>;
         })()}
         {view === 'rankings' && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} />}
-        {view === 'history' && <RecordsView records={records} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} routeRecordId={routeRecordId}
+        {view === 'history' && <RecordsView records={records} ownerId={ownerId} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} routeRecordId={routeRecordId}
           routeLoading={!workspace.ready || (!!ownerId && !historyLoaded)} routePartial={historyError || !!workspace.error || (!!ownerId && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory()}
           onOpenRecord={openRecord} onCloseRecord={() => commitView('history')} onRetryRecords={() => { setHistoryRevision((revision) => revision + 1); void workspace.sync(); }} />}
         {view === 'drafts' && <DraftsView drafts={draftBox.drafts} onResume={(draft) => continueDraft(draft)} onDelete={deleteDraft}
@@ -1044,7 +1054,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       </div>
     </Dialog>}
     {showResult && result && <Dialog title="练习成绩" onClose={() => setShowResult(false)}>
-      {result.offline && <p className="dialog-intro">{practice.canRetryOnline ? '成绩尚未同步' : !result.custom && result.elapsedMs < 1000 ? (user ? '用时不足 1 秒，不参与排行' : '用时不足 1 秒，仅本机保存') : user ? '个人成绩' : '仅本机保存'}</p>}
+      {result.offline ? <>{practice.canRetryOnline ? <><p className="dialog-intro">成绩尚未同步</p><p className="score-status">可恢复提交</p></> : <p className="dialog-intro">{!result.custom && result.elapsedMs < 1000 ? '用时不足 1 秒，不参与排行' : '个人练习，不参与排行'}</p>}</> :
+        resultStatus.status ? <ScoreStatusView status={resultStatus.status} /> : resultStatus.loading ? <p role="status">正在读取成绩状态…</p> : <div><p className="form-error" role="alert">{resultStatus.error || '成绩状态暂不可用'}</p><button type="button" className="text-button" onClick={resultStatus.retry}>重试状态</button></div>}
       <div className="result-metrics">
         {result.language === 'en' ? <EnglishSpeed score={result.score} display="result" />
           : <div><strong>{result.score.cpm}</strong><span>字 / 分钟</span></div>}
@@ -1064,12 +1075,12 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       {mistakes.length > 0 && <details className="mistake-review"><summary>错字回看 · {mistakes.length > 30 ? `前 30 / ${mistakes.length}` : mistakes.length} 处</summary><ul>{mistakes.slice(0, 30).map((mistake) => <li key={mistake.index}><span>第 {mistake.index + 1} 字</span><span>原文 <b>{readableCharacter(mistake.expected)}</b></span><span>输入 <del>{readableCharacter(mistake.actual)}</del></span></li>)}</ul></details>}
       {practice.canRetryOnline && <div className="rank-submit"><button className="primary-button" disabled={phase === 'restoring'} onClick={() => void practice.retryOnline()}>{phase === 'restoring' ? '正在恢复…' : '重试上榜'}</button></div>}
       {practice.canRetryOnline && practice.feedback && <p className="form-error" role="alert">{practice.feedback}</p>}
-      {!result.offline && result.eligible && !rankSubmitted && <div className="rank-submit">
+      {!result.offline && result.eligible && !rankSubmitted && (!resultStatus.status || resultStatus.status.state === 'not_submitted') && <div className="rank-submit">
         {!user && <label>上榜昵称<input value={nickname} maxLength={32} onChange={(event) => setNickname(event.target.value)} /></label>}
-        <button className="primary-button" disabled={busy || (!user && (!nickname.trim() || site.features?.guestLeaderboardEnabled === false))} onClick={() => void submitRank()}><Trophy size={20} /> {busy ? '提交中…' : '提交到排行榜'}</button>
+        <button className="primary-button" disabled={busy || resultStatus.loading || (!user && (!nickname.trim() || site.features?.guestLeaderboardEnabled === false))} onClick={() => void submitRank()}><Trophy size={20} /> {busy ? '提交中…' : '提交到排行榜'}</button>
         {!user && site.features?.guestLeaderboardEnabled === false && <p className="form-error" role="status">游客上榜已关闭。</p>}
       </div>}
-      {rankMessage && <p className={rankSubmitted ? 'form-notice' : 'form-error'} role={rankSubmitted ? 'status' : 'alert'}>{rankSubmitted && <CheckCircle size={18} />} {rankMessage}</p>}
+      {rankMessage && (!rankSubmitted || !resultStatus.status) && <p className={rankSubmitted ? 'form-notice' : 'form-error'} role={rankSubmitted ? 'status' : 'alert'}>{rankSubmitted && <CheckCircle size={18} />} {rankMessage}</p>}
       {result.record && <div className="feature-actions"><button className="outline-button" disabled={!shareData} onClick={() => { setShowResult(false); setShowShare(true); }}>分享成绩</button></div>}
       {result.record && !shareData && <p className="form-error" role="status">无法生成分享卡</p>}
       <div className={`result-actions result-navigation${result.continuation ? ' with-continuation' : ''}`}>

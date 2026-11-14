@@ -20,6 +20,7 @@ it('does not apply a delayed submission to the next completed practice', async (
     if (url === '/api/me') return Promise.resolve(response({ user: null }));
     if (url === '/api/articles') return Promise.resolve(response({ articles: [{ ...article, text: '甲乙丙丁', custom: false }] }));
     if (url === '/api/tests/start') return Promise.resolve(response({ id: body.clientId, target: '甲乙丙丁', claimVersion: 1 }));
+    if (url.endsWith('/score-status')) return Promise.resolve(response({ state: 'not_submitted', eligible: true, expired: false }));
     if (url.endsWith('/finish')) return Promise.resolve(response({ attemptId: url.split('/')[3], status: 'review', eligible: true, elapsedMs: 2000, score: { correct: 4, total: 4, accuracy: 100, cpm: 120, wpm: 24 } }));
     if (url === '/api/leaderboard' && options?.method === 'POST') return new Promise<Response>((resolve) => { resolvePublish = resolve; });
     return Promise.resolve(response({}));
@@ -34,6 +35,7 @@ it('does not apply a delayed submission to the next completed practice', async (
   fireEvent.change(input, { target: { value: '甲乙丙丁' } });
   const first = await screen.findByRole('dialog', { name: '练习成绩' });
   fireEvent.change(within(first).getByLabelText('上榜昵称'), { target: { value: '访客' } });
+  await waitFor(() => expect((within(first).getByRole('button', { name: '提交到排行榜' }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(within(first).getByRole('button', { name: '提交到排行榜' }));
   await waitFor(() => expect(resolvePublish).toBeTypeOf('function'));
   fireEvent.click(within(first).getByRole('button', { name: '再练一次' }));
@@ -64,6 +66,7 @@ it('unlocks the restored draft when an earlier submission is still pending', asy
     if (url === '/api/tests/start') return Promise.resolve(response({ id: body.clientId, target: '甲乙丙丁', claimVersion: 1 }));
     if (url === '/api/tests/recover') return Promise.resolve(response({ id: body.clientId, status: 'review', claimVersion: body.expectedClaimVersion + 1, typed: '甲乙丙丁', backspaces: 0,
       result: { attemptId: body.clientId, status: 'review', eligible: true, elapsedMs: 2000, score } }));
+    if (url.endsWith('/score-status')) return Promise.resolve(response({ state: 'not_submitted', eligible: true, expired: false }));
     if (url.endsWith('/finish')) return Promise.resolve(response({ attemptId: url.split('/')[3], status: 'review', eligible: true, elapsedMs: 2000, score }));
     if (url === '/api/leaderboard' && options?.method === 'POST') return new Promise<Response>((resolve) => { resolvePublish = resolve; });
     return Promise.resolve(response({}));
@@ -84,6 +87,7 @@ it('unlocks the restored draft when an earlier submission is still pending', asy
   time = 4000; fireEvent.change(input, { target: { value: '甲乙丙丁' } });
   dialog = await screen.findByRole('dialog', { name: '练习成绩' });
   fireEvent.change(within(dialog).getByLabelText('上榜昵称'), { target: { value: '访客' } });
+  await waitFor(() => expect((within(dialog).getByRole('button', { name: '提交到排行榜' }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(within(dialog).getByRole('button', { name: '提交到排行榜' }));
   await waitFor(() => expect(resolvePublish).toBeTypeOf('function'));
   fireEvent.click(within(dialog).getByRole('button', { name: '关闭' }));

@@ -360,7 +360,9 @@ describe('extended practice API', () => {
     const database = new Database(join(directory, 'test.sqlite'));
     database.exec(`
       DROP INDEX challenges_rank;
+      DROP INDEX challenges_owner_rankable;
       ALTER TABLE challenges DROP COLUMN ranking_removed;
+      ALTER TABLE challenges DROP COLUMN public_review_message;
       ALTER TABLE challenges DROP COLUMN mode;
       ALTER TABLE challenges DROP COLUMN strict;
       ALTER TABLE challenges DROP COLUMN article_id;
@@ -377,7 +379,8 @@ describe('extended practice API', () => {
     app = await open();
     const history = (await app.inject({ method: 'GET', url: '/api/history', headers })).json().entries;
     expect(history).toHaveLength(2);
-    expect(history[0]).toMatchObject({ recordId: 'legacy-visible', total: 2, correct: 2 });
+    expect(history[0]).toMatchObject({ recordId: 'legacy-visible', total: 2, correct: 2, scoreStatus: { state: 'ranked' } });
+    expect(history[1]).toMatchObject({ recordId: 'legacy-removed', scoreStatus: { state: 'removed' } });
     expect(history[0]).not.toHaveProperty('article');
     const rankings = await app.inject({ method: 'GET', url: '/api/leaderboard?language=zh&difficulty=beginner&duration=60', headers });
     expect(rankings.json()).toMatchObject({ total: 1, self: { attemptId: 'legacy-visible' } });

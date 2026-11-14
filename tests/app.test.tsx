@@ -27,6 +27,7 @@ function renderOnlineApp() {
   const identities = new Map<string, string>();
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     if (url === '/api/articles') return response({ articles: [{ ...article, text: '你好世界', custom: false }] });
+    if (url.endsWith('/score-status')) return response({ state: 'not_submitted', eligible: true, expired: false });
     if (url === '/api/tests/start') {
       const server = await original(url, options) as Response;
       const payload = await server.json();
@@ -138,6 +139,7 @@ describe('practice interface', () => {
     time = 300_001;
     await screen.findByRole('dialog');
     fireEvent.change(screen.getByRole('textbox', { name: '上榜昵称' }), { target: { value: '小云' } });
+    await waitFor(() => expect((screen.getByRole('button', { name: '提交到排行榜' }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole('button', { name: '提交到排行榜' }));
     await screen.findByText('提交失败，请重试');
     expect(screen.getByRole('button', { name: '提交到排行榜' })).toBeTruthy();
@@ -481,4 +483,25 @@ describe('practice interface', () => {
     await screen.findByRole('button', { name: '继续练习' });
     expect(JSON.parse(localStorage.getItem('cloudtyping.practice.v2.shared') || 'null')?.typed).toBe('你好');
   });
+});
+
+it('does not report a ranking when the submission response is malformed', async () => {
+  let time = 0; vi.spyOn(performance, 'now').mockImplementation(() => time);
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInitWithBody) => {
+    if (url === '/api/me') return response({ user: null });
+    if (url === '/api/tests/start') return response({ id: 'test', target: '你好世界' });
+    if (url === '/api/tests/test/finish') return response({ attemptId: 'test', score: { correct: 1, total: 1, accuracy: 100, cpm: 1, wpm: 0.2 }, status: 'finished', eligible: true });
+    if (url === '/api/leaderboard' && options?.method === 'POST') return response({});
+    return response({ ok: true });
+  }));
+  renderOnlineApp();
+  await startPractice();
+  fireEvent.change(screen.getByRole('textbox', { name: /当前行输入/ }), { target: { value: '你' } });
+  time = 300_001;
+  const result = await screen.findByRole('dialog', { name: '练习成绩' });
+  fireEvent.change(within(result).getByLabelText('上榜昵称'), { target: { value: '小云' } });
+  await waitFor(() => expect((within(result).getByRole('button', { name: '提交到排行榜' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(within(result).getByRole('button', { name: '提交到排行榜' }));
+  expect(await within(result).findByText('提交结果无法确认，请重试')).toBeTruthy();
+  expect(within(result).queryByText('已上榜。')).toBeNull();
 });

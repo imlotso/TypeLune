@@ -1,5 +1,6 @@
 import type { ArticleSource, Difficulty, Language } from '../data/articles';
 import type { BackgroundConfig } from './background';
+import type { ServerScoreStatus } from './score-status';
 
 export type PracticeMode = 'timed' | 'article';
 export type MistakeStatus = 'mastered' | 'ignored';
@@ -30,7 +31,7 @@ export type PrivateArticle = ArticleSnapshot & { custom: true };
 export type MistakeSample = { position: number; expected: string; actual: string };
 export type PracticeRecord = {
   language: Language; difficulty: Difficulty; duration: number; speed: number; accuracy: number; finishedAt: number;
-  status?: string; elapsedMs?: number; backspaces?: number; errors?: number; recordId?: string; ownerId?: string | null; localOnly?: boolean;
+  status?: string; scoreStatus?: ServerScoreStatus; elapsedMs?: number; backspaces?: number; errors?: number; recordId?: string; ownerId?: string | null; localOnly?: boolean;
   article?: ArticleSnapshot; typed?: string; offset?: number; total?: number; correct?: number; articleTotal?: number;
   mode?: PracticeMode; strict?: boolean; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; paceTarget?: number;
 };

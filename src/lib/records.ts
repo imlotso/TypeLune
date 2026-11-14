@@ -21,7 +21,8 @@ export function mergePracticeRecords(local: PracticeRecord[], remote: PracticeRe
   const entries = new Map<string, PracticeRecord>();
   // Official results are applied last so a synced local snapshot cannot replace
   // the server's verified speed and accuracy for the same attempt.
-  for (const record of [...local, ...workspace, ...remote]) {
+  const withoutCachedStatus = ({ scoreStatus: _status, ...record }: PracticeRecord) => record;
+  for (const record of [...local.map(withoutCachedStatus), ...workspace.map(withoutCachedStatus), ...remote]) {
     const key = keyOf(record); const previous = entries.get(key);
     if (!previous) { entries.set(key, record); continue; }
     const rich = [record, previous].find((entry) => entry.article && entry.typed != null);

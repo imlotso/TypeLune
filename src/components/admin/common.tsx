@@ -136,14 +136,15 @@ export function AuditRows({ entries, label }: { entries: Audit[]; label: string 
 }
 
 export type Confirmation = {
-  title: string; action: string; target: string; requireReason?: boolean; note?: string;
-  submit: (reason: string) => Promise<unknown>;
+  title: string; action: string; target: string; requireReason?: boolean; note?: string; allowPublicMessage?: boolean;
+  submit: (reason: string, publicMessage?: string) => Promise<unknown>;
 };
 
 export function ConfirmationForm({ confirmation, busy, setBusy, onCancel, onSuccess }: {
   confirmation: Confirmation; busy: boolean; setBusy: (busy: boolean) => void; onCancel: () => void; onSuccess: () => void;
 }) {
   const [reason, setReason] = useState('');
+  const [publicMessage, setPublicMessage] = useState('');
   const [error, setError] = useState('');
   const first = useRef<HTMLInputElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
@@ -159,7 +160,7 @@ export function ConfirmationForm({ confirmation, busy, setBusy, onCancel, onSucc
     setBusy(true);
     setError('');
     try {
-      await confirmation.submit(reason.trim());
+      await confirmation.submit(reason.trim(), confirmation.allowPublicMessage ? publicMessage.trim() : undefined);
       onSuccess();
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : '操作未完成');
@@ -173,6 +174,7 @@ export function ConfirmationForm({ confirmation, busy, setBusy, onCancel, onSucc
     {confirmation.note && <p className="feature-muted">{confirmation.note}</p>}
     {needsReason && <label>原因<input maxLength={300} required value={reason} ref={first}
       disabled={busy} onChange={(event) => setReason(event.target.value)} /></label>}
+    {confirmation.allowPublicMessage && <label>用户可见说明<input maxLength={500} value={publicMessage} disabled={busy} onChange={(event) => setPublicMessage(event.target.value)} /></label>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="feature-actions">
       <button type="button" className="outline-button" ref={cancel} disabled={busy} onClick={onCancel}>取消</button>

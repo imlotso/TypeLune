@@ -1,4 +1,5 @@
 import { registerHistoryDeletion } from './history-delete';
+import { createScoreStatus } from './score-status';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
@@ -164,6 +165,7 @@ export async function createApp(options: AppOptions) {
       ['mode', "TEXT NOT NULL DEFAULT 'timed'"],
       ['strict', 'INTEGER NOT NULL DEFAULT 0'],
       ['ranking_removed', 'INTEGER NOT NULL DEFAULT 0'],
+      ['public_review_message', 'TEXT'],
       ['recovery_key_hash', 'TEXT'],
       ['recovered', 'INTEGER NOT NULL DEFAULT 0'],
       ['claim_id', 'TEXT'],
@@ -196,6 +198,7 @@ export async function createApp(options: AppOptions) {
       WHERE published=1 AND status='finished' AND ranking_removed=0`);
   })();
   const workspace = createWorkspaceStore(db);
+  const scoreStatus = createScoreStatus(db, now);
   migrateAdministration(db, adminEmail);
   migrateAccounts(db);
   migrateSessions(db);
@@ -744,6 +747,17 @@ export async function createApp(options: AppOptions) {
     return result ?? invalid(reply, '练习记录不存在', 404);
   });
 
+  app.get('/api/tests/:id/score-status', async (request, reply) => {
+    const user = userFor(request);
+    const expected = expectedAccount(request);
+    if (expected !== undefined && expected !== (user?.id ?? 'guest')) return invalid(reply, user ? '登录账号已变更' : '请先登录', user ? 403 : 401);
+    const owner = getOwner(request, reply, false);
+    const { id } = request.params as { id: string };
+    const status = owner ? scoreStatus(id, owner) : undefined;
+    reply.header('Cache-Control', 'no-store');
+    return status ?? invalid(reply, '练习记录不存在', 404);
+  });
+
   app.get('/api/tests/:id', async (request, reply) => {
     const challenge = requireOwnedChallenge(request, reply);
     if (!challenge) return reply;
@@ -1027,9 +1041,10 @@ export async function createApp(options: AppOptions) {
         recordId: string; finishedAt: number; metadata: string | null; target: string; typed: string | null; mode: PracticeMode; strict: number;
       }>;
     const entries = rows.map(({ metadata, target, typed, mode, strict, ...summary }) => {
-      if (!metadata || typed === null) return summary;
+      const status = scoreStatus(summary.recordId, `u:${user.id}`);
+      if (!metadata || typed === null) return { ...summary, ...(status && { scoreStatus: status }) };
       const article = { ...JSON.parse(metadata) as Omit<ArticleSnapshot, 'text'>, text: target };
-      return { ...summary, article, typed, offset: 0, articleTotal: splitCharacters(target).length, mode, strict: !!strict };
+      return { ...summary, ...(status && { scoreStatus: status }), article, typed, offset: 0, articleTotal: splitCharacters(target).length, mode, strict: !!strict };
     });
     reply.header('Cache-Control', 'no-store');
     const last = rows.at(-1);

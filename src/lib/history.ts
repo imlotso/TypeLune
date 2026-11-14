@@ -1,5 +1,6 @@
 import { api } from './api';
 import type { PracticeRecord } from './models';
+import { isServerScoreStatus } from './score-status';
 
 function isHistoryRecord(value: unknown): value is PracticeRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -10,7 +11,7 @@ function isHistoryRecord(value: unknown): value is PracticeRecord {
     typeof record.speed !== 'number' || !Number.isFinite(record.speed) || record.speed < 0 ||
     typeof record.accuracy !== 'number' || !Number.isFinite(record.accuracy) || record.accuracy < 0 || record.accuracy > 100 ||
     typeof record.finishedAt !== 'number' || !Number.isSafeInteger(record.finishedAt) || record.finishedAt < 0 || record.finishedAt > 8_640_000_000_000_000 ||
-    (record.typed !== undefined && typeof record.typed !== 'string')) return false;
+    (record.typed !== undefined && typeof record.typed !== 'string') || (record.scoreStatus !== undefined && !isServerScoreStatus(record.scoreStatus))) return false;
   if (record.article !== undefined) {
     if (!record.article || typeof record.article !== 'object' || Array.isArray(record.article)) return false;
     const article = record.article as Record<string, unknown>;

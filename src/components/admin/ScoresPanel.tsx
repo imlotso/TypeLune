@@ -49,8 +49,8 @@ export function ScoresPanel({ ownerId }: AdminProps) {
   function moderate(action: Action, ids: string[], target: string) {
     const name = actions[action];
     setConfirmation({
-      title: `${name}成绩`, action: name, target,
-      submit: (reason) => adminWrite(ownerId, '/scores/moderate', { ids, action, reason }),
+      title: `${name}成绩`, action: name, target, allowPublicMessage: action !== 'approve',
+      submit: (reason, publicMessage) => adminWrite(ownerId, '/scores/moderate', { ids, action, reason, ...(publicMessage && { publicMessage }) }),
     });
   }
 

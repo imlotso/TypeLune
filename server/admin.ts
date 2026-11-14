@@ -23,7 +23,8 @@ const scoreStatus = z.enum(['pending', 'published', 'rejected', 'removed']);
 const roleField = z.enum(['admin', 'user']);
 const statusField = z.enum(['active', 'disabled']);
 const actionIds = z.array(idField).min(1).max(50).refine((ids) => new Set(ids).size === ids.length);
-const moderation = z.strictObject({ ids: actionIds, action: scoreAction, reason: reasonField });
+const publicMessage = z.string().trim().max(500).regex(/^[^\p{Cc}\p{Cf}]*$/u).optional();
+const moderation = z.strictObject({ ids: actionIds, action: scoreAction, reason: reasonField, publicMessage });
 const reviewAction = z.strictObject({ action: z.enum(['approve', 'reject']), reason: reasonField });
 const pagination = z.object({
   page: z.string().regex(/^[1-9]\d{0,5}$/).transform(Number).optional().default(1),
@@ -254,10 +255,10 @@ export function registerAdminRoutes(app: FastifyInstance, { db, now, publishedAr
 
   const findScore = db.prepare(`SELECT id,owner,language,difficulty,duration,mode,strict,nickname,speed,accuracy,correct,finished_at,status,ranking_removed
     FROM challenges WHERE id=? AND ${scoreScope}`);
-  const setScoreStatus = db.prepare('UPDATE challenges SET status=? WHERE id=?');
-  const flagRemoved = db.prepare('UPDATE challenges SET ranking_removed=1 WHERE id=?');
+  const setScoreStatus = db.prepare('UPDATE challenges SET status=?,public_review_message=? WHERE id=?');
+  const flagRemoved = db.prepare('UPDATE challenges SET ranking_removed=1,public_review_message=? WHERE id=?');
   const deleteScore = db.prepare('DELETE FROM scores WHERE attempt_id=?');
-  const moderateScores = db.transaction((actor: AdminActor, { ids, action, reason }: z.output<typeof moderation>) => {
+  const moderateScores = db.transaction((actor: AdminActor, { ids, action, reason, publicMessage: note }: z.output<typeof moderation>) => {
     const entries = ids.map((id) => findScore.get(id) as RankableChallenge | undefined);
     if (entries.some((entry) => !entry)) return { error: '成绩不存在，请刷新后重试', status: 404 } as const;
     for (const entry of entries as RankableChallenge[]) {
@@ -266,10 +267,10 @@ export function registerAdminRoutes(app: FastifyInstance, { db, now, publishedAr
     }
     for (const entry of entries as RankableChallenge[]) {
       if (action === 'remove') {
-        flagRemoved.run(entry.id);
+        flagRemoved.run(note || null, entry.id);
         deleteScore.run(entry.id);
       } else {
-        setScoreStatus.run(action === 'approve' ? 'finished' : 'rejected', entry.id);
+        setScoreStatus.run(action === 'approve' ? 'finished' : 'rejected', note || null, entry.id);
         if (action === 'approve' && entry.mode === 'timed' && !entry.strict) saveScore(entry);
       }
       audit(actor, `score.${action}`, 'score', entry.id, entry.nickname, reason);
