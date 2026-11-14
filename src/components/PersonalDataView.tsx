@@ -3,7 +3,7 @@ import { Database } from '@phosphor-icons/react/Database';
 import type { User } from '../lib/api';
 import { collectPersonalExport } from '../lib/personal-export-fetch';
 import { recordsCsv } from '../lib/personal-export';
-import { WorkspaceCapacity } from './WorkspaceCapacity';
+import { WorkspaceCapacity, type CapacityDestination } from './WorkspaceCapacity';
 
 function download(content: string, type: string, name: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -20,7 +20,7 @@ export async function downloadPersonalData(user: User, format: 'json' | 'csv', o
   return data.missing;
 }
 
-export function PersonalDataView({ user, onClear, onCompacted, onGuestImport }: { user: User; onClear: () => void; onCompacted: () => void; onGuestImport: () => void }) {
+export function PersonalDataView({ user, onClear, onCompacted, onGuestImport, onManageCapacity, onResetSettings }: { user: User; onClear: () => void; onCompacted: () => void; onGuestImport: () => void; onManageCapacity: (destination: CapacityDestination) => void; onResetSettings: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [missing, setMissing] = useState<string[]>([]);
@@ -44,6 +44,6 @@ export function PersonalDataView({ user, onClear, onCompacted, onGuestImport }: 
     {notice && <p className="form-notice" role="status">{notice}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     {!!missing.length && <ul className="personal-data-missing">{missing.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>}
-    <WorkspaceCapacity ownerId={user.id} onCompacted={onCompacted} />
+    <WorkspaceCapacity ownerId={user.id} onCompacted={onCompacted} onManage={onManageCapacity} onResetSettings={onResetSettings} />
   </section>;
 }

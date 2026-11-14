@@ -40,6 +40,7 @@ import { ShareCardDialog } from './components/ShareCardDialog';
 import { SpecialTrainingDialog } from './components/SpecialTrainingDialog';
 import { LogoutDialog } from './components/LogoutDialog';
 import { WorkspaceRecoveryDialog } from './components/WorkspaceRecoveryDialog';
+import type { CapacityDestination } from './components/WorkspaceCapacity';
 import { RankingView } from './components/RankingView';
 import { RecordsView } from './components/RecordsView';
 import { SettingsDialog } from './components/SettingsDialog';
@@ -235,6 +236,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [showShare, setShowShare] = useState(false);
   const [showBackground, setShowBackground] = useState<Theme>();
   const [showMore, setShowMore] = useState(false);
+  const [libraryInitialTab, setLibraryInitialTab] = useState<'all' | 'favorites' | 'private'>('all');
   const [focused, setFocused] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [accountGuard, setAccountGuard] = useState({ busy: false, dirty: false });
@@ -638,7 +640,18 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     if (restoringHistory.current) { pendingHistoryAction.current = () => navigate(next); return; }
     setShowMore(false);
     if (next === view && window.location.pathname === pathForView(next)) return;
-    void afterPark(() => { setShowResult(false); setFeedback(''); if (focused && next !== 'practice') exitFocus(); commitView(next); });
+    void afterPark(() => { setShowResult(false); setFeedback(''); if (next === 'library') setLibraryInitialTab('all'); if (focused && next !== 'practice') exitFocus(); commitView(next); });
+  }
+
+  function manageCapacity(destination: CapacityDestination) {
+    void afterPark(() => {
+      if (destination === 'favorite' || destination === 'article') {
+        setLibraryInitialTab(destination === 'favorite' ? 'favorites' : 'private');
+        commitView('library');
+      } else if (destination === 'draft') commitView('drafts');
+      else if (destination === 'record') commitView('history');
+      else setShowBackground(destination === 'background-light' ? 'light' : 'dark');
+    });
   }
 
   popRoute.current = () => {
@@ -1042,7 +1055,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {view !== 'practice' && feedback && <p className="form-error view-error" role="alert">{feedback}</p>}
         {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">连接失败，显示已读取的记录。</p>}
         {recordViews.includes(view) && hasUnloadedLocalHistory() && <p className="form-error view-error" role="status">部分本机旧版记录或文章快照无法完整读取。</p>}
-        {view === 'library' && <ArticleLibrary articles={catalog} favorites={workspace.favorites} onOpenArticle={openPublicArticle} onToggleFavorite={(id) => void workspace.toggleFavorite(id).catch(reportSaveError)} onSelect={selectArticle} onSave={(article) => workspace.put('article', article.id, article)} onDelete={(id) => workspace.remove('article', id)} />}
+        {view === 'library' && <ArticleLibrary initialTab={libraryInitialTab} articles={catalog} favorites={workspace.favorites} onOpenArticle={openPublicArticle} onToggleFavorite={(id) => void workspace.toggleFavorite(id).catch(reportSaveError)} onSelect={selectArticle} onSave={(article) => workspace.put('article', article.id, article)} onDelete={(id) => workspace.remove('article', id)} />}
         {view === 'article' && (() => {
           const article = catalogState === 'ready' ? routeCatalog.find((item) => item.id === routeArticleId) : catalogState === 'error' ? builtIns.find((item) => item.id === routeArticleId) : undefined;
           if (article) return <PublicArticleView key={article.id} article={article} offline={catalogState === 'error'} onPractice={() => selectArticle(article)} onBack={() => navigate('library')} />;
@@ -1068,7 +1081,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} routeFeedbackId={routeFeedbackId} onOpenFeedback={openFeedback} onCloseFeedback={() => commitView('feedback')} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
         {view === 'account' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>账号设置</h1></div>{authReady ? <><p>请先登录</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>登录</button></> : <p role="status">正在读取账号…</p>}</section>}
         {view === 'data' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>个人数据</h1></div>{authReady ? <><p>请先登录</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>登录</button></> : <p role="status">正在读取账号…</p>}</section>}
-        {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} onGuestImport={() => setShowGuestImport(true)} />}
+        {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} onGuestImport={() => setShowGuestImport(true)} onManageCapacity={manageCapacity} onResetSettings={() => workspace.remove('settings', 'preferences')} />}
         {view === 'notfound' && <section className="content-panel feature-panel"><div className="content-heading"><h1>页面未找到</h1></div><button type="button" className="outline-button" onClick={() => navigate('practice')}>返回练习</button></section>}
         {(view === 'help' || view === 'about' || view === 'privacy' || view === 'terms') && <SiteInfoView page={view} onFeedback={() => navigate('feedback')} />}
       </div>

@@ -19,6 +19,7 @@ type Props = {
   onOpenArticle?: (id: string) => void;
   onSave: (article: PrivateArticle) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
+  initialTab?: 'all' | 'favorites' | 'private';
 };
 
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
@@ -160,9 +161,9 @@ function ArticleEditor({ article, initialLanguage, onSave, onClose }: {
   </Dialog>;
 }
 
-export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect, onOpenArticle, onSave, onDelete }: Props) {
+export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect, onOpenArticle, onSave, onDelete, initialTab = 'all' }: Props) {
   const [language, setLanguage] = useState<Language>('zh');
-  const [tab, setTab] = useState<keyof typeof libraryTabs>('all');
+  const [tab, setTab] = useState<keyof typeof libraryTabs>(initialTab);
   const [search, setSearch] = useState('');
   const [emotion, setEmotion] = useState('');
   const [difficulty, setDifficulty] = useState('');
