@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { createApp, type Mailer } from './app';
+import { createApp } from './app';
 import type { SmtpConfiguration } from './smtp';
 
 const production = process.env.NODE_ENV === 'production';
@@ -12,7 +12,6 @@ if (production && (!codeSecret || codeSecret.length < 32)) {
   throw new Error('CODE_SECRET must contain at least 32 characters in production');
 }
 
-let mailer: Mailer | undefined;
 let smtp: SmtpConfiguration | undefined;
 if (process.env.SMTP_HOST && process.env.SMTP_FROM) {
   const secure = process.env.SMTP_SECURE === 'true';
@@ -25,7 +24,7 @@ if (process.env.SMTP_HOST && process.env.SMTP_FROM) {
     password: process.env.SMTP_PASSWORD || '',
   };
 } else if (!production && process.env.MAIL_DEV_MODE === 'console') {
-  mailer = { async sendCode(email, code, purpose) { console.log(`[development mail] ${purpose} ${email}: ${code}`); } };
+  console.warn('开发模式不再将验证码写入日志；请配置 SMTP。');
 }
 
 const app = await createApp({
@@ -35,9 +34,8 @@ const app = await createApp({
   adminEmail: process.env.ADMIN_EMAIL,
   staticRoot: production ? resolve('dist/client') : undefined,
   trustProxy: process.env.TRUST_PROXY === 'true',
-  mailer,
   smtp,
 });
 const port = Number(process.env.PORT || 3001);
-await app.listen({ port, host: process.env.HOST || '0.0.0.0' });
-console.log(`Typing service listening on port ${port}`);
+const address = await app.listen({ port, host: process.env.HOST || '0.0.0.0' });
+console.log(`Typing service listening at ${address}`);
