@@ -301,18 +301,21 @@ export async function createApp(options: AppOptions) {
     const purpose = body.purpose;
     if (purpose === 'register' && !siteSettings.read().settings.registrationEnabled) return invalid(reply, '当前已关闭注册', 403);
     if (!emailPattern.test(email) || email.length > 254 || !['register', 'login', 'reset'].includes(String(purpose))) return invalid(reply, '请输入有效邮箱');
-    const existingUser = db.prepare('SELECT disabled_at FROM users WHERE email = ?').get(email) as { disabled_at: number | null } | undefined;
-    if ((purpose === 'register' && existingUser) || (purpose !== 'register' && (!existingUser || existingUser.disabled_at !== null))) return { ok: true };
     const previous = db.prepare('SELECT created_at FROM email_codes WHERE email = ? AND purpose = ?').get(email, purpose) as { created_at: number } | undefined;
     if (previous && now() - previous.created_at < 60_000) return invalid(reply, '请稍后再获取验证码', 429);
     const mailer = smtp.mailer();
     if (!mailer) return invalid(reply, '邮件服务尚未配置，请稍后再试', 503);
+    const existingUser = db.prepare('SELECT disabled_at FROM users WHERE email = ?').get(email) as { disabled_at: number | null } | undefined;
+    const eligible = purpose === 'register' ? !existingUser : !!existingUser && existingUser.disabled_at === null;
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     const codeHash = getCodeHash(email, String(purpose), code);
     const issuedAt = now();
     db.prepare(`INSERT INTO email_codes(email,purpose,code_hash,created_at,expires_at,attempts) VALUES (?,?,?,?,?,0)
       ON CONFLICT(email,purpose) DO UPDATE SET code_hash=excluded.code_hash,created_at=excluded.created_at,expires_at=excluded.expires_at,attempts=0`)
       .run(email, purpose, codeHash, issuedAt, issuedAt + 10 * 60_000);
+    // Record the same cooldown even when no message is sent, so resending cannot
+    // reveal whether the address belongs to an account.
+    if (!eligible) return { ok: true };
     try { await mailer.sendCode(email, code, String(purpose)); }
     catch {
       db.prepare('DELETE FROM email_codes WHERE email = ? AND purpose = ? AND code_hash = ?').run(email, purpose, codeHash);

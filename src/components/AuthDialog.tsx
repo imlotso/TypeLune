@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
-import { api, type User } from '../lib/api';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { api, ApiError, type User } from '../lib/api';
 import { Dialog } from './Dialog';
+import { PasswordField } from './PasswordField';
 
 type Mode = 'password' | 'code' | 'register' | 'reset';
 
@@ -14,15 +15,34 @@ export function AuthDialog({ onClose, onLogin }: { onClose: () => void; onLogin:
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
+  const [clock, setClock] = useState(Date.now);
+  const purpose = mode === 'register' ? 'register' : mode === 'reset' ? 'reset' : 'login';
+  const cooldownKey = `${purpose}:${email.trim().toLowerCase()}`;
+  const activeKey = useRef(cooldownKey);
+  activeKey.current = cooldownKey;
+  const remaining = Math.max(0, Math.ceil(((cooldowns[cooldownKey] ?? 0) - clock) / 1000));
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const switchMode = (next: Mode) => { setMode(next); setError(''); setNotice(''); setCode(''); };
 
   async function sendCode() {
     if (!email.trim()) { setError('请先填写邮箱'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
-      await api('/api/auth/code', { method: 'POST', body: { email, purpose: mode === 'register' ? 'register' : mode === 'reset' ? 'reset' : 'login' } });
-      setNotice('验证码请求已提交。');
-    } catch (problem) { setError((problem as Error).message); }
+      await api('/api/auth/code', { method: 'POST', body: { email, purpose } });
+      const time = Date.now();
+      setClock(time); setCooldowns((current) => ({ ...current, [cooldownKey]: time + 60_000 }));
+      if (activeKey.current === cooldownKey) setNotice('验证码请求已提交。');
+    } catch (problem) {
+      if (problem instanceof ApiError && problem.status === 429) {
+        const time = Date.now();
+        setClock(time); setCooldowns((current) => ({ ...current, [cooldownKey]: time + 60_000 }));
+      }
+      if (activeKey.current === cooldownKey) setError((problem as Error).message);
+    }
     finally { setBusy(false); }
   }
 
@@ -51,9 +71,9 @@ export function AuthDialog({ onClose, onLogin }: { onClose: () => void; onLogin:
     <form onSubmit={submit} className="auth-form">
       {mode === 'register' && <label>用户名<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required /></label>}
       {mode === 'password' ? <label>用户名或邮箱<input value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" required /></label> :
-        <label>邮箱<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required /></label>}
-      {mode !== 'password' && <label>邮箱验证码<span className="code-field"><input aria-label="邮箱验证码" inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} maxLength={6} required /><button type="button" className="text-button" disabled={busy} onClick={sendCode}>获取验证码</button></span></label>}
-      {mode !== 'code' && <label>{mode === 'reset' ? '新密码' : '密码'}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'password' ? 'current-password' : 'new-password'} minLength={mode === 'password' ? undefined : 10} required /></label>}
+        <label>邮箱<input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setNotice(''); setError(''); }} autoComplete="email" required /></label>}
+      {mode !== 'password' && <label>邮箱验证码<span className="code-field"><input aria-label="邮箱验证码" inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} maxLength={6} required /><button type="button" className="text-button" disabled={busy || remaining > 0} onClick={sendCode}>{remaining ? `${remaining} 秒后重发` : '获取验证码'}</button></span></label>}
+      {mode !== 'code' && <PasswordField key={mode} label={mode === 'reset' ? '新密码' : '密码'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'password' ? 'current-password' : 'new-password'} minLength={mode === 'password' ? undefined : 10} required />}
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="form-notice" role="status">{notice}</p>}
       <button className="primary-button auth-submit" disabled={busy}>{busy ? '处理中…' : mode === 'register' ? '注册并登录' : mode === 'reset' ? '更新密码' : '登录'}</button>
