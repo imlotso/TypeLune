@@ -64,8 +64,9 @@ import { readableCharacter } from './lib/practice-lines';
 import { scoreTyping, splitCharacters } from './lib/scoring';
 import { createRoundMistakeDrill } from './lib/analysis';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
-import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, localAccountBlockPrefix, markWorkspaceDraftFallback, mutateWorkspaceValue, putWorkspaceValue, readWorkspace, workspaceValue } from './lib/workspace';
+import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, localAccountBlockPrefix, markWorkspaceDraftFallback, mutateWorkspaceValue, putWorkspaceValue, readBlockedWorkspace, readWorkspace, workspaceValue } from './lib/workspace';
 import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from './lib/local-account-cleanup';
+import { localPracticeRawFingerprint } from './lib/local-practice-unsynced';
 import { resetWorkspaceFromCloud, WorkspaceResetIncompleteError } from './lib/workspace-recovery';
 import { collectGuestImport } from './lib/guest-import';
 import { readPagedHistory } from './lib/history';
@@ -890,24 +891,40 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     await afterPark(() => { if (user) setShowLogout({ clear: false }); else setShowAuth(true); });
   }
 
-  async function finishLogout(clear: boolean) {
+  async function finishLogout(clear: boolean, options?: { rawFingerprint: string; riskAcknowledged: boolean }) {
     if (!user) return;
     const id = user.id;
     setAccountBusy(true);
     let blocked = false;
+    let workspaceBefore = '';
+    const fingerprint = (items: Awaited<ReturnType<typeof readBlockedWorkspace>>) => JSON.stringify([...items].sort((a, b) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id)));
     try {
-      if (clear) { prepareLocalCleanup(id); blocked = true; }
+      if (clear) {
+        prepareLocalCleanup(id); blocked = true;
+        const items = await readBlockedWorkspace(id);
+        const dirty = items.filter((item) => item.serverRevision === undefined || item.baseUpdatedAt === undefined || item.updatedAt !== item.baseUpdatedAt).length;
+        if (!options || localPracticeRawFingerprint(id) !== options.rawFingerprint ||
+          (dirty > 0 && (!options.riskAcknowledged || (workspace.pendingCount !== null && dirty > workspace.pendingCount)))) {
+          throw new Error('本机资料已变化或有新的未同步项目，请重新检查');
+        }
+        workspaceBefore = fingerprint(items);
+      }
       await api('/api/auth/logout', { method: 'POST', body: {}, headers: { 'X-Workspace-Owner': id } });
       onUser(null);
       if (clear) {
         try {
           if (!blocked) throw new Error('无法保护本机数据清理');
+          if (localPracticeRawFingerprint(id) !== options?.rawFingerprint || fingerprint(await readBlockedWorkspace(id)) !== workspaceBefore) {
+            cancelLocalCleanup(id);
+            onSignedOutNotice('已退出；本机资料在清理期间发生变化，未清除。请重新登录后同步或导出。');
+            return;
+          }
           await finishLocalCleanup(id);
           onSignedOutNotice('已退出并清除此设备的账号数据');
         } catch { onSignedOutNotice('已退出，但本机数据未能完全清理；可重新登录后重试'); }
       }
     } catch (problem) {
-      if (blocked) { try { cancelLocalCleanup(id); } catch { allowLocalAccount(id); } }
+      if (blocked) { try { cancelLocalCleanup(id); } catch { allowLocalAccount(id); } void workspace.sync(); }
       throw problem;
     } finally { if (live.current) setAccountBusy(false); }
   }
@@ -1097,7 +1114,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     {showSpecialTraining && <SpecialTrainingDialog language={language} onClose={() => setShowSpecialTraining(false)} onSelect={(article) => { setShowSpecialTraining(false); selectArticle(article); }} />}
     {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) { window.history.replaceState(null, '', '/'); currentPath.current = '/'; } }} onLogin={onUser} registrationEnabled={site.features?.registrationEnabled} />}
     {view === 'account' && user && <AccountDialog user={user} onClose={() => navigate(accountReturn.current)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} onGuardChange={setAccountGuard} />}
-    {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
+    {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} drafts={workspace.drafts} records={workspace.records} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
     {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} onPresets={() => { setShowSettings(false); setShowPresets(true); }} onSettingsTransfer={() => { setShowSettings(false); setShowSettingsTransfer(true); }} onCommands={() => { setShowSettings(false); setShowCommands(true); }} />}
     {showPresets && <PresetsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} difficulty={difficulty} onAction={workspace.changePresets} onApply={(preset) => applyPracticeConfiguration(preset)} onClose={() => setShowPresets(false)} />}
     {showSettingsTransfer && <SettingsTransferDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} difficulty={difficulty} onImport={importPracticeConfiguration} onClose={() => setShowSettingsTransfer(false)} />}

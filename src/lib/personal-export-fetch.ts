@@ -5,6 +5,7 @@ import type { PracticeRecord, WorkspaceItem } from './models';
 import { isWorkspaceItem, readWorkspace } from './workspace';
 import { buildPersonalExport, type FeedbackExport } from './personal-export';
 import { localPracticeNeedsRecovery } from './local-practice-generation';
+import { inspectLocalPracticeCopies } from './local-practice-unsynced';
 import { readPagedHistory } from './history';
 
 const errorText = (problem: unknown) => problem instanceof Error ? problem.message : '读取失败';
@@ -38,6 +39,7 @@ function legacyData(ownerId: string, missing: string[]) {
     legacyDrafts = readDrafts(ownerId).map(savedPracticeFromLegacy);
     history = localHistory().filter((item) => (item.ownerId ?? null) === ownerId);
     if (hasUnloadedLocalHistory()) missing.push('部分本机旧版记录无法读取');
+    if (inspectLocalPracticeCopies(ownerId, [], []).unknown) missing.push('部分本机旧版练习资料无法读取');
   } catch (problem) { missing.push(`本机旧版资料：${errorText(problem)}`); }
   return { legacyDrafts, history };
 }

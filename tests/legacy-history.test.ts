@@ -29,3 +29,10 @@ it('keeps old summaries readable when their article snapshot lacks later fields'
   expect(record.recordId).toBeTruthy();
   expect(hasUnloadedLocalHistory()).toBe(true);
 });
+
+it('reports an unreadable owned legacy draft in a local recovery export', async () => {
+  const { collectPersonalExport } = await import('../src/lib/personal-export-fetch');
+  localStorage.setItem('cloudtyping.practice.v2.incomplete', JSON.stringify({ ownerId: 'user', version: 1, typed: '未完成' }));
+  const data = await collectPersonalExport({ id: 'user', username: 'reader', email: 'reader@example.test', isAdmin: false }, { localOnly: true });
+  expect(data.missing.some((item) => item.includes('本机旧版练习资料无法读取'))).toBe(true);
+});
