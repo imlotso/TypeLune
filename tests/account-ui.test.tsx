@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
+import { allowLocalAccount, blockLocalAccount, putWorkspaceValue } from '../src/lib/workspace';
 
 const member = { id: 'reader-id', username: 'reader', email: 'reader@example.test', isAdmin: false, displayName: '云光', avatar: null as null | 'star' };
 let account: typeof member | null;
@@ -72,7 +73,44 @@ it('requests a new-email code and signs out only after verification succeeds', a
   expect(requests).toContain('/api/account/email/code');
   expect(requests).toContain('/api/account/email/confirm');
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/'); });
+afterEach(() => { cleanup(); allowLocalAccount(member.id); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/'); });
+
+it('does not reopen a blocked local account when an old session check returns', async () => {
+  render(<App />);
+  await screen.findByRole('button', { name: '云光' });
+  blockLocalAccount(member.id);
+  fireEvent.focus(window);
+  await screen.findByRole('button', { name: '登录' });
+  await expect(putWorkspaceValue(member.id, 'favorite', 'late', { articleId: 'late' })).rejects.toThrow();
+});
+
+it('unblocks local data if logout fails before cleanup', async () => {
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  vi.stubGlobal('fetch', vi.fn((path: string, options?: RequestInit) => path === '/api/auth/logout'
+    ? Promise.reject(new Error('offline')) : original(path, options)));
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: '云光' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '退出登录' }));
+  const dialog = await screen.findByRole('dialog', { name: '退出登录' });
+  fireEvent.click(within(dialog).getByRole('checkbox', { name: '同时清除此设备的账号数据' }));
+  fireEvent.click(within(dialog).getByRole('checkbox', { name: /确认清除本机数据|确认放弃未同步资料/ }));
+  fireEvent.click(within(dialog).getByRole('button', { name: '确认退出' }));
+  expect(await within(dialog).findByRole('alert')).toBeTruthy();
+  await expect(putWorkspaceValue(member.id, 'favorite', 'kept', { articleId: 'kept' })).resolves.toBeUndefined();
+  expect(screen.getByRole('button', { name: '云光' })).toBeTruthy();
+});
+
+it('reports incomplete cleanup after logout if legacy local data cannot be read', async () => {
+  localStorage.setItem('cloudtyping.history.v1', 'not-json');
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: '云光' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '个人数据' }));
+  fireEvent.click(await screen.findByRole('button', { name: '清除此设备数据' }));
+  const dialog = await screen.findByRole('dialog', { name: '退出登录' });
+  fireEvent.click(within(dialog).getByRole('checkbox', { name: /确认清除本机数据|确认放弃未同步资料/ }));
+  fireEvent.click(within(dialog).getByRole('button', { name: '确认退出' }));
+  expect(await screen.findByText('已退出，但本机数据未能完全清理；可重新登录后重试')).toBeTruthy();
+});
 
 it('opens an account menu without signing out and restores focus on Escape', async () => {
   render(<App />);

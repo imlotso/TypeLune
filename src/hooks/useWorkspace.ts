@@ -18,6 +18,7 @@ function readSyncTime(owner: string | null) {
 function saveSyncTime(owner: string, time: number) {
   try { localStorage.setItem(syncTimeKey(owner), String(time)); } catch { /* The current view still has the time. */ }
 }
+export function clearSyncTime(owner: string) { localStorage.removeItem(syncTimeKey(owner)); }
 
 type View = {
   ownerId: string | null;

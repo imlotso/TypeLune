@@ -1,0 +1,88 @@
+import { expect, test } from './fixtures';
+
+test('clears only the current account on this browser and restores cloud data on a later login', async ({ page, context, browser, clientIp }) => {
+  const email = 'cleanup_user@example.test'; const username = 'cleanup_user'; const password = 'cleanup-password-123';
+  await page.goto('/');
+  await page.getByRole('button', { name: '文章库' }).click();
+  await page.getByRole('button', { name: '收藏《背影》' }).click();
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  const registration = await page.request.post('/api/auth/register', { data: { username, email, password, code } });
+  expect(registration.ok()).toBe(true);
+  const ownerId = (await registration.json()).user.id as string;
+  await page.reload();
+  await page.getByRole('button', { name: '文章库' }).click();
+  await page.getByRole('button', { name: '收藏《荷塘月色》' }).click();
+  await expect.poll(async () => (await (await page.request.get('/api/workspace')).json()).items.some((item: { id: string; deleted?: boolean }) => item.id === 'zh-beginner-2' && !item.deleted)).toBe(true);
+  const second = await context.newPage();
+  await second.goto('/');
+  await expect(second.getByRole('button', { name: username, exact: true })).toBeVisible();
+  await page.getByRole('button', { name: username, exact: true }).click();
+  await page.getByRole('menuitem', { name: '个人数据' }).click();
+  await page.getByRole('button', { name: '清除此设备数据' }).click();
+  const dialog = page.getByRole('dialog', { name: '退出登录' });
+  await expect(dialog.getByRole('checkbox', { name: '同时清除此设备的账号数据' })).toBeChecked();
+  await dialog.getByRole('checkbox', { name: '确认清除本机数据' }).check();
+  await expect(dialog.getByRole('button', { name: '确认退出' })).toBeEnabled({ timeout: 10_000 });
+  await dialog.getByRole('button', { name: '确认退出' }).click();
+  await expect(page.getByRole('button', { name: '登录', exact: true })).toBeVisible();
+  await expect(page.getByText('已退出并清除此设备的账号数据')).toBeVisible();
+  await expect(second.getByRole('button', { name: '登录', exact: true })).toBeVisible();
+  const stored = await page.evaluate(async (id) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('cloudtyping-workspace', 1);
+      request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+    });
+    const read = (owner: string) => new Promise<unknown[]>((resolve, reject) => {
+      const request = db.transaction('items').objectStore('items').index('owner').getAll(owner);
+      request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+    });
+    const result = { account: await read(`user:${id}`), guest: await read('guest') }; db.close(); return result;
+  }, ownerId);
+  expect(stored.account).toHaveLength(0);
+  expect(stored.guest.some((item) => (item as { id: string }).id === 'zh-beginner-1')).toBe(true);
+  const other = await browser.newContext({ baseURL: test.info().project.use.baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
+  expect((await other.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
+  expect((await (await other.request.get('/api/workspace')).json()).items.some((item: { id: string }) => item.id === 'zh-beginner-2')).toBe(true);
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  const login = page.getByRole('dialog', { name: '登录' });
+  await login.getByLabel('用户名或邮箱').fill(username);
+  await login.getByLabel('密码', { exact: true }).fill(password);
+  await login.getByRole('button', { name: '登录', exact: true }).click();
+  await page.getByRole('button', { name: '文章库' }).click();
+  await expect(page.getByRole('button', { name: '收藏《荷塘月色》' })).toHaveAttribute('aria-pressed', 'true');
+  await other.close(); await second.close();
+});
+
+test('requires an explicit choice for unsynced data before clearing the account cache', async ({ page }) => {
+  const email = 'cleanup_pending@example.test'; const username = 'cleanup_pending'; const password = 'cleanup-password-123';
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  expect((await page.request.post('/api/auth/register', { data: { username, email, password, code } })).ok()).toBe(true);
+  await page.goto('/');
+  await page.getByRole('button', { name: '更多' }).click();
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: '练习设置' });
+  await expect(settings.getByText('已同步')).toBeVisible();
+  await settings.getByRole('button', { name: '关闭' }).click();
+  await page.route('**/api/workspace/sync', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '测试连接失败' }) }));
+  await page.getByRole('button', { name: '文章库' }).click();
+  await page.getByRole('button', { name: '收藏《背影》' }).click();
+  await page.getByRole('button', { name: '更多' }).click();
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await expect(settings.getByText('同步失败')).toBeVisible();
+  await settings.getByRole('button', { name: '关闭' }).click();
+  await page.getByRole('button', { name: username, exact: true }).click();
+  await page.getByRole('menuitem', { name: '退出登录' }).click();
+  const dialog = page.getByRole('dialog', { name: '退出登录' });
+  await dialog.getByRole('checkbox', { name: '同时清除此设备的账号数据' }).check();
+  await expect(dialog.getByText(/1 项资料尚未同步/)).toBeVisible();
+  await expect(dialog.getByRole('button', { name: '确认退出' })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: '导出个人数据' })).toBeVisible();
+  await page.unroute('**/api/workspace/sync');
+  await dialog.getByRole('button', { name: '立即同步' }).click();
+  await expect(dialog.getByText(/1 项资料尚未同步/)).toHaveCount(0);
+  await dialog.getByRole('checkbox', { name: '确认清除本机数据' }).check();
+  await dialog.getByRole('button', { name: '确认退出' }).click();
+  await expect(page.getByText('已退出并清除此设备的账号数据')).toBeVisible();
+});

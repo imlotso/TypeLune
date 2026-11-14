@@ -3,6 +3,7 @@ import type { Difficulty, Language } from '../data/articles';
 import { api, ApiError } from '../lib/api';
 import { catalogSnapshotKey, compareDraftProgress, sameDraftSnapshot, snapshotKey, type ArticleSnapshot, type MistakeSample, type PracticeMode, type PracticeRecord, type SavedPractice } from '../lib/models';
 import { scoreTyping, splitCharacters, type Score } from '../lib/scoring';
+import { isLocalAccountBlocked } from '../lib/workspace';
 
 export type PracticePhase = 'ready' | 'starting' | 'running' | 'pausing' | 'paused' | 'resuming' | 'restoring' | 'finishing' | 'finished';
 type RoundConfig = { articleId: string; title: string; text: string; language: Language; difficulty: Difficulty; duration: number; custom: boolean; ownerId: string | null; article?: ArticleSnapshot; mode?: PracticeMode; strict?: boolean };
@@ -109,9 +110,11 @@ export function localHistory(): History[] {
   try { const value = JSON.parse(localStorage.getItem(historyKey) || '[]'); return Array.isArray(value) ? value.slice(0, 50) : []; } catch { return []; }
 }
 function rememberHistory(entry: History, previousId?: string) {
+  if (isLocalAccountBlocked(entry.ownerId ?? null)) return;
   try { localStorage.setItem(historyKey, JSON.stringify([entry, ...localHistory().filter((item) => item.ownerId !== entry.ownerId || !item.recordId || (item.recordId !== entry.recordId && item.recordId !== previousId))].slice(0, 50))); } catch { /* Practice still works without storage. */ }
 }
 export function readDrafts(ownerId?: string | null): PracticeDraft[] {
+  if (ownerId && isLocalAccountBlocked(ownerId)) return [];
   try {
     const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key): key is string => !!key && key.startsWith(draftPrefix));
     const candidates = keys.map((key) => { try { return JSON.parse(localStorage.getItem(key) || 'null') as PracticeDraft | null; } catch { return null; } }).filter((item): item is PracticeDraft => !!item);
@@ -128,6 +131,28 @@ export function readDrafts(ownerId?: string | null): PracticeDraft[] {
       return data;
     });
   } catch { return []; }
+}
+
+export function clearLocalPractice(ownerId: string) {
+  const historyRaw = localStorage.getItem(historyKey);
+  const history: unknown = historyRaw ? JSON.parse(historyRaw) : [];
+  if (!Array.isArray(history)) throw new Error('本机历史无法读取');
+  const removals: string[] = [];
+  const removedIds = new Set<string>();
+  const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key): key is string => !!key && (key.startsWith(draftPrefix) || key === legacyDraftKey));
+  for (const key of keys) {
+    const raw = localStorage.getItem(key);
+    if (!raw) continue;
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('本机草稿无法读取');
+    const candidate = value as { ownerId?: string | null; recordId?: string };
+    if (candidate.ownerId === ownerId) { removals.push(key); if (candidate.recordId) removedIds.add(candidate.recordId); }
+  }
+  const remaining = history.filter((item) => !item || typeof item !== 'object' || (item as { ownerId?: string | null }).ownerId !== ownerId);
+  if (historyRaw) localStorage.setItem(historyKey, JSON.stringify(remaining));
+  for (const key of removals) localStorage.removeItem(key);
+  const current = sessionStorage.getItem(currentDraftKey);
+  if (current && removedIds.has(current)) sessionStorage.removeItem(currentDraftKey);
 }
 export function readDraft(ownerId?: string | null): PracticeDraft | null {
   const drafts = readDrafts(ownerId);
@@ -170,6 +195,7 @@ function progressFingerprint(attempt: Pick<Attempt, 'backspaces' | 'offset' | 's
   return JSON.stringify([typed, elapsed, attempt.backspaces, attempt.offset ?? 0, !!attempt.suspicious, attempt.mistakes ?? []]);
 }
 function saveDraft(attempt: Attempt, typed: string, owner: string, completed = false, early = false) {
+  if (isLocalAccountBlocked(attempt.ownerId)) return false;
   const { startedAt: _startedAt, nextCheckpointMs: _nextCheckpointMs, progressFingerprint: _fingerprint, ...rest } = attempt;
   const elapsed = elapsedTime(attempt);
   const fingerprint = progressFingerprint(attempt, typed, elapsed);
@@ -186,6 +212,7 @@ function saveDraft(attempt: Attempt, typed: string, owner: string, completed = f
   } catch { return false; }
 }
 function releaseLease(attempt: Attempt, owner: string) {
+  if (isLocalAccountBlocked(attempt.ownerId)) return;
   try {
     const draft = storedDraft(attempt.recordId);
     if (draft?.leaseOwner === owner) localStorage.setItem(draftPrefix + attempt.recordId, JSON.stringify({ ...draft, leaseOwner: null, leaseAt: 0 }));
@@ -668,7 +695,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       if (phaseRef.current === 'running' && isDeleted(attempt)) { persist(attempt, true); return; }
       const saved = storedDraft(attempt.recordId);
       if (saved && !saved.completed && saved.revision === attempt.revision && !leaseTaken(saved, ownerToken.current)) {
-        try { localStorage.setItem(draftPrefix + attempt.recordId, JSON.stringify({ ...saved, leaseOwner: ownerToken.current, leaseAt: Date.now() })); } catch { /* Progress remains usable in memory. */ }
+        try { if (!isLocalAccountBlocked(attempt.ownerId)) localStorage.setItem(draftPrefix + attempt.recordId, JSON.stringify({ ...saved, leaseOwner: ownerToken.current, leaseAt: Date.now() })); } catch { /* Progress remains usable in memory. */ }
       }
     }, 5000);
     window.addEventListener('pagehide', onPageHide);

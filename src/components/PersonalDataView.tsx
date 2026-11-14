@@ -11,7 +11,15 @@ function download(content: string, type: string, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function PersonalDataView({ user }: { user: User }) {
+export async function downloadPersonalData(user: User, format: 'json' | 'csv') {
+  const data = await collectPersonalExport(user, { includeFeedback: format === 'json' });
+  const date = data.exportedAt.slice(0, 10);
+  if (format === 'json') download(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', `typing-personal-data-${date}.json`);
+  else download(recordsCsv(data.data.records), 'text/csv;charset=utf-8', `typing-records-${date}.csv`);
+  return data.missing;
+}
+
+export function PersonalDataView({ user, onClear }: { user: User; onClear: () => void }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [missing, setMissing] = useState<string[]>([]);
@@ -19,19 +27,17 @@ export function PersonalDataView({ user }: { user: User }) {
   async function exportData(format: 'json' | 'csv') {
     setBusy(true); setNotice(''); setMissing([]); setError('');
     try {
-      const data = await collectPersonalExport(user, { includeFeedback: format === 'json' });
-      const date = data.exportedAt.slice(0, 10);
-      if (format === 'json') download(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', `typing-personal-data-${date}.json`);
-      else download(recordsCsv(data.data.records), 'text/csv;charset=utf-8', `typing-records-${date}.csv`);
-      setMissing(data.missing);
-      setNotice(data.missing.length ? '已导出可读取的部分资料' : '导出完成');
+      const unavailable = await downloadPersonalData(user, format);
+      setMissing(unavailable);
+      setNotice(unavailable.length ? '已导出可读取的部分资料' : '导出完成');
     } catch (problem) { setError(problem instanceof Error ? problem.message : '导出失败'); }
     finally { setBusy(false); }
   }
   return <section className="content-panel feature-panel personal-data">
     <div className="content-heading"><h1><Database size={25} aria-hidden="true" />个人数据</h1></div>
     <div className="feature-actions"><button className="primary-button" disabled={busy} onClick={() => void exportData('json')}>导出个人数据 JSON</button>
-      <button className="outline-button" disabled={busy} onClick={() => void exportData('csv')}>导出记录 CSV</button></div>
+      <button className="outline-button" disabled={busy} onClick={() => void exportData('csv')}>导出记录 CSV</button>
+      <button className="outline-button" disabled={busy} onClick={onClear}>清除此设备数据</button></div>
     {busy && <p role="status">正在整理数据…</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}

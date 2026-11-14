@@ -11,10 +11,26 @@ const queues = new Map<string, Promise<unknown>>();
 const clocks = new Map<string, { serverTime: number; observedAt: number }>();
 const caches = new Map<string, WorkspaceItem[]>();
 const listeners = new Set<(owner: string, local: boolean, items?: WorkspaceItem[]) => void>();
+const blockedAccounts = new Set<string>();
+export const localAccountBlockPrefix = 'cloudtyping.account-blocked.v1.';
 let database: Promise<IDBDatabase | null> | undefined;
 let channel: BroadcastChannel | undefined;
 
 const scope = (ownerId: string | null) => ownerId === null ? 'guest' : 'user:' + ownerId;
+export function isLocalAccountBlocked(ownerId: string | null) {
+  if (!ownerId) return false;
+  try { return blockedAccounts.has(ownerId) || localStorage.getItem(localAccountBlockPrefix + ownerId) === '1'; }
+  catch { return blockedAccounts.has(ownerId); }
+}
+export function blockLocalAccount(ownerId: string) {
+  localStorage.setItem(localAccountBlockPrefix + ownerId, '1');
+  blockedAccounts.add(ownerId);
+  caches.delete(scope(ownerId));
+}
+export function allowLocalAccount(ownerId: string) {
+  try { localStorage.removeItem(localAccountBlockPrefix + ownerId); } catch { /* Login still works if local storage is unavailable. */ }
+  blockedAccounts.delete(ownerId);
+}
 export const workspaceItemKey = ({ kind, id }: Pick<WorkspaceItem, 'kind' | 'id'>) => kind + ':' + id;
 const keyOf = workspaceItemKey;
 
@@ -211,6 +227,11 @@ export function subscribeWorkspace(ownerId: string | null, listener: (local: boo
     if (owner === changedOwner) listener(local, items);
   };
   const onStorage = (event: StorageEvent) => {
+    if (ownerId && event.key === localAccountBlockPrefix + ownerId && event.newValue === '1') {
+      caches.delete(owner);
+      listener(false, []);
+      return;
+    }
     if (event.key === storagePrefix + owner || event.key === null) {
       caches.delete(owner);
       listener(true);
@@ -229,6 +250,7 @@ export function subscribeWorkspace(ownerId: string | null, listener: (local: boo
 export function readWorkspace(ownerId: string | null): Promise<WorkspaceItem[]> {
   const owner = scope(ownerId);
   return serialized(owner, async () => {
+    if (isLocalAccountBlocked(ownerId)) return [];
     const items = await access(owner);
     if (typeof indexedDB !== 'undefined') caches.set(owner, items);
     return items;
@@ -236,6 +258,7 @@ export function readWorkspace(ownerId: string | null): Promise<WorkspaceItem[]> 
 }
 
 export function cachedWorkspace(ownerId: string | null): WorkspaceItem[] | undefined {
+  if (isLocalAccountBlocked(ownerId)) return [];
   return typeof indexedDB === 'undefined' ? undefined : caches.get(scope(ownerId));
 }
 
@@ -256,8 +279,10 @@ export class DraftDeletedError extends Error {
 function editWorkspace(ownerId: string | null, edit: Edit, local: boolean): Promise<WorkspaceItem[]> {
   const owner = scope(ownerId);
   return serialized(owner, async () => {
+    if (isLocalAccountBlocked(ownerId)) throw new Error('该账号的本机资料已清理');
     let changed = false;
     const items = await access(owner, (current) => {
+      if (isLocalAccountBlocked(ownerId)) throw new Error('该账号的本机资料已清理');
       // Preserve the latest committed read for callers recovering from a rejected write.
       if (typeof indexedDB !== 'undefined') caches.set(owner, current);
       const next = edit(current);
@@ -272,6 +297,31 @@ function editWorkspace(ownerId: string | null, edit: Edit, local: boolean): Prom
       if (!listeners.size) { broadcaster?.close(); channel = undefined; }
     }
     return items;
+  });
+}
+
+export function clearLocalWorkspace(ownerId: string): Promise<void> {
+  const owner = scope(ownerId);
+  return serialized(owner, async () => {
+    localStorage.removeItem(storagePrefix + owner);
+    const db = await openDatabase();
+    if (db) await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(itemStore, 'readwrite');
+      const store = transaction.objectStore(itemStore);
+      const request = store.index('owner').openKeyCursor(IDBKeyRange.only(owner));
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (cursor) { store.delete(cursor.primaryKey); cursor.continue(); }
+      };
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error ?? new Error('本机资料清理失败'));
+      transaction.onerror = () => reject(transaction.error ?? new Error('本机资料清理失败'));
+    });
+    caches.delete(owner); clocks.delete(owner);
+    for (const listener of listeners) listener(owner, false, []);
+    const broadcaster = broadcastChannel();
+    broadcaster?.postMessage({ owner, local: false });
+    if (!listeners.size) { broadcaster?.close(); channel = undefined; }
   });
 }
 

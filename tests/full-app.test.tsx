@@ -261,6 +261,7 @@ it('logs out after parking an unfinished round and keeps it with its account', a
   await screen.findByRole('heading', { name: '文章库' });
   fireEvent.click(screen.getByRole('button', { name: '草稿账号' }));
   fireEvent.click(screen.getByRole('menuitem', { name: '退出登录' }));
+  fireEvent.click(within(await screen.findByRole('dialog', { name: '退出登录' })).getByRole('button', { name: '确认退出' }));
   await screen.findByRole('button', { name: '登录' });
   expect(fetch.mock.calls.some(([url]) => url === '/api/auth/logout')).toBe(true);
   expect(readDraft(owner.id)?.typed).toBe('甲乙');
