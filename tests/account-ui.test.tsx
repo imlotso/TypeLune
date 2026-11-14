@@ -6,9 +6,10 @@ import { App } from '../src/App';
 const member = { id: 'reader-id', username: 'reader', email: 'reader@example.test', isAdmin: false, displayName: '云光', avatar: null as null | 'star' };
 let account: typeof member | null;
 let requests: string[];
+let revokedSessions: Set<string>;
 
 beforeEach(() => {
-  account = member; requests = []; localStorage.clear(); sessionStorage.clear(); window.history.replaceState(null, '', '/');
+  account = member; requests = []; revokedSessions = new Set(); localStorage.clear(); sessionStorage.clear(); window.history.replaceState(null, '', '/');
   Element.prototype.scrollIntoView = vi.fn();
   vi.stubGlobal('fetch', vi.fn(async (path: string, options?: RequestInit) => {
     requests.push(path);
@@ -25,9 +26,31 @@ beforeEach(() => {
       account = { ...account!, displayName: submitted.displayName, avatar: submitted.avatar }; body = { user: account };
     } else if (path === '/api/account/email/code') { body = { ok: true }; }
     else if (path === '/api/account/email/confirm') { account = null; body = { ok: true }; }
+    else if (path === '/api/account/sessions') body = { sessions: [
+      { id: 'current-id', current: true, device: 'Chrome · Linux', createdAt: 1000, lastActiveAt: 2000 },
+      { id: 'other-id', current: false, device: 'Chrome · Windows', createdAt: 1000, lastActiveAt: 2000 },
+    ].filter((session) => !revokedSessions.has(session.id)) };
+    else if (path === '/api/account/sessions/revoke') {
+      const submitted = JSON.parse(String(options?.body));
+      revokedSessions.add(submitted.id);
+      if (submitted.id === 'current-id') account = null;
+      body = { ok: true, current: submitted.id === 'current-id' };
+    }
     else if (path === '/api/account/password' || path === '/api/auth/logout') { account = null; body = { ok: true }; }
     return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
   }));
+});
+
+it('refreshes the device list after another session has been revoked elsewhere', async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: '云光' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '账号设置' }));
+  const dialog = await screen.findByRole('dialog', { name: '账号设置' });
+  fireEvent.click(within(dialog).getByText('登录设备'));
+  await within(dialog).findByText('Chrome · Windows');
+  revokedSessions.add('other-id');
+  fireEvent.focus(window);
+  await waitFor(() => expect(within(dialog).queryByText('Chrome · Windows')).toBeNull());
 });
 
 it('requests a new-email code and signs out only after verification succeeds', async () => {
@@ -82,6 +105,20 @@ it('hides a revealed password when its account section closes without erasing th
   input = within(dialog).getByLabelText('当前密码（邮箱）') as HTMLInputElement;
   await waitFor(() => expect((within(dialog).getByLabelText('当前密码（邮箱）') as HTMLInputElement).type).toBe('password'));
   expect(input.value).toBe('typed-password');
+});
+
+it('shows active devices and signs out immediately when the current session is revoked', async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: '云光' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '账号设置' }));
+  const dialog = await screen.findByRole('dialog', { name: '账号设置' });
+  fireEvent.click(within(dialog).getByText('登录设备'));
+  await within(dialog).findByText('Chrome · Windows');
+  fireEvent.click(within(dialog).getByRole('button', { name: '退出 Chrome · Windows' }));
+  await waitFor(() => expect(within(dialog).queryByText('Chrome · Windows')).toBeNull());
+  fireEvent.click(within(dialog).getByRole('button', { name: '退出当前设备' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: '登录' })).toBeTruthy());
+  expect(screen.getByText('已退出当前设备')).toBeTruthy();
 });
 
 it('updates a username in the account center and signs out after a password change', async () => {

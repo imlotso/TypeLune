@@ -19,7 +19,7 @@ test('updates account identity and signs out all sessions after a password chang
   await page.getByRole('menuitem', { name: '账号设置' }).click();
   const dialog = page.getByRole('dialog', { name: '账号设置' });
   await page.keyboard.press('Shift+Tab');
-  await expect(dialog.locator('summary').filter({ hasText: '修改密码' })).toBeFocused();
+  await expect(dialog.locator('summary').filter({ hasText: '登录设备' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button', { name: '关闭' })).toBeFocused();
   await dialog.locator('summary').filter({ hasText: '更改用户名' }).click();
@@ -53,6 +53,28 @@ test('updates account identity and signs out all sessions after a password chang
   await expect(page.getByRole('button', { name: '登录', exact: true })).toBeVisible();
   expect((await (await other.request.get('/api/me')).json()).user).toBeNull();
   expect((await page.request.post('/api/auth/login', { data: { identifier: email, password: 'changed-password-456' } })).ok()).toBe(true);
+  await other.close();
+});
+
+test('manages independent sessions and exits immediately when the current device is revoked', async ({ page, browser, clientIp }) => {
+  const email = 'sessions_e2e@example.test'; const username = 'sessions_e2e'; const password = 'session-password-123';
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  expect((await page.request.post('/api/auth/register', { data: { username, email, password, code } })).ok()).toBe(true);
+  const other = await browser.newContext({ baseURL: test.info().project.use.baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
+  expect((await other.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
+  await page.goto('/');
+  await page.getByRole('button', { name: username, exact: true }).click();
+  await page.getByRole('menuitem', { name: '账号设置' }).click();
+  const dialog = page.getByRole('dialog', { name: '账号设置' });
+  await dialog.locator('summary').filter({ hasText: '登录设备' }).click();
+  await expect(dialog.getByText(/当前设备/)).toBeVisible();
+  await dialog.getByRole('button', { name: '退出其他设备' }).click();
+  await expect(dialog.getByRole('button', { name: '退出其他设备' })).toHaveCount(0);
+  expect((await (await other.request.get('/api/me')).json()).user).toBeNull();
+  await dialog.getByRole('button', { name: '退出当前设备' }).click();
+  await expect(page.getByRole('button', { name: '登录', exact: true })).toBeVisible();
+  await expect(page.getByText('已退出当前设备')).toBeVisible();
   await other.close();
 });
 

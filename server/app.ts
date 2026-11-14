@@ -18,6 +18,7 @@ import { isValidEmail, isValidPassword, isValidUsername } from '../src/lib/accou
 import { migrateAccounts, registerAccountRoutes, type AccountUser } from './account';
 import { registerAccountEmailRoutes } from './account-email';
 import { createFeedbackStore, registerAdminFeedbackRoutes, registerFeedbackRoutes } from './feedback';
+import { describeSessionDevice, migrateSessions, registerSessionRoutes } from './account-sessions';
 
 export type { Mailer } from './smtp';
 export type AppOptions = {
@@ -195,6 +196,7 @@ export async function createApp(options: AppOptions) {
   const workspace = createWorkspaceStore(db);
   migrateAdministration(db, adminEmail);
   migrateAccounts(db);
+  migrateSessions(db);
   const catalog = createCatalogStore(db, now);
   const feedbackStore = createFeedbackStore(db, now, (id) => {
     const article = catalog.findPublished(id);
@@ -221,7 +223,10 @@ export async function createApp(options: AppOptions) {
   const userFor = (request: FastifyRequest): User | undefined => {
     const token = request.cookies.session;
     if (!token || token.length > 100) return undefined;
-    return db.prepare('SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled_at IS NULL').get(digest(token), now()) as User | undefined;
+    const tokenHash = digest(token);
+    const user = db.prepare('SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled_at IS NULL').get(tokenHash, now()) as User | undefined;
+    if (user) db.prepare('UPDATE sessions SET last_active_at=? WHERE token_hash=? AND (last_active_at IS NULL OR last_active_at<?)').run(now(), tokenHash, now() - 60_000);
+    return user;
   };
   const expectedAccount = (request: FastifyRequest) => request.headers['x-workspace-owner'];
   const accountMatches = (request: FastifyRequest, user: User) =>
@@ -232,11 +237,13 @@ export async function createApp(options: AppOptions) {
   };
   registerAccountRoutes(app, { db, userFor, accountMatches, publicUser, clearSession: clearAccountSession });
   registerAccountEmailRoutes(app, { db, now, codeSecret, mailer: smtp.mailer, userFor, accountMatches, clearSession: clearAccountSession });
+  registerSessionRoutes(app, { db, now, hashSession: digest, userFor, accountMatches, clearSession: clearAccountSession });
   registerFeedbackRoutes(app, feedbackStore, { userFor, accountMatches });
-  const startSession = (reply: FastifyReply, user: User) => {
+  const startSession = (request: FastifyRequest, reply: FastifyReply, user: User) => {
     const token = randomBytes(32).toString('base64url');
-    const inserted = db.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) SELECT ?,id,? FROM users WHERE id=? AND password_hash=? AND auth_version=? AND disabled_at IS NULL')
-      .run(digest(token), now() + 30 * 86400_000, user.id, user.password_hash, user.auth_version);
+    const time = now();
+    const inserted = db.prepare('INSERT INTO sessions(token_hash,user_id,expires_at,id,created_at,last_active_at,device) SELECT ?,id,?,?,?,?,? FROM users WHERE id=? AND password_hash=? AND auth_version=? AND disabled_at IS NULL')
+      .run(digest(token), time + 30 * 86400_000, randomUUID(), time, time, describeSessionDevice(request.headers['user-agent']), user.id, user.password_hash, user.auth_version);
     if (!inserted.changes) return false;
     reply.setCookie('session', token, { ...cookieOptions, maxAge: 30 * 86400 });
     return true;
@@ -366,7 +373,7 @@ export async function createApp(options: AppOptions) {
     }).immediate();
     if ('error' in registration) return invalid(reply, registration.error, registration.status);
     const { user } = registration;
-    if (!startSession(reply, user)) return invalid(reply, '账号或密码不正确', 401);
+    if (!startSession(request, reply, user)) return invalid(reply, '账号或密码不正确', 401);
     return { user: publicUser(user) };
   });
 
@@ -377,7 +384,7 @@ export async function createApp(options: AppOptions) {
     if (identifier.length > 254 || password.length > 128) return invalid(reply, '账号或密码不正确', 401);
     const user = db.prepare('SELECT * FROM users WHERE (username = ? OR email = ?) AND disabled_at IS NULL').get(identifier, identifier.toLowerCase()) as User | undefined;
     if (!user || !(await argon2.verify(user.password_hash, password))) return invalid(reply, '账号或密码不正确', 401);
-    if (!startSession(reply, user)) return invalid(reply, '账号或密码不正确', 401);
+    if (!startSession(request, reply, user)) return invalid(reply, '账号或密码不正确', 401);
     return { user: publicUser(user) };
   });
 
@@ -387,7 +394,7 @@ export async function createApp(options: AppOptions) {
     const code = typeof body.code === 'string' ? body.code : '';
     const user = db.prepare('SELECT * FROM users WHERE email = ? AND disabled_at IS NULL').get(email) as User | undefined;
     if (!user || !verifyCode(email, 'login', code)) return invalid(reply, '邮箱或验证码不正确', 401);
-    if (!startSession(reply, user)) return invalid(reply, '邮箱或验证码不正确', 401);
+    if (!startSession(request, reply, user)) return invalid(reply, '邮箱或验证码不正确', 401);
     return { user: publicUser(user) };
   });
 

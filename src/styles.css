@@ -100,6 +100,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .account-section { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--typing-border); border-radius: 14px; color: var(--typing-text); }
 .account-section summary { cursor: pointer; font-weight: 700; }
 .account-section .auth-form { margin-top: 14px; }
+.session-list { list-style: none; display: grid; gap: 12px; margin: 14px 0; padding: 0; }
+.session-list li { display: flex; justify-content: space-between; gap: 10px; align-items: start; }
+.session-list small { display: block; margin-top: 4px; color: var(--typing-muted); }
 .site-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 20px; padding: 16px; color: var(--typing-muted); }
 .site-info { max-width: 900px; line-height: 1.7; }
 .site-info section { margin-top: 22px; }

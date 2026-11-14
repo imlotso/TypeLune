@@ -5,6 +5,7 @@ import { Dialog } from './Dialog';
 import { PasswordField } from './PasswordField';
 import { AccountAvatar } from './AccountAvatar';
 import { EmailChangeForm } from './EmailChangeForm';
+import { SessionManager } from './SessionManager';
 
 type Props = { user: User; onClose: () => void; onUpdate: (user: User) => void; onSignedOut: (message: string) => void };
 
@@ -18,6 +19,7 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut }: Props) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [visibility, setVisibility] = useState({ username: 0, email: 0, password: 0 });
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const closeSection = (area: keyof typeof visibility, open: boolean) => {
     if (!open) setVisibility((current) => ({ ...current, [area]: current[area] + 1 }));
   };
@@ -83,5 +85,8 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut }: Props) {
       <button className="primary-button" disabled={busy}>修改密码</button>
       {feedback('password')}
     </form></details>
+    <details className="account-section" onToggle={(event) => setSessionsOpen(event.currentTarget.open)}><summary>登录设备</summary>
+      {sessionsOpen && <SessionManager ownerId={user.id} busy={busy} setBusy={setBusy} onSignedOut={onSignedOut} />}
+    </details>
   </Dialog>;
 }
