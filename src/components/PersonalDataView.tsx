@@ -20,7 +20,7 @@ export async function downloadPersonalData(user: User, format: 'json' | 'csv', o
   return data.missing;
 }
 
-export function PersonalDataView({ user, onClear, onCompacted }: { user: User; onClear: () => void; onCompacted: () => void }) {
+export function PersonalDataView({ user, onClear, onCompacted, onGuestImport }: { user: User; onClear: () => void; onCompacted: () => void; onGuestImport: () => void }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [missing, setMissing] = useState<string[]>([]);
@@ -38,6 +38,7 @@ export function PersonalDataView({ user, onClear, onCompacted }: { user: User; o
     <div className="content-heading"><h1><Database size={25} aria-hidden="true" />个人数据</h1></div>
     <div className="feature-actions"><button className="primary-button" disabled={busy} onClick={() => void exportData('json')}>导出个人数据 JSON</button>
       <button className="outline-button" disabled={busy} onClick={() => void exportData('csv')}>导出记录 CSV</button>
+      <button className="outline-button" disabled={busy} onClick={onGuestImport}>导入游客资料</button>
       <button className="outline-button" disabled={busy} onClick={onClear}>清除此设备数据</button></div>
     {busy && <p role="status">正在整理数据…</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}

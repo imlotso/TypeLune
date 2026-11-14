@@ -138,7 +138,7 @@ export function readDrafts(ownerId?: string | null): PracticeDraft[] {
   } catch { return []; }
 }
 
-export function clearLocalPractice(ownerId: string) {
+export function clearLocalPractice(ownerId: string | null) {
   const historyRaw = localStorage.getItem(historyKey);
   const history: unknown = historyRaw ? JSON.parse(historyRaw) : [];
   if (!Array.isArray(history)) throw new Error('本机历史无法读取');
@@ -151,9 +151,9 @@ export function clearLocalPractice(ownerId: string) {
     const value: unknown = JSON.parse(raw);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('本机草稿无法读取');
     const candidate = value as { ownerId?: string | null; recordId?: string };
-    if (candidate.ownerId === ownerId) { removals.push(key); if (candidate.recordId) removedIds.add(candidate.recordId); }
+    if ((candidate.ownerId ?? null) === ownerId) { removals.push(key); if (candidate.recordId) removedIds.add(candidate.recordId); }
   }
-  const remaining = history.filter((item) => !item || typeof item !== 'object' || (item as { ownerId?: string | null }).ownerId !== ownerId);
+  const remaining = history.filter((item) => !item || typeof item !== 'object' || ((item as { ownerId?: string | null }).ownerId ?? null) !== ownerId);
   if (historyRaw) localStorage.setItem(historyKey, JSON.stringify(remaining));
   for (const key of removals) localStorage.removeItem(key);
   const current = sessionStorage.getItem(currentDraftKey);

@@ -24,6 +24,7 @@ import { Dialog } from './components/Dialog';
 import { DraftsView } from './components/DraftsView';
 import { EnglishSpeed } from './components/EnglishSpeed';
 import { FeedbackView, newFeedbackDraft, type FeedbackDraft } from './components/FeedbackView';
+import { GuestImportDialog } from './components/GuestImportDialog';
 import { MistakesView } from './components/MistakesView';
 import { PracticeLines } from './components/PracticeLines';
 import { PersonalDataView } from './components/PersonalDataView';
@@ -47,6 +48,7 @@ import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
 import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, localAccountBlockPrefix, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
 import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from './lib/local-account-cleanup';
 import { resetWorkspaceFromCloud, WorkspaceResetIncompleteError } from './lib/workspace-recovery';
+import { collectGuestImport } from './lib/guest-import';
 
 type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback' | 'data' | InfoPage;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
@@ -103,12 +105,15 @@ export function App() {
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const currentUser = useRef<User | null>(null);
   const [feedbackResume, setFeedbackResume] = useState<{ ownerId: string; draft: FeedbackDraft }>();
+  const [guestOfferOwner, setGuestOfferOwner] = useState<string>();
   const pendingFeedback = useRef<FeedbackDraft | undefined>(undefined);
   const [previewOwner, setPreviewOwner] = useState<string>();
   const request = useRef<AbortController | null>(null);
   const changeUser = useCallback((next: User | null) => {
     request.current?.abort();
+    const fromGuest = !currentUser.current;
     currentUser.current = next;
+    setGuestOfferOwner(next && fromGuest ? next.id : undefined);
     if (next) { try { cancelLocalCleanup(next.id); } catch { allowLocalAccount(next.id); } setPendingCleanup(pendingLocalCleanups()); }
     try { localStorage.setItem(authChangeKey, `${Date.now()}-${Math.random()}`); } catch { /* The current tab still changes account. */ }
     setAccountNotice('');
@@ -179,13 +184,14 @@ export function App() {
     accountNotice={accountNotice} onAccountReauthentication={(message) => { changeUser(null); setAccountNotice(message); }}
     onSignedOutNotice={(message) => { setPendingCleanup(pendingLocalCleanups()); if (!currentUser.current) setAccountNotice(message); }}
     onWorkspaceReset={() => setIdentityEpoch((value) => value + 1)}
+    guestImportOffer={!!user && guestOfferOwner === user.id} onDismissGuestImport={() => setGuestOfferOwner(undefined)}
     pendingCleanup={pendingCleanup.length} cleanupBusy={cleanupBusy} onRetryCleanup={() => void retryCleanup()}
     feedbackResume={feedbackResume && user && feedbackResume.ownerId === user.id ? feedbackResume.draft : undefined}
     onFeedbackHandoff={(draft) => { pendingFeedback.current = draft; }} onCancelFeedbackHandoff={() => { pendingFeedback.current = undefined; }}
     onUpdateUser={updateUser} onAdministration={user?.isAdmin ? () => setPreviewOwner(undefined) : undefined} />;
 }
 
-function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, onWorkspaceReset, pendingCleanup, cleanupBusy, onRetryCleanup, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; onWorkspaceReset: () => void; pendingCleanup: number; cleanupBusy: boolean; onRetryCleanup: () => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
+function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, onWorkspaceReset, guestImportOffer, onDismissGuestImport, pendingCleanup, cleanupBusy, onRetryCleanup, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; onWorkspaceReset: () => void; guestImportOffer: boolean; onDismissGuestImport: () => void; pendingCleanup: number; cleanupBusy: boolean; onRetryCleanup: () => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
   const ownerId = user?.id ?? null;
   const workspace = useWorkspace(ownerId, authReady);
   const site = useSiteFeatures();
@@ -212,6 +218,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [showAccount, setShowAccount] = useState(false);
   const [showLogout, setShowLogout] = useState<{ clear: boolean }>();
   const [showRecovery, setShowRecovery] = useState<'generation' | 'conflict'>();
+  const [showGuestImport, setShowGuestImport] = useState(false);
+  const [hasGuestData, setHasGuestData] = useState(false);
   const [confirmPractice, setConfirmPractice] = useState<{ action: 'restart' | 'finish'; resumeOnCancel: boolean } | null>(null);
   const [nickname, setNickname] = useState('');
   const [rankMessage, setRankMessage] = useState('');
@@ -292,6 +300,12 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     return () => { live.current = false; };
   }, []);
   useEffect(() => { if (accountNotice) setFeedback(accountNotice); }, [accountNotice]);
+  useEffect(() => {
+    let active = true;
+    if (!user || !guestImportOffer) { setHasGuestData(false); return; }
+    void collectGuestImport(user.id).then((plan) => { if (active) setHasGuestData(plan.items.length > 0); }).catch(() => { if (active) setHasGuestData(true); });
+    return () => { active = false; };
+  }, [user?.id, guestImportOffer]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -412,7 +426,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       else if (wasFullscreen) setFocused(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !showResult && !confirmPractice && !showSettings && !showBackground && !showRecovery) exitFocus();
+      if (event.key === 'Escape' && !showResult && !confirmPractice && !showSettings && !showBackground && !showRecovery && !showGuestImport) exitFocus();
     };
     document.addEventListener('fullscreenchange', fullscreenChange);
     document.addEventListener('keydown', escape);
@@ -420,7 +434,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       document.removeEventListener('fullscreenchange', fullscreenChange);
       document.removeEventListener('keydown', escape);
     };
-  }, [focused, showResult, confirmPractice, showSettings, showBackground, showRecovery]);
+  }, [focused, showResult, confirmPractice, showSettings, showBackground, showRecovery, showGuestImport]);
 
   function exitFocus() {
     setFocused(false);
@@ -723,6 +737,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     <RoomBackground theme={theme} background={workspace.backgrounds[theme]}>
       <div className="workspace">
         {!user && pendingCleanup > 0 && <div className="cleanup-warning" role="alert"><span>本机账号缓存清理未完成。</span><button className="outline-button" disabled={cleanupBusy} onClick={onRetryCleanup}>重试清理</button></div>}
+        {user && guestImportOffer && hasGuestData && view !== 'data' && <div className="cleanup-warning" role="status"><span>有游客资料可导入。</span><button className="outline-button" onClick={() => void afterPark(() => setShowGuestImport(true))}>导入游客资料</button><button className="text-button" onClick={onDismissGuestImport}>稍后</button></div>}
         {site.error && <div className="cleanup-warning" role="status"><span>站点配置读取失败：{site.error}</span><button className="outline-button" onClick={site.retry}>重试</button></div>}
         {view === 'practice' && <>
           {focused ? <div className="focus-actions"><button ref={focusButton} className="outline-button feature-action-button" onClick={exitFocus}>退出专注</button></div> : filters}
@@ -780,7 +795,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         {view === 'mistakes' && <MistakesView records={records} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} />}
         {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
-        {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} />}
+        {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} onGuestImport={() => setShowGuestImport(true)} />}
         {(view === 'help' || view === 'about' || view === 'privacy' || view === 'terms') && <SiteInfoView page={view} onFeedback={() => navigate('feedback')} />}
       </div>
     </RoomBackground>
@@ -797,6 +812,10 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
     {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} />}
     {showRecovery && user && <WorkspaceRecoveryDialog user={user} reason={showRecovery} onReset={resetWorkspace} onClose={() => setShowRecovery(undefined)} />}
+    {showGuestImport && user && <GuestImportDialog ownerId={user.id} syncState={workspace.syncState} cloudLoaded={workspace.cloudLoaded} onSync={workspace.sync} onClose={() => {
+      setShowGuestImport(false);
+      void collectGuestImport(user.id).then((plan) => setHasGuestData(plan.items.length > 0)).catch(() => setHasGuestData(true));
+    }} onRecovery={workspace.recoveryReason ? () => { setShowGuestImport(false); setShowRecovery(workspace.recoveryReason!); } : undefined} />}
     {showBackground && <BackgroundDialog theme={showBackground} value={workspace.backgrounds[showBackground]} onClose={() => setShowBackground(undefined)} onSave={(background) => background ? workspace.put('background', showBackground, background) : workspace.remove('background', showBackground)} />}
     {confirmPractice && <Dialog title={confirmPractice.action === 'restart' ? '重新开始本次练习？' : '结束本次练习？'} onClose={cancelPracticeAction}>
       {confirmPractice.action === 'restart' && <p className="dialog-intro">本次输入和计时将被清除。</p>}

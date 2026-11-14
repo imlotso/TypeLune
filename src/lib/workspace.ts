@@ -13,6 +13,17 @@ const caches = new Map<string, WorkspaceItem[]>();
 const listeners = new Set<(owner: string, local: boolean, items?: WorkspaceItem[]) => void>();
 const blockedAccounts = new Set<string>();
 export const localAccountBlockPrefix = 'cloudtyping.account-blocked.v1.';
+const guestBlockKey = 'cloudtyping.guest-blocked.v1';
+const guestBlockMs = 60_000;
+type GuestBlock = { token: string; expiresAt: number };
+function readGuestBlock(): GuestBlock | undefined {
+  try {
+    const raw = localStorage.getItem(guestBlockKey);
+    if (!raw) return undefined;
+    const block = JSON.parse(raw) as Partial<GuestBlock>;
+    return typeof block.token === 'string' && typeof block.expiresAt === 'number' && block.expiresAt > Date.now() ? block as GuestBlock : undefined;
+  } catch { return undefined; }
+}
 export const workspaceGenerationKey = (owner: string) => `cloudtyping.workspace.generation.v2.${owner}`;
 export function readWorkspaceGeneration(owner: string) {
   const raw = localStorage.getItem(workspaceGenerationKey(owner));
@@ -27,10 +38,22 @@ let channel: BroadcastChannel | undefined;
 
 const scope = (ownerId: string | null) => ownerId === null ? 'guest' : 'user:' + ownerId;
 export function isLocalAccountBlocked(ownerId: string | null) {
-  if (!ownerId) return false;
+  if (!ownerId) {
+    return !!readGuestBlock();
+  }
   try { return blockedAccounts.has(ownerId) || localStorage.getItem(localAccountBlockPrefix + ownerId) === '1'; }
   catch { return blockedAccounts.has(ownerId); }
 }
+export function blockGuestWorkspace() {
+  if (readGuestBlock()) throw new Error('其他页面正在清理游客资料');
+  const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  localStorage.setItem(guestBlockKey, JSON.stringify({ token, expiresAt: Date.now() + guestBlockMs }));
+  if (!ownsGuestWorkspaceBlock(token)) throw new Error('无法保护游客资料');
+  caches.delete(scope(null));
+  return token;
+}
+export function ownsGuestWorkspaceBlock(token: string) { return readGuestBlock()?.token === token; }
+export function allowGuestWorkspace(token: string) { if (readGuestBlock()?.token === token) localStorage.removeItem(guestBlockKey); }
 export function blockLocalAccount(ownerId: string) {
   localStorage.setItem(localAccountBlockPrefix + ownerId, '1');
   blockedAccounts.add(ownerId);
@@ -262,10 +285,19 @@ function broadcastChannel() {
 
 export function subscribeWorkspace(ownerId: string | null, listener: (local: boolean, items?: WorkspaceItem[]) => void) {
   const owner = scope(ownerId);
+  let guestExpiry: ReturnType<typeof setTimeout> | undefined;
   const notify = (changedOwner: string, local: boolean, items?: WorkspaceItem[]) => {
     if (owner === changedOwner) listener(local, items);
   };
   const onStorage = (event: StorageEvent) => {
+    if (ownerId === null && event.key === guestBlockKey) {
+      caches.delete(owner);
+      clearTimeout(guestExpiry);
+      const block = readGuestBlock();
+      listener(false, block ? [] : undefined);
+      if (block) guestExpiry = setTimeout(() => { caches.delete(owner); listener(false); }, Math.max(0, block.expiresAt - Date.now()) + 10);
+      return;
+    }
     if (ownerId && event.key === localAccountBlockPrefix + ownerId && event.newValue === '1') {
       caches.delete(owner);
       listener(false, []);
@@ -281,6 +313,7 @@ export function subscribeWorkspace(ownerId: string | null, listener: (local: boo
   window.addEventListener('storage', onStorage);
   return () => {
     listeners.delete(notify);
+    clearTimeout(guestExpiry);
     window.removeEventListener('storage', onStorage);
     if (!listeners.size) { channel?.close(); channel = undefined; }
   };
@@ -293,6 +326,14 @@ export function readWorkspace(ownerId: string | null): Promise<WorkspaceItem[]> 
     const items = await access(owner);
     if (typeof indexedDB !== 'undefined') caches.set(owner, items);
     return items;
+  });
+}
+
+export function readBlockedWorkspace(ownerId: string | null): Promise<WorkspaceItem[]> {
+  const owner = scope(ownerId);
+  return serialized(owner, async () => {
+    if (!isLocalAccountBlocked(ownerId)) throw new Error('请先保护本机资料');
+    return access(owner);
   });
 }
 
@@ -365,9 +406,10 @@ function editWorkspace(ownerId: string | null, edit: Edit, local: boolean): Prom
   });
 }
 
-export function clearLocalWorkspace(ownerId: string): Promise<void> {
+export function clearLocalWorkspace(ownerId: string | null, guestToken?: string): Promise<void> {
   const owner = scope(ownerId);
   return serialized(owner, async () => {
+    if (guestToken && !ownsGuestWorkspaceBlock(guestToken)) throw new Error('游客资料保护已过期，请重试');
     localStorage.removeItem(storagePrefix + owner);
     const db = await openDatabase();
     if (db) await new Promise<void>((resolve, reject) => {
@@ -375,6 +417,7 @@ export function clearLocalWorkspace(ownerId: string): Promise<void> {
       const store = transaction.objectStore(itemStore);
       const request = store.index('owner').openKeyCursor(IDBKeyRange.only(owner));
       request.onsuccess = () => {
+        if (guestToken && !ownsGuestWorkspaceBlock(guestToken)) { transaction.abort(); return; }
         const cursor = request.result;
         if (cursor) { store.delete(cursor.primaryKey); cursor.continue(); }
       };
@@ -500,4 +543,24 @@ export function putWorkspaceValue<K extends WorkspaceKind>(ownerId: string | nul
 
 export function deleteWorkspaceValue(ownerId: string | null, kind: WorkspaceKind, id: string) {
   return mutateWorkspaceValue(ownerId, kind, id, () => undefined);
+}
+
+// Do not overwrite a newer account value or a deletion that appeared after the
+// import preview. Retrying an identical transfer remains a no-op.
+export function importWorkspaceValue(ownerId: string, kind: WorkspaceKind, id: string, value: WorkspaceValues[WorkspaceKind], expected: WorkspaceItem | undefined, replaceSettings: boolean): Promise<'added' | 'existing' | 'conflict'> {
+  let outcome: 'added' | 'existing' | 'conflict' = 'conflict';
+  return editWorkspace(ownerId, (items) => {
+    const old = items.find((item) => item.kind === kind && item.id === id);
+    if (old && !old.deleted && JSON.stringify(comparable(old.value)) === JSON.stringify(comparable(value))) { outcome = 'existing'; return items; }
+    if (old && !(kind === 'settings' && replaceSettings && !old.deleted && expected &&
+      old.updatedAt === expected.updatedAt && old.serverRevision === expected.serverRevision &&
+      JSON.stringify(comparable(old.value)) === JSON.stringify(comparable(expected.value)))) return items;
+    const generation = readWorkspaceGeneration(ownerId);
+    const updatedAt = Math.max(estimatedServerTime(ownerId), (old?.updatedAt ?? -1) + 1);
+    const item: WorkspaceItem = { kind, id, value, updatedAt,
+      ...(old?.serverRevision !== undefined && { serverRevision: old.serverRevision, baseUpdatedAt: old.baseUpdatedAt ?? old.updatedAt }),
+      ...((old?.clientGeneration ?? (!old ? generation : null)) && { clientGeneration: old?.clientGeneration ?? generation! }) };
+    outcome = 'added';
+    return mergeWorkspaceItems(items, [item]);
+  }, true).then(() => outcome);
 }
