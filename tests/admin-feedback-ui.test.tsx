@@ -38,7 +38,7 @@ it('retains unsaved text on a revision conflict and requires a refreshed revisio
   call.mockImplementation(async (url, options) => {
     if (url === '/api/admin/overview') return { metrics: { users: 1 }, recentActions: [] };
     if (url.startsWith('/api/admin/feedback?')) return { entries: [feedback], total: 1, page: 1, pageSize: 20 };
-    if (url === '/api/admin/feedback/f1') return { feedback: { ...feedback, revision: version } };
+    if (url === '/api/admin/feedback/f1') return { feedback: { ...feedback, status: version > 1 ? 'processing' : 'pending', revision: version } };
     if (url === '/api/admin/feedback/f1/handle' && options?.method === 'POST') {
       if (++writes === 1) { version = 2; throw new Error('反馈已更新，请刷新后重试'); }
       return { feedback: { ...feedback, revision: 3 } };
@@ -49,6 +49,7 @@ it('retains unsaved text on a revision conflict and requires a refreshed revisio
   fireEvent.click(screen.getByRole('button', { name: '反馈' }));
   fireEvent.click(await screen.findByRole('button', { name: '查看反馈 输入问题' }));
   const reply = await screen.findByLabelText('公开回复') as HTMLTextAreaElement;
+  fireEvent.change(screen.getByLabelText('处理状态'), { target: { value: 'resolved' } });
   fireEvent.change(reply, { target: { value: '保留回复' } });
   fireEvent.click(screen.getByRole('button', { name: '保存处理' }));
   expect((await screen.findByRole('alert')).textContent).toBe('反馈已更新，请刷新后重试');
@@ -56,8 +57,9 @@ it('retains unsaved text on a revision conflict and requires a refreshed revisio
   fireEvent.click(screen.getByRole('button', { name: '刷新反馈' }));
   await screen.findByLabelText('公开回复');
   expect((screen.getByLabelText('公开回复') as HTMLTextAreaElement).value).toBe('保留回复');
+  await waitFor(() => expect((screen.getByLabelText('处理状态') as HTMLSelectElement).value).toBe('processing'));
   fireEvent.click(screen.getByRole('button', { name: '保存处理' }));
   await waitFor(() => expect(writes).toBe(2));
   const requests = call.mock.calls.filter(([url]) => url === '/api/admin/feedback/f1/handle');
-  expect(requests[1][1]?.body).toMatchObject({ revision: 2, reply: '保留回复' });
+  expect(requests[1][1]?.body).toMatchObject({ revision: 2, status: 'processing', reply: '保留回复' });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { FeedbackThread, feedbackCategories, feedbackStatuses, type FeedbackCategory, type FeedbackDetail } from '../FeedbackView';
 import { adminWrite, DateTime, LoadState, Pagination, ScrollList, SelectField, useAdminList, useAdminResource, type AdminProps } from './common';
 
@@ -7,13 +7,13 @@ type Summary = { id: string; title: string; category: FeedbackCategory; status: 
 function FeedbackEditor({ ownerId, id, onBack, onChange, onArticle }: AdminProps & { id: string; onBack: () => void; onChange: () => void; onArticle: (id: string) => void }) {
   const [revision, setRevision] = useState(0);
   const { data, error: loadError, retry } = useAdminResource<{ feedback: FeedbackDetail }>(ownerId, `/feedback/${encodeURIComponent(id)}`, revision);
-  const [status, setStatus] = useState('pending');
+  const [statusEdit, setStatusEdit] = useState<{ revision: number; value: string }>();
   const [reply, setReply] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  useEffect(() => { if (data) setStatus(data.feedback.status); }, [data?.feedback.revision]);
+  const status = statusEdit && data && statusEdit.revision === data.feedback.revision ? statusEdit.value : data?.feedback.status ?? 'pending';
   async function submit(event: FormEvent) {
     event.preventDefault(); if (!data) return;
     setBusy(true); setError(''); setSaved(false);
@@ -33,7 +33,7 @@ function FeedbackEditor({ ownerId, id, onBack, onChange, onArticle }: AdminProps
     <FeedbackThread feedback={feedback} />
     {feedback.article && <button className="outline-button feature-action-button" onClick={() => leave(() => onArticle(feedback.article!.id))}>查看关联文章</button>}
     <form className="feature-form" onSubmit={submit}>
-      <SelectField label="处理状态" options={Object.entries(feedbackStatuses)} value={status} onChange={setStatus} disabled={busy} />
+      <SelectField label="处理状态" options={Object.entries(feedbackStatuses)} value={status} onChange={(value) => setStatusEdit({ revision: feedback.revision, value })} disabled={busy} />
       <label>公开回复<textarea value={reply} maxLength={5000} disabled={busy} onChange={(event) => setReply(event.target.value)} /></label>
       <label>内部备注<textarea value={note} maxLength={5000} disabled={busy} onChange={(event) => setNote(event.target.value)} /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
