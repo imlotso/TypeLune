@@ -290,6 +290,15 @@ it('opens a cloud-only online draft as a fresh personal continuation', async () 
   expect(removed).toEqual([drafts[0].id]);
 });
 
+it('restores the elapsed time and typed prefix of a verified local workspace fallback', async () => {
+  const saved: SavedPractice = { id: 'draft-fallback', recordId: 'fallback', article, ownerId: null, typed: '甲乙', duration: 60,
+    mode: 'timed', strict: false, offset: 0, elapsedMs: 1200, backspaces: 2, mistakes: [{ position: 1, expected: '乙', actual: '错' }], offline: true, savedAt: Date.now() };
+  const { result } = renderHook(() => usePractice({ ...config, isWorkspaceFallback: (id) => id === saved.id }, null));
+  await act(() => result.current.loadSaved(saved));
+  expect(result.current).toMatchObject({ phase: 'paused', typed: '甲乙', offset: 0, elapsedMs: 1200, backspaces: 2 });
+  expect(result.current.draftId).not.toBe(saved.id);
+});
+
 it('does not republish a parked draft deleted while the tab was inactive', async () => {
   const drafts: SavedPractice[] = [];
   const { result } = renderHook(() => usePractice({ ...config, onDraft: (draft) => drafts.push(draft) }, null));

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { localPracticeNeedsRecovery } from '../lib/local-practice-generation';
+import { applyPresetAction, type PresetAction } from '../lib/practice-settings';
 import type { MistakeStatus, ReaderSettings, SyncState, WorkspaceItem, WorkspaceKind, WorkspaceValues } from '../lib/models';
 import {
   cachedWorkspace, chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceItem, mergeRemoteWorkspace, mutateWorkspaceValue,
@@ -39,7 +40,7 @@ type KnownBackgrounds = { version: string; items: WorkspaceItem[] };
 async function workspaceRequest(owner: string, signal: AbortSignal, items?: WorkspaceItem[], known?: KnownBackgrounds, generation?: number): Promise<Response> {
   const data = await api<Response>(items === undefined ? '/api/workspace' : '/api/workspace/sync', {
     method: items === undefined ? 'GET' : 'POST',
-    body: items === undefined ? undefined : { generation, items: items.map(({ serverRevision, baseUpdatedAt: _baseTime, baseRevision: _baseRevision, clientGeneration: _clientGeneration, ...item }) => ({ ...item, baseRevision: serverRevision ?? 0 })) },
+    body: items === undefined ? undefined : { generation, items: items.map(({ serverRevision, baseUpdatedAt: _baseTime, baseRevision: _baseRevision, clientGeneration: _clientGeneration, localFallback: _localFallback, ...item }) => ({ ...item, baseRevision: serverRevision ?? 0 })) },
     headers: { 'X-Workspace-Owner': owner, 'X-Workspace-Backgrounds': known?.version ?? 'initial', 'X-Workspace-Protocol': '2' },
     signal,
   });
@@ -258,6 +259,13 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
       return { ...settings, mistakeStates };
     });
   }, [ownerId, settingsAvailable]);
+  const changePresets = useCallback((action: PresetAction) => {
+    if (!settingsAvailable) return Promise.reject(new Error('账号设置尚未读取'));
+    return mutateWorkspaceValue(ownerId, 'settings', 'preferences', (_saved, items) => {
+      const settings = workspaceSettings(items);
+      return { ...settings, presets: applyPresetAction(settings.presets ?? [], action) };
+    });
+  }, [ownerId, settingsAvailable]);
   const sync = useCallback(() =>
     enabled && lifecycle.current?.ownerId === ownerId ? lifecycle.current.sync() : Promise.resolve(), [enabled, ownerId]);
 
@@ -289,6 +297,6 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     pendingCount: visible?.pendingCount ?? null,
     cloudCount: visible?.cloudCount ?? null,
     recoveryReason: visible?.recoveryReason ?? null,
-    put, remove, updateSettings, updateMistakeState, toggleFavorite, sync,
+    put, remove, updateSettings, updateMistakeState, changePresets, toggleFavorite, sync,
   };
 }

@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { PersonalBestComparison } from '../src/components/PersonalBestComparison';
 import type { PracticeRecord } from '../src/lib/models';
+import { hasUnloadedLocalHistory } from '../src/hooks/usePractice';
 
 afterEach(cleanup);
 const article = { id: 'a', title: '短文', text: '山海', language: 'zh' as const, difficulty: 'beginner' as const, custom: true };
@@ -23,4 +24,11 @@ it('does not assert a complete account comparison while history is loading or in
   view.rerender(<PersonalBestComparison current={current} records={[]} coverage="partial" />);
   expect(screen.getByText('基于已读取的记录')).toBeTruthy();
   expect(screen.getByText('暂无此前同条件成绩')).toBeTruthy();
+});
+
+it('detects a legacy history larger than the local display window', () => {
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify(Array.from({ length: 51 }, () => ({}))));
+  expect(hasUnloadedLocalHistory()).toBe(true);
+  localStorage.removeItem('cloudtyping.history.v1');
+  expect(hasUnloadedLocalHistory()).toBe(false);
 });

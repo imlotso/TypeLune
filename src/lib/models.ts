@@ -3,6 +3,8 @@ import type { BackgroundConfig } from './background';
 
 export type PracticeMode = 'timed' | 'article';
 export type MistakeStatus = 'mastered' | 'ignored';
+export type PresetReading = { fontSize: number; lineHeight: number; visibleLines: number; showTimer: boolean; showSpeed: boolean; showAccuracy: boolean };
+export type PracticePreset = { id: string; name: string; language: Language; difficulty: Difficulty; mode: PracticeMode; minutes: number; strict: boolean; autoPause: boolean; reading?: PresetReading };
 export type ReaderSettings = {
   minutes: number;
   mode: PracticeMode;
@@ -16,6 +18,7 @@ export type ReaderSettings = {
   showTimer?: boolean;
   showSpeed?: boolean;
   showAccuracy?: boolean;
+  presets?: PracticePreset[];
 };
 export const defaultSettings: ReaderSettings = { minutes: 5, mode: 'timed', strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light', showTimer: true, showSpeed: true, showAccuracy: true };
 export type ArticleSnapshot = { id: string; title: string; text: string; language: Language; difficulty: Difficulty; custom: boolean; author?: string; theme?: string; source?: ArticleSource };
@@ -64,7 +67,7 @@ export type WorkspaceValues = {
 };
 export type WorkspaceKind = keyof WorkspaceValues;
 export type WorkspaceItem = { kind: WorkspaceKind; id: string; updatedAt: number; deleted?: boolean; value?: unknown;
-  serverRevision?: number; baseRevision?: number; baseUpdatedAt?: number; clientGeneration?: number };
+  serverRevision?: number; baseRevision?: number; baseUpdatedAt?: number; clientGeneration?: number; localFallback?: boolean };
 export type SyncState = 'guest' | 'loading' | 'syncing' | 'synced' | 'error';
 export type MistakeEntry = { id: string; language: Language; expected: string; actual: string[]; count: number; lastSeen: number; contexts: string[] };
 export type RankingEntry = { nickname: string; speed: number; accuracy: number; guest: number; createdAt: number; attemptId: string; rank?: number; mine?: boolean; articleId?: string; mode?: PracticeMode; strict?: boolean };

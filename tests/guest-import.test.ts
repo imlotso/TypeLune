@@ -3,6 +3,7 @@ import { afterEach, expect, it } from 'vitest';
 import { clearImportedGuestCopies, collectGuestImport, guestImportConflicts, importGuestItems } from '../src/lib/guest-import';
 import { allowLocalAccount, blockLocalAccount, putWorkspaceValue, readWorkspace } from '../src/lib/workspace';
 import { defaultSettings, type SavedPractice } from '../src/lib/models';
+import { makePracticePreset } from '../src/lib/practice-settings';
 
 afterEach(() => { allowLocalAccount('alice'); localStorage.clear(); sessionStorage.clear(); });
 const article = { id: 'private', title: '私文', text: '山海', language: 'zh' as const, difficulty: 'beginner' as const, custom: true as const };
@@ -106,6 +107,14 @@ it('treats absent legacy display flags as the visible defaults during deduplicat
   expect(guestImportConflicts(plan, false)).toBe(0);
   const result = await importGuestItems('alice', plan, false);
   expect(result).toMatchObject({ added: 0, conflicts: 0 });
+});
+
+it('keeps guest presets when importing settings into an account without its own settings', async () => {
+  const preset = makePracticePreset('guest-preset', '晨读', defaultSettings, 'zh', 'beginner', true);
+  await putWorkspaceValue(null, 'settings', 'preferences', { ...defaultSettings, presets: [preset] });
+  const plan = await collectGuestImport('alice');
+  expect((await importGuestItems('alice', plan, false)).added).toBe(1);
+  expect((await readWorkspace('alice'))[0].value).toMatchObject({ presets: [{ id: 'guest-preset', name: '晨读' }] });
 });
 
 it('does not silently discard legacy history beyond the normal display limit or invalid guest drafts', async () => {

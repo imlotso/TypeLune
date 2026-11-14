@@ -29,6 +29,8 @@ import { MistakesView } from './components/MistakesView';
 import { PracticeLines } from './components/PracticeLines';
 import { PersonalDataView } from './components/PersonalDataView';
 import { PersonalBestComparison } from './components/PersonalBestComparison';
+import { PresetsDialog } from './components/PresetsDialog';
+import { SettingsTransferDialog } from './components/SettingsTransferDialog';
 import { LogoutDialog } from './components/LogoutDialog';
 import { WorkspaceRecoveryDialog } from './components/WorkspaceRecoveryDialog';
 import { RankingView } from './components/RankingView';
@@ -38,16 +40,17 @@ import { StatsView } from './components/StatsView';
 import { SiteInfoView } from './components/SiteInfoView';
 import { articles, type Difficulty, type Language } from './data/articles';
 import { infoLabels, type InfoPage } from './data/site-content';
-import { continuationDraftId, discardSavedDraft, draftAwaitingStart, localHistory, practiceDraftId, readDraft, readDrafts, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
+import { continuationDraftId, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useSiteFeatures } from './hooks/useSiteFeatures';
 import { api, ApiError, type User } from './lib/api';
-import { catalogSnapshotKey, compareDraftProgress, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PracticeRecord, type ReaderSettings, type SavedPractice } from './lib/models';
+import { catalogSnapshotKey, compareDraftProgress, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PracticePreset, type PracticeRecord, type PresetReading, type ReaderSettings, type SavedPractice } from './lib/models';
+import type { PracticeSettingsFile } from './lib/practice-settings';
 import { readableCharacter } from './lib/practice-lines';
 import { scoreTyping, splitCharacters } from './lib/scoring';
 import { createRoundMistakeDrill } from './lib/analysis';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
-import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, localAccountBlockPrefix, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
+import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, localAccountBlockPrefix, markWorkspaceDraftFallback, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
 import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from './lib/local-account-cleanup';
 import { resetWorkspaceFromCloud, WorkspaceResetIncompleteError } from './lib/workspace-recovery';
 import { collectGuestImport } from './lib/guest-import';
@@ -196,6 +199,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [showCustom, setShowCustom] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPresets, setShowPresets] = useState(false);
+  const [showSettingsTransfer, setShowSettingsTransfer] = useState(false);
   const [showBackground, setShowBackground] = useState<Theme>();
   const [showMore, setShowMore] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -239,6 +244,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const ready = authReady && workspace.ready;
   const adminLogin = directAdmin && authReady && !user && !adminLoginDismissed;
   const reportSaveError = useCallback(() => { if (live.current) setFeedback('无法保存进度'); }, []);
+  const saveWorkspaceDraft = useCallback((draft: SavedPractice) => mutateWorkspaceValue(draft.ownerId, 'draft', draft.id, (previous) => previous &&
+    (staleDraftBase(draft, previous) || compareDraftProgress(previous, draft) > 0 || (compareDraftProgress(previous, draft) === 0 && !sameDraftSnapshot(previous, draft))) ? previous : draft), []);
 
   const practice = usePractice({
     article: selection, articleId: selection.id, title: displayTitle, text, language, difficulty, duration,
@@ -253,12 +260,20 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       void deleteWorkspaceValue(owner, 'record', id).catch(reportSaveError);
     },
     onDraft(draft) {
-      return mutateWorkspaceValue(draft.ownerId, 'draft', draft.id, (previous) => previous &&
-        (staleDraftBase(draft, previous) || compareDraftProgress(previous, draft) > 0 || (compareDraftProgress(previous, draft) === 0 && !sameDraftSnapshot(previous, draft))) ? previous : draft).catch((error: unknown) => {
+      return saveWorkspaceDraft(draft).catch((error: unknown) => {
         if (error instanceof DraftDeletedError) throw error;
         reportSaveError();
+        throw error;
       });
     },
+    async onParkDraft(draft) {
+      try {
+        await saveWorkspaceDraft(draft);
+        await markWorkspaceDraftFallback(draft.ownerId, draft);
+        return true;
+      } catch { return false; }
+    },
+    isWorkspaceFallback: (id, owner) => isWorkspaceFallbackDraft(owner, id),
     isDraftDeleted: (id, owner) => isWorkspaceDraftDeleted(owner, id),
     onRemoveDraft(id, owner) {
       void deleteWorkspaceValue(owner, 'draft', id).catch(reportSaveError);
@@ -416,7 +431,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       else if (wasFullscreen) setFocused(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !showResult && !confirmPractice && !showSettings && !showBackground && !showRecovery && !showGuestImport) exitFocus();
+      if (event.key === 'Escape' && !showResult && !confirmPractice && !showSettings && !showPresets && !showSettingsTransfer && !showBackground && !showRecovery && !showGuestImport) exitFocus();
     };
     document.addEventListener('fullscreenchange', fullscreenChange);
     document.addEventListener('keydown', escape);
@@ -424,7 +439,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       document.removeEventListener('fullscreenchange', fullscreenChange);
       document.removeEventListener('keydown', escape);
     };
-  }, [focused, showResult, confirmPractice, showSettings, showBackground, showRecovery, showGuestImport]);
+  }, [focused, showResult, confirmPractice, showSettings, showPresets, showSettingsTransfer, showBackground, showRecovery, showGuestImport]);
 
   function exitFocus() {
     setFocused(false);
@@ -458,6 +473,28 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       resetPractice(selection, true);
     }
     return workspace.updateSettings(patch).catch((problem: unknown) => { reportSaveError(); throw problem; });
+  }
+
+  async function applyPracticeConfiguration(choice: { language: Language; difficulty: Difficulty; mode: ReaderSettings['mode']; minutes: number; strict: boolean; autoPause: boolean; reading?: PresetReading }, presets?: PracticePreset[]) {
+    const nextArticle = selection.language === choice.language && selection.difficulty === choice.difficulty ? selection :
+      publicArticles.find((article) => article.language === choice.language && article.difficulty === choice.difficulty);
+    if (!nextArticle) throw new Error('该语言和难度暂无文章');
+    if (locked && !await practice.park(true)) throw new Error('当前进度保存失败，请重试');
+    try {
+      await workspace.updateSettings({ mode: choice.mode, minutes: choice.minutes, strict: choice.strict, autoPause: choice.autoPause,
+        ...(choice.reading ?? {}), ...(presets && { presets }) });
+    } catch (problem) { practice.releaseParkedLease(); throw problem; }
+    if (!live.current) return;
+    setMinutesText(String(choice.minutes));
+    resetPractice(nextArticle, true);
+    setFeedback(presets ? '设置已导入，本机已保存。' : '预设已应用。');
+    setView('practice'); setShowPresets(false); setShowSettingsTransfer(false);
+  }
+
+  async function importPracticeConfiguration(file: PracticeSettingsFile) {
+    const { language: selectedLanguage, difficulty: selectedDifficulty, mode, minutes, strict, autoPause, fontSize, lineHeight, visibleLines, showTimer, showSpeed, showAccuracy } = file.settings;
+    await applyPracticeConfiguration({ language: selectedLanguage, difficulty: selectedDifficulty, mode, minutes, strict, autoPause,
+      reading: { fontSize, lineHeight, visibleLines, showTimer, showSpeed, showAccuracy } }, file.presets);
   }
 
   function resetPractice(article = selection, keepDraft = false) {
@@ -762,7 +799,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
                 {phase === 'finished' && <button className="text-button" onClick={() => setShowResult(true)}>查看本次成绩</button>}
               </div>
             </div>
-            <PracticeLines practice={practice} title={displayTitle} reader={workspace.settings} canStart={canStart} onStart={() => { interacted.current = true; }} />
+            <PracticeLines practice={practice} title={displayTitle} reader={workspace.settings} canStart={canStart} onStart={() => { interacted.current = true; setFeedback(''); }} />
           </section>
         </>}
         {view !== 'practice' && feedback && <p className="form-error view-error" role="alert">{feedback}</p>}
@@ -802,7 +839,9 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) window.history.replaceState(null, '', '/'); }} onLogin={onUser} registrationEnabled={site.features?.registrationEnabled} />}
     {showAccount && user && <AccountDialog user={user} onClose={() => setShowAccount(false)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} />}
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
-    {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} />}
+    {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} onPresets={() => { setShowSettings(false); setShowPresets(true); }} onSettingsTransfer={() => { setShowSettings(false); setShowSettingsTransfer(true); }} />}
+    {showPresets && <PresetsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} difficulty={difficulty} onAction={workspace.changePresets} onApply={(preset) => applyPracticeConfiguration(preset)} onClose={() => setShowPresets(false)} />}
+    {showSettingsTransfer && <SettingsTransferDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} difficulty={difficulty} onImport={importPracticeConfiguration} onClose={() => setShowSettingsTransfer(false)} />}
     {showRecovery && user && <WorkspaceRecoveryDialog user={user} reason={showRecovery} onReset={resetWorkspace} onClose={() => setShowRecovery(undefined)} />}
     {showGuestImport && user && <GuestImportDialog ownerId={user.id} syncState={workspace.syncState} cloudLoaded={workspace.cloudLoaded} onSync={workspace.sync} onClose={() => {
       setShowGuestImport(false);
@@ -833,8 +872,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         <div><strong>{result.backspaces}</strong><span>退格次数</span></div>
         <div><strong>{formatTime(result.elapsedMs)}</strong><span>有效用时</span></div>
       </div>
-      {result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? 'local' :
-        historyCheckedFor !== result.recordId ? 'loading' : historyError || workspace.syncState === 'error' ? 'partial' : 'complete'} />}
+      {result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? (hasUnloadedLocalHistory() ? 'partial' : 'local') :
+        historyCheckedFor !== result.recordId ? 'loading' : historyError || !workspace.cloudLoaded || workspace.syncState !== 'synced' || hasUnloadedLocalHistory() ? 'partial' : 'complete'} />}
       {result.record && (result.record.mistakesTruncated || (result.record.mistakes?.length ?? 0) >= 500) && <p className="feature-muted" role="status">错字样本可能不完整</p>}
       {roundDrillAvailable && <div className="round-mistake-actions">
         <label>重复次数<input type="number" min={1} max={10} step={1} value={mistakeRepeats} aria-invalid={!roundDrill} onChange={(event) => setMistakeRepeats(event.target.value)} /></label>

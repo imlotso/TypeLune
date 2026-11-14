@@ -3,7 +3,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useWorkspace } from '../src/hooks/useWorkspace';
 import {
-  chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceDraftDeleted, mergeWorkspaceItems, newerWorkspaceItems, putWorkspaceValue, readWorkspace,
+  chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, markWorkspaceDraftFallback, mergeWorkspaceItems, newerWorkspaceItems, putWorkspaceValue, readWorkspace,
 } from '../src/lib/workspace';
 import { defaultSettings, type SavedPractice, type WorkspaceItem } from '../src/lib/models';
 import { defaultBackground } from '../src/lib/background';
@@ -46,6 +46,22 @@ it('reuses unchanged cloud images without downloading or uploading them on ordin
   const writes = fetcher.mock.calls.filter(([, options]) => options.method === 'POST');
   expect(writes.length).toBeGreaterThan(0);
   expect(writes.flatMap(([, options]) => JSON.parse(options.body as string).items).some((item: WorkspaceItem) => item.kind === 'background')).toBe(false);
+});
+
+it('keeps a local fallback marker through synchronization without sending it to the server', async () => {
+  const localDraft = { ...draft, ownerId: 'fallback-owner' };
+  await putWorkspaceValue('fallback-owner', 'draft', localDraft.id, localDraft);
+  await markWorkspaceDraftFallback('fallback-owner', localDraft);
+  const writes: WorkspaceItem[] = [];
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (_url, options) => {
+    if (options?.body) { const items = JSON.parse(String(options.body)).items as WorkspaceItem[]; writes.push(...items); return response(items); }
+    return response([]);
+  }));
+  const { result } = renderHook(() => useWorkspace('fallback-owner'));
+  await waitFor(() => expect(result.current.syncState).toBe('synced'));
+  expect(writes).toHaveLength(1);
+  expect(writes[0]).not.toHaveProperty('localFallback');
+  expect(isWorkspaceFallbackDraft('fallback-owner', localDraft.id)).toBe(true);
 });
 
 describe('local workspace', () => {

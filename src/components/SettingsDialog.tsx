@@ -20,13 +20,15 @@ type Props = {
   isSignedIn: boolean;
   onBackground?: () => void;
   hasBackground?: boolean;
+  onPresets?: () => void;
+  onSettingsTransfer?: () => void;
 };
 
 const syncNames: Record<SyncState, string> = {
   guest: '仅本机', loading: '正在读取', syncing: '同步中', synced: '已同步', error: '同步失败',
 };
 
-export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, syncError, pendingCount, cloudCount, lastSyncedAt, recoveryReason, onRecovery, onSync, isSignedIn, onBackground, hasBackground }: Props) {
+export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, syncError, pendingCount, cloudCount, lastSyncedAt, recoveryReason, onRecovery, onSync, isSignedIn, onBackground, hasBackground, onPresets, onSettingsTransfer }: Props) {
   const [invalidMinutes, setInvalidMinutes] = useState<string>();
   const [saveError, setSaveError] = useState('');
   type Indicator = 'showTimer' | 'showSpeed' | 'showAccuracy';
@@ -95,6 +97,7 @@ export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, f
         {canSetMinutes && invalidMinutes !== undefined && <p className="form-error" role="alert">请输入 1–60 的整数</p>}
         <label className="settings-check"><input type="checkbox" checked={settings.strict} disabled={locked} onChange={(event) => change({ strict: event.target.checked })} />严格纠错</label>
         <label className="settings-check"><input type="checkbox" checked={settings.autoPause} onChange={(event) => change({ autoPause: event.target.checked })} />离开页面自动暂停</label>
+        {(onPresets || onSettingsTransfer) && <div className="feature-actions">{onPresets && <button type="button" className="outline-button feature-action-button" onClick={onPresets}>练习预设</button>}{onSettingsTransfer && <button type="button" className="outline-button feature-action-button" onClick={onSettingsTransfer}>设置导入／导出</button>}</div>}
       </fieldset>
       <fieldset className="settings-group">
         <legend>实时指标</legend>

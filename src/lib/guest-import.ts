@@ -1,6 +1,7 @@
 import { clearLocalPractice, readDrafts, savedPracticeFromLegacy } from '../hooks/usePractice';
 import { api } from './api';
 import { localPracticeNeedsRecovery } from './local-practice-generation';
+import { cleanPracticePreset } from './practice-settings';
 import { compareDraftProgress, type ArticleSnapshot, type PracticeRecord, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models';
 import { allowGuestWorkspace, blockGuestWorkspace, clearLocalWorkspace, importWorkspaceValue, isLocalAccountBlocked, isWorkspaceItem, ownsGuestWorkspaceBlock, readBlockedWorkspace, readWorkspace, sameWorkspaceValue, workspaceSettings } from './workspace';
 
@@ -47,7 +48,7 @@ function cleanSettings(value: ReaderSettings): ReaderSettings {
   const { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme } = value;
   return { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme,
     showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false, showAccuracy: value.showAccuracy !== false,
-    ...(value.mistakeStates && { mistakeStates: value.mistakeStates }) };
+    ...(value.mistakeStates && { mistakeStates: value.mistakeStates }), ...(value.presets && { presets: value.presets.map(cleanPracticePreset) }) };
 }
 
 function guestLegacyData() {

@@ -1,6 +1,7 @@
-import { defaultSettings, type ReaderSettings, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models';
+import { defaultSettings, sameDraftSnapshot, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models';
 import { themeStorageKey } from './theme';
 import { isBackgroundConfig } from './background';
+import { isPresetList } from './practice-settings';
 
 const databaseName = 'cloudtyping-workspace';
 const itemStore = 'items';
@@ -78,14 +79,15 @@ const isArticle = (value: unknown) => isObject(value) && typeof value.id === 'st
 
 export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
   if (!isObject(value)) return false;
-  const { kind, id, updatedAt, deleted, value: payload, serverRevision, baseRevision, baseUpdatedAt, clientGeneration } = value;
+  const { kind, id, updatedAt, deleted, value: payload, serverRevision, baseRevision, baseUpdatedAt, clientGeneration, localFallback } = value;
   if (!['favorite', 'article', 'draft', 'record', 'settings', 'background'].includes(kind as string) ||
     typeof id !== 'string' || !id || typeof updatedAt !== 'number' || !Number.isSafeInteger(updatedAt) || updatedAt < 0 ||
     (deleted !== undefined && typeof deleted !== 'boolean') ||
     (serverRevision !== undefined && (!Number.isSafeInteger(serverRevision) || (serverRevision as number) < 1)) ||
     (baseRevision !== undefined && (!Number.isSafeInteger(baseRevision) || (baseRevision as number) < 0)) ||
     (baseUpdatedAt !== undefined && (!Number.isSafeInteger(baseUpdatedAt) || (baseUpdatedAt as number) < 0)) ||
-    (clientGeneration !== undefined && (!Number.isSafeInteger(clientGeneration) || (clientGeneration as number) < 1))) return false;
+    (clientGeneration !== undefined && (!Number.isSafeInteger(clientGeneration) || (clientGeneration as number) < 1)) ||
+    (localFallback !== undefined && typeof localFallback !== 'boolean')) return false;
   if (kind === 'background' && !isTheme(id)) return false;
   if (deleted) return true;
   if (!isObject(payload)) return false;
@@ -106,6 +108,7 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
       typeof payload.autoPause === 'boolean' && typeof payload.strict === 'boolean' &&
       [payload.fontSize, payload.lineHeight, payload.visibleLines].every(isNumber) &&
       ['showTimer', 'showSpeed', 'showAccuracy'].every((key) => payload[key] === undefined || typeof payload[key] === 'boolean') &&
+      (payload.presets === undefined || isPresetList(payload.presets)) &&
       (payload.mistakeStates === undefined || (isObject(payload.mistakeStates) && Object.keys(payload.mistakeStates).length <= 2000 &&
         Object.entries(payload.mistakeStates).every(([key, state]) => key.length > 0 && key.length <= 512 && (state === 'mastered' || state === 'ignored'))));
     default: return false;
@@ -120,7 +123,7 @@ function comparable(value: unknown): unknown {
 export function sameWorkspaceValue(kind: WorkspaceKind, a: unknown, b: unknown) {
   const normalize = (value: unknown) => kind === 'settings' && isObject(value) ? { ...value,
     showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false, showAccuracy: value.showAccuracy !== false,
-    mistakeStates: value.mistakeStates ?? {} } : value;
+    mistakeStates: value.mistakeStates ?? {}, presets: value.presets ?? [] } : value;
   return JSON.stringify(comparable(normalize(a))) === JSON.stringify(comparable(normalize(b)));
 }
 function samePayload(a: WorkspaceItem, b: WorkspaceItem) {
@@ -358,6 +361,12 @@ export function isWorkspaceDraftDeleted(ownerId: string | null, id: string): boo
     return items.some((item) => item.kind === 'draft' && item.id === id && item.deleted);
   } catch { return false; }
 }
+export function isWorkspaceFallbackDraft(ownerId: string | null, id: string): boolean {
+  try {
+    const items = cachedWorkspace(ownerId) ?? readFallback(scope(ownerId));
+    return items.some((item) => item.kind === 'draft' && item.id === id && !item.deleted && item.localFallback === true);
+  } catch { return false; }
+}
 
 export class DraftDeletedError extends Error {
   constructor(public readonly id: string) {
@@ -377,7 +386,7 @@ function mergeProtocolItems(local: WorkspaceItem[], incoming: WorkspaceItem[], a
     const localLease = current?.kind === 'draft' && isObject(current.value) && isObject(remote.value) && samePayload(current, remote)
       ? { value: { ...remote.value, ...(typeof current.value.claimId === 'string' && { claimId: current.value.claimId }),
         ...(typeof current.value.recoveryRequestId === 'string' && { recoveryRequestId: current.value.recoveryRequestId }) } } : {};
-    const cleanRemote = { ...remote, ...localLease, baseUpdatedAt: remote.updatedAt, clientGeneration: generation };
+    const cleanRemote = { ...remote, ...localLease, ...(current?.localFallback && samePayload(current, remote) && { localFallback: true }), baseUpdatedAt: remote.updatedAt, clientGeneration: generation };
     if (!current || samePayload(current, remote)) { items.set(key, cleanRemote); continue; }
     const dirty = current.baseUpdatedAt === undefined || current.updatedAt !== current.baseUpdatedAt;
     if (!dirty) { items.set(key, cleanRemote); continue; }
@@ -502,7 +511,7 @@ export function mergeRemoteWorkspace(ownerId: string, items: WorkspaceItem[], se
     const previous = new Map(current.map((item) => [keyOf(item), item]));
     const next = merged.map((item) => {
       const stored = previous.get(keyOf(item));
-      return stored && stored.updatedAt === item.updatedAt && stored.serverRevision === item.serverRevision && stored.baseUpdatedAt === item.baseUpdatedAt && stored.clientGeneration === item.clientGeneration &&
+      return stored && stored.updatedAt === item.updatedAt && stored.serverRevision === item.serverRevision && stored.baseUpdatedAt === item.baseUpdatedAt && stored.clientGeneration === item.clientGeneration && stored.localFallback === item.localFallback &&
         !!stored.deleted === !!item.deleted && JSON.stringify(stored.value) === JSON.stringify(item.value) ? stored : item;
     });
     return next.length === current.length && next.every((item, index) => item === current[index]) ? current : next;
@@ -538,7 +547,7 @@ export function mutateWorkspaceValue<K extends WorkspaceKind>(
     if (old && !old.deleted && old.value === value) return items;
     const updatedAt = Math.max(estimatedServerTime(ownerId), (old?.updatedAt ?? -1) + 1);
     const generation = ownerId ? readWorkspaceGeneration(ownerId) : null;
-    const base = { ...(old?.serverRevision === undefined ? {} : { serverRevision: old.serverRevision, baseUpdatedAt: old.baseUpdatedAt ?? old.updatedAt }),
+    const base = { ...(old?.serverRevision === undefined ? {} : { serverRevision: old.serverRevision, baseUpdatedAt: old.baseUpdatedAt ?? old.updatedAt }), ...(old?.localFallback && { localFallback: true }),
       ...((old?.clientGeneration ?? (!old ? generation : null)) ? { clientGeneration: old?.clientGeneration ?? generation! } : {}) };
     const item: WorkspaceItem = value === undefined
       ? { kind, id, updatedAt, deleted: true, ...base }
@@ -553,6 +562,17 @@ export function putWorkspaceValue<K extends WorkspaceKind>(ownerId: string | nul
 
 export function deleteWorkspaceValue(ownerId: string | null, kind: WorkspaceKind, id: string) {
   return mutateWorkspaceValue(ownerId, kind, id, () => undefined);
+}
+
+export function markWorkspaceDraftFallback(ownerId: string | null, draft: SavedPractice): Promise<void> {
+  return editWorkspace(ownerId, (items) => {
+    const index = items.findIndex((item) => item.kind === 'draft' && item.id === draft.id && !item.deleted);
+    const stored = index >= 0 ? items[index].value as SavedPractice : undefined;
+    if (!stored || stored.recordId !== draft.recordId || stored.article.id !== draft.article.id || stored.article.text !== draft.article.text ||
+      stored.progressVersion !== draft.progressVersion || !sameDraftSnapshot(stored, draft) || JSON.stringify(stored.mistakes ?? []) !== JSON.stringify(draft.mistakes ?? [])) throw new Error('本机草稿已变化，请重试');
+    if (items[index].localFallback) return items;
+    const next = [...items]; next[index] = { ...items[index], localFallback: true }; return next;
+  }, false).then(() => {});
 }
 
 // Do not overwrite a newer account value or a deletion that appeared after the

@@ -2,6 +2,7 @@ import type { User } from './api';
 import { compareDraftProgress, type ArticleSnapshot, type MistakeSample, type PracticeRecord, type ReaderSettings, type SavedPractice, type WorkspaceItem } from './models';
 import type { BackgroundConfig } from './background';
 import { mergeWorkspaceItems, workspaceSettings } from './workspace';
+import { cleanPracticePreset } from './practice-settings';
 
 export type FeedbackExport = { id: string; category: string; title: string; description: string; status: string; createdAt: number; updatedAt: number;
   article?: { id: string; title: string; snapshotKey: string; position?: string | null; wrongText?: string | null };
@@ -40,7 +41,7 @@ function draft(value: SavedPractice) {
 function settings(value: ReaderSettings) {
   return { minutes: value.minutes, mode: value.mode, strict: value.strict, autoPause: value.autoPause, fontSize: value.fontSize,
     lineHeight: value.lineHeight, visibleLines: value.visibleLines, theme: value.theme, showTimer: value.showTimer !== false, showSpeed: value.showSpeed !== false,
-    showAccuracy: value.showAccuracy !== false, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }) };
+    showAccuracy: value.showAccuracy !== false, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }), ...(value.presets && { presets: value.presets.map(cleanPracticePreset) }) };
 }
 function background(value: BackgroundConfig) {
   return { image: value.image, name: value.name, width: value.width, height: value.height, fit: value.fit,

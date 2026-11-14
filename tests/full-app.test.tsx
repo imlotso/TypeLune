@@ -75,6 +75,21 @@ it('parks active text across navigation and resumes its exact draft', async () =
   expect((screen.getByRole('textbox', { name: '当前行输入' }) as HTMLTextAreaElement).value).toBe('甲乙');
 });
 
+it('can park a practice in the workspace when the legacy draft storage is unavailable', async () => {
+  render(<App />);
+  await startCustom('甲乙丙丁');
+  fireEvent.change(screen.getByRole('textbox', { name: '当前行输入' }), { target: { value: '甲乙' } });
+  const original = Storage.prototype.setItem;
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+    if (key.startsWith('cloudtyping.practice.v2.')) throw new Error('legacy storage unavailable');
+    return original.call(this, key, value);
+  });
+  more('设置');
+  await screen.findByRole('dialog', { name: '练习设置' });
+  const drafts = (await readWorkspace(null)).filter((item) => item.kind === 'draft' && !item.deleted);
+  expect(drafts.some((item) => (item.value as { typed?: string }).typed === '甲乙')).toBe(true);
+});
+
 it('uses reader settings and exits focus mode with Escape', async () => {
   render(<App />);
   await screen.findByRole('textbox', { name: '当前行输入' });

@@ -1,8 +1,9 @@
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import { difficulties } from '../src/data/articles';
-import type { WorkspaceItem, WorkspaceKind } from '../src/lib/models';
+import type { PracticePreset, WorkspaceItem, WorkspaceKind } from '../src/lib/models';
 import { isBackgroundConfig, type BackgroundConfig } from '../src/lib/background';
+import { isPresetList } from '../src/lib/practice-settings';
 
 export const syncBodyLimit = 4 * 1024 * 1024;
 export const recoveryIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -71,6 +72,7 @@ const schemas = {
     visibleLines: z.number().int().min(1).max(12), theme: z.enum(['light', 'dark']),
     mistakeStates: z.record(z.string().min(1).max(512), z.enum(['mastered', 'ignored'])).refine((value) => Object.keys(value).length <= 2000).optional(),
     showTimer: z.boolean().optional(), showSpeed: z.boolean().optional(), showAccuracy: z.boolean().optional(),
+    presets: z.custom<PracticePreset[]>((value) => isPresetList(value, true)).optional(),
   }),
 } satisfies Record<WorkspaceKind, z.ZodType>;
 const item = z.object({

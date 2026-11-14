@@ -14,6 +14,8 @@ export type PracticeConfig = RoundConfig & {
   autoPause?: boolean;
   onRecord?: (record: PracticeRecord) => void;
   onDraft?: (draft: SavedPractice) => void;
+  onParkDraft?: (draft: SavedPractice) => Promise<boolean>;
+  isWorkspaceFallback?: (id: string, ownerId: string | null) => boolean;
   onRemoveDraft?: (id: string, ownerId: string | null) => void;
   onReplaceRecord?: (id: string, ownerId: string | null) => void;
   isDraftDeleted?: (id: string, ownerId: string | null) => boolean;
@@ -109,6 +111,10 @@ function storedDraft(recordId: string): PracticeDraft | null {
 
 export function localHistory(): History[] {
   try { const value = JSON.parse(localStorage.getItem(historyKey) || '[]'); return Array.isArray(value) ? value.slice(0, 50) : []; } catch { return []; }
+}
+export function hasUnloadedLocalHistory() {
+  try { const value: unknown = JSON.parse(localStorage.getItem(historyKey) || '[]'); return !Array.isArray(value) || value.length > 50; }
+  catch { return true; }
 }
 function rememberHistory(entry: History, previousId?: string) {
   if (isLocalAccountBlocked(entry.ownerId ?? null)) return;
@@ -347,9 +353,29 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   };
   const persist = useCallback((attempt: Attempt, force = false) => {
     const forked = ensureOwnership(attempt);
-    if (!saveDraft(attempt, typedRef.current, ownerToken.current)) setFeedback('进度保存失败。');
+    const saved = saveDraft(attempt, typedRef.current, ownerToken.current);
+    if (!saved) setFeedback('进度保存失败。');
     emitDraft(attempt, typedRef.current, force || forked);
+    return saved;
   }, []);
+
+  async function persistForPark(attempt: Attempt) {
+    if (persist(attempt, true)) return true;
+    if (!liveConfig.current.onParkDraft) return false;
+    try {
+      const fingerprint = progressFingerprint(attempt, typedRef.current, elapsedTime(attempt));
+      if (attempt.progressFingerprint !== fingerprint) {
+        attempt.progressVersion = (attempt.progressVersion ?? 0) + 1;
+        attempt.progressFingerprint = fingerprint;
+      }
+      const saved = await liveConfig.current.onParkDraft(workspaceDraft(attempt, typedRef.current));
+      if (saved && attemptRef.current === attempt && phaseRef.current === 'paused') {
+        setFeedback('草稿已保存在本机工作区。');
+        return true;
+      }
+    } catch { /* Keep the active attempt available for retry. */ }
+    return false;
+  }
 
   function detachFromOnline(attempt: Attempt, message: string) {
     if (storedDraft(attempt.recordId)?.completed) clearDraft(attempt, ownerToken.current);
@@ -916,16 +942,25 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     window.setTimeout(() => { if (isCurrent(attempt, 'running')) textareaRef.current?.focus(); }, 0);
   }
 
-  async function park() {
+  async function park(holdLease = false) {
     const attempt = attemptRef.current;
-    if (!attempt || phaseRef.current === 'finished' || parked.current) return true;
+    if (!attempt || phaseRef.current === 'finished') return true;
+    if (parked.current) {
+      if (!await persistForPark(attempt)) return false;
+      if (!holdLease) releaseLease(attempt, ownerToken.current);
+      return true;
+    }
     const running = phaseRef.current === 'running';
     if (running && !await pause()) return false;
     if (!isCurrent(attempt, 'paused')) return false;
-    if (!running) persist(attempt, true);
+    if (!await persistForPark(attempt)) return false;
     parked.current = true;
-    releaseLease(attempt, ownerToken.current);
+    if (!holdLease) releaseLease(attempt, ownerToken.current);
     return true;
+  }
+
+  function releaseParkedLease() {
+    if (parked.current && attemptRef.current) releaseLease(attemptRef.current, ownerToken.current);
   }
 
   async function retryOnline() {
@@ -974,6 +1009,16 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       bindAttempt(synced, typed);
       setCurrentPhase('restoring');
       await restoreAttempt(synced, { ...synced, version: 1, typed });
+      return;
+    }
+    if (!local && !options?.newRound && saved.offline && liveConfig.current.isWorkspaceFallback?.(saved.id, saved.ownerId)) {
+      const fallback = attemptFromSaved({ ...saved, attemptId: undefined, recoveryId: undefined, recoveryKey: undefined, claimId: undefined,
+        claimVersion: undefined, recoveryRequestId: undefined, recoveryMarker: undefined, recoveryBaseVersion: undefined,
+        personalOnly: true, recordId: uniqueId(), offline: true }, typed);
+      bindAttempt(fallback, typed);
+      setFeedback('原进度已另存为个人练习。');
+      setCurrentPhase('paused');
+      persist(fallback, true);
       return;
     }
     const fresh = options?.newRound && !stored && saved.offline && !saved.attemptId && validAttemptId(saved.recordId) &&
@@ -1086,5 +1131,5 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   const draftId = attempt ? practiceDraftId(attempt.recordId) : undefined;
   const canRetryOnline = !!(result?.offline && result.elapsedMs >= 1000 && attempt && recoverableId(attempt));
   const getClaimHeaders = () => attemptRef.current ? practiceClaim(attemptRef.current) : undefined;
-  return { phase, target, raw, typed, elapsedMs, backspaces, feedback, result, restored, mode, strict, duration, offset, draftId, textareaRef, start, pause, resume, retryOnline, recoverForRanking, markRankSubmitted, getClaimHeaders, canRetryOnline, reset, finish, park, loadSaved, loadLegacy, updateTyped, deletePreviousCharacter, onChange, onKeyDown, onCompositionStart, onCompositionEnd, markSuspicious };
+  return { phase, target, raw, typed, elapsedMs, backspaces, feedback, result, restored, mode, strict, duration, offset, draftId, textareaRef, start, pause, resume, retryOnline, recoverForRanking, markRankSubmitted, getClaimHeaders, canRetryOnline, reset, finish, park, releaseParkedLease, loadSaved, loadLegacy, updateTyped, deletePreviousCharacter, onChange, onKeyDown, onCompositionStart, onCompositionEnd, markSuspicious };
 }
