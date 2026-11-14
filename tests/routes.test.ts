@@ -28,3 +28,11 @@ it('round-trips record detail IDs without treating malformed addresses as record
   expect(recordIdFromPath('/records/%FF')).toBeUndefined();
   expect(mainRoute('/records/%FF')).toBe('notfound');
 });
+
+it('routes feedback details without accepting malformed identifiers', async () => {
+  const { feedbackIdFromPath, pathForFeedback } = await import('../src/lib/routes');
+  expect(pathForFeedback('one/二')).toBe('/feedback/one%2F%E4%BA%8C');
+  expect(feedbackIdFromPath('/feedback/one%2F%E4%BA%8C')).toBe('one/二');
+  expect(mainRoute('/feedback/example')).toBe('feedback');
+  expect(mainRoute('/feedback/%FF')).toBe('notfound');
+});

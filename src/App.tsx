@@ -65,7 +65,7 @@ import { collectGuestImport } from './lib/guest-import';
 import { readPagedHistory } from './lib/history';
 import { deletePracticeRecords } from './lib/history-delete';
 import { mergePracticeRecords, stableRecordId } from './lib/records';
-import { articleIdFromPath, mainRoute, navigationIndex, navigationState, pathForArticle, pathForRecord, pathForView, recordIdFromPath, type MainRoute, type MainView } from './lib/routes';
+import { articleIdFromPath, feedbackIdFromPath, mainRoute, navigationIndex, navigationState, pathForArticle, pathForFeedback, pathForRecord, pathForView, recordIdFromPath, type MainRoute, type MainView } from './lib/routes';
 
 type View = MainRoute;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
@@ -119,7 +119,7 @@ export function App() {
     setFeedbackResume(handoff);
     pendingFeedback.current = undefined;
     setPreviewOwner(undefined);
-    const path = next?.isAdmin ? '/admin' : !next ? '/' : handoff ? '/feedback' : mainRoute(window.location.pathname) === 'notfound' ? '/' : window.location.pathname;
+    const path = next?.isAdmin ? '/admin' : !next ? '/' : handoff ? (feedbackIdFromPath(window.location.pathname) ? window.location.pathname : '/feedback') : mainRoute(window.location.pathname) === 'notfound' ? '/' : window.location.pathname;
     window.history.replaceState(null, '', path);
     setUser(next);
     setAuthReady(true);
@@ -207,6 +207,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [view, setView] = useState<View>(() => feedbackResume ? 'feedback' : directAdmin ? 'practice' : mainRoute(window.location.pathname));
   const [routeArticleId, setRouteArticleId] = useState(() => articleIdFromPath(window.location.pathname));
   const [routeRecordId, setRouteRecordId] = useState(() => recordIdFromPath(window.location.pathname));
+  const [routeFeedbackId, setRouteFeedbackId] = useState(() => feedbackIdFromPath(window.location.pathname));
   const currentPath = useRef(window.location.pathname + window.location.search + window.location.hash);
   const currentHistoryIndex = useRef(0);
   const restoringHistory = useRef(false);
@@ -600,7 +601,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       window.history.pushState(navigationState(window.history.state, currentHistoryIndex.current), '', path);
     }
     currentPath.current = window.location.pathname + window.location.search + window.location.hash;
-    setView(next); setRouteArticleId(articleIdFromPath(path)); setRouteRecordId(recordIdFromPath(path));
+    setView(next); setRouteArticleId(articleIdFromPath(path)); setRouteRecordId(recordIdFromPath(path)); setRouteFeedbackId(feedbackIdFromPath(path));
   }
   function commitView(next: MainView) { commitAddress(pathForView(next), next); }
 
@@ -609,6 +610,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   }
 
   function openRecord(id: string) { commitAddress(pathForRecord(id), 'history'); }
+  function openFeedback(id: string) { commitAddress(pathForFeedback(id), 'feedback'); }
 
   function navigate(next: MainView) {
     setShowMore(false);
@@ -639,7 +641,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       const next = mainRoute(nextPath);
       setShowMore(false); setShowResult(false); setFeedback('');
       if (focused && next !== 'practice') exitFocus();
-      setView(next); setRouteArticleId(articleIdFromPath(nextPath)); setRouteRecordId(recordIdFromPath(nextPath)); currentPath.current = nextAddress;
+      setView(next); setRouteArticleId(articleIdFromPath(nextPath)); setRouteRecordId(recordIdFromPath(nextPath)); setRouteFeedbackId(feedbackIdFromPath(nextPath)); currentPath.current = nextAddress;
       if (targetIndex !== undefined) currentHistoryIndex.current = targetIndex;
       else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', nextAddress);
       applied = true;
@@ -989,7 +991,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
           if (live.current) setFeedback(problem instanceof Error ? problem.message : '错字状态保存失败');
         })} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} />}
-        {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
+        {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} routeFeedbackId={routeFeedbackId} onOpenFeedback={openFeedback} onCloseFeedback={() => commitView('feedback')} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
         {view === 'data' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>个人数据</h1></div>{authReady ? <><p>请先登录</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>登录</button></> : <p role="status">正在读取账号…</p>}</section>}
         {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} onGuestImport={() => setShowGuestImport(true)} />}
         {view === 'notfound' && <section className="content-panel feature-panel"><div className="content-heading"><h1>页面未找到</h1></div><button type="button" className="outline-button" onClick={() => navigate('practice')}>返回练习</button></section>}

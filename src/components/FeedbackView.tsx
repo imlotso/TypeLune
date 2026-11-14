@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { ChatCircleText } from '@phosphor-icons/react/ChatCircleText';
 import { api } from '../lib/api';
 
@@ -13,6 +13,32 @@ export type FeedbackDetail = {
 };
 type Summary = Pick<FeedbackDetail, 'id' | 'title' | 'category' | 'status' | 'createdAt' | 'updatedAt'>;
 type Page = { entries: Summary[]; total: number; page: number; pageSize: number };
+const validDate = (value: unknown) => typeof value === 'number' && Number.isFinite(new Date(value).getTime());
+function validSummary(value: unknown): value is Summary {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === 'string' && !!item.id && item.id.length <= 200 && typeof item.title === 'string' &&
+    ['issue', 'suggestion', 'article'].includes(item.category as string) && typeof item.status === 'string' && validDate(item.createdAt) && validDate(item.updatedAt);
+}
+function validPage(data: Page) {
+  return Array.isArray(data.entries) && data.entries.every(validSummary) && Number.isSafeInteger(data.total) && data.total >= 0 &&
+    Number.isSafeInteger(data.page) && data.page >= 1 && Number.isSafeInteger(data.pageSize) && data.pageSize >= 1 && data.pageSize <= 100;
+}
+function validDetail(value: unknown, expectedId?: string): value is FeedbackDetail {
+  if (!validSummary(value)) return false;
+  const item = value as unknown as Record<string, unknown>;
+  if ((expectedId !== undefined && item.id !== expectedId) || /[\p{Cc}\p{Cf}]/u.test(item.id as string) || typeof item.description !== 'string' ||
+    !Number.isSafeInteger(item.revision) || (item.revision as number) < 1 || !Array.isArray(item.messages) || !Array.isArray(item.attachments)) return false;
+  return item.messages.every((message: unknown) => {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) return false;
+    const row = message as Record<string, unknown>;
+    return typeof row.id === 'string' && ['user', 'admin', 'status'].includes(row.authorKind as string) && typeof row.text === 'string' && validDate(row.createdAt);
+  }) && item.attachments.every((attachment: unknown) => {
+    if (!attachment || typeof attachment !== 'object' || Array.isArray(attachment)) return false;
+    const row = attachment as Record<string, unknown>;
+    return typeof row.id === 'string' && typeof row.name === 'string' && typeof row.url === 'string' && row.url.startsWith(`/api/feedback/${encodeURIComponent(item.id as string)}/attachments/`);
+  });
+}
 const maxFileBytes = 5 * 1024 * 1024;
 export const feedbackCategories: Record<FeedbackCategory, string> = { issue: '问题反馈', suggestion: '功能建议', article: '文章问题' };
 export const feedbackStatuses: Record<string, string> = { pending: '待处理', processing: '处理中', resolved: '已解决', closed: '已关闭' };
@@ -52,8 +78,9 @@ export function FeedbackThread({ feedback }: { feedback: FeedbackDetail }) {
   </div>;
 }
 
-export function FeedbackView({ ownerId, draft, setDraft, onLogin }: {
+export function FeedbackView({ ownerId, draft, setDraft, onLogin, routeFeedbackId, onOpenFeedback, onCloseFeedback }: {
   ownerId: string | null; draft: FeedbackDraft; setDraft: (draft: FeedbackDraft) => void; onLogin: (draft: FeedbackDraft) => void;
+  routeFeedbackId?: string; onOpenFeedback?: (id: string) => void; onCloseFeedback?: () => void;
 }) {
   const [list, setList] = useState<Page>();
   const [page, setPage] = useState(1);
@@ -63,6 +90,13 @@ export function FeedbackView({ ownerId, draft, setDraft, onLogin }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [listError, setListError] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const [detailRetry, setDetailRetry] = useState(0);
+  const mounted = useRef(true);
+  const routeRef = useRef(routeFeedbackId); routeRef.current = routeFeedbackId;
+  const shownDetail = onOpenFeedback ? (routeFeedbackId && detail?.id === routeFeedbackId ? detail : undefined) : detail;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const patch = (change: Partial<FeedbackDraft>) => setDraft({ ...draft, ...change, requestId: uuid() });
 
   useEffect(() => {
@@ -70,10 +104,25 @@ export function FeedbackView({ ownerId, draft, setDraft, onLogin }: {
     const controller = new AbortController();
     setListError('');
     api<Page>(`/api/feedback?page=${page}&pageSize=20`, { headers: { 'X-Workspace-Owner': ownerId }, signal: controller.signal })
-      .then((data) => { if (!controller.signal.aborted) setList(data); })
+      .then((data) => { if (!validPage(data)) throw new Error('反馈列表无法读取'); if (!controller.signal.aborted) setList(data); })
       .catch((problem: unknown) => { if (!controller.signal.aborted) setListError(problem instanceof Error ? problem.message : '加载失败'); });
     return () => controller.abort();
   }, [ownerId, page, revision]);
+
+  useEffect(() => {
+    if (!onOpenFeedback) return;
+    setDetailError('');
+    if (!routeFeedbackId || !ownerId) { setDetail(undefined); setDetailLoading(false); return; }
+    const controller = new AbortController();
+    setDetail(undefined); setDetailLoading(true);
+    api<{ feedback: FeedbackDetail }>(`/api/feedback/${encodeURIComponent(routeFeedbackId)}`, { headers: { 'X-Workspace-Owner': ownerId }, signal: controller.signal })
+      .then(({ feedback }) => {
+        if (!validDetail(feedback, routeFeedbackId)) throw new Error('反馈数据无法读取');
+        if (!controller.signal.aborted) { setDetail(feedback); setSupplement(''); }
+      }).catch((problem: unknown) => { if (!controller.signal.aborted) setDetailError(problem instanceof Error ? problem.message : '加载失败'); })
+      .finally(() => { if (!controller.signal.aborted) setDetailLoading(false); });
+    return () => controller.abort();
+  }, [ownerId, routeFeedbackId, detailRetry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function chooseFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = [...(event.target.files ?? [])]; event.target.value = '';
@@ -85,42 +134,54 @@ export function FeedbackView({ ownerId, draft, setDraft, onLogin }: {
   async function submit(event: FormEvent) {
     event.preventDefault(); setError('');
     if (!ownerId) { onLogin(draft); return; }
+    const routeAtStart = routeRef.current;
     setBusy(true);
     try {
       const attachments = await Promise.all(draft.attachments.map(async (file) => ({ name: file.name, data: await readFile(file) })));
       const article = draft.article && { id: draft.article.id, snapshotKey: draft.article.snapshotKey, position: draft.article.position, wrongText: draft.article.wrongText };
       const response = await api<{ feedback: FeedbackDetail }>('/api/feedback', { method: 'POST', headers: { 'X-Workspace-Owner': ownerId }, timeoutMs: 60_000,
         body: { requestId: draft.requestId, category: draft.category, title: draft.title, description: draft.description, attachments, ...(article && { article }) } });
-      setDraft(newFeedbackDraft()); setDetail(response.feedback); setPage(1); setRevision((value) => value + 1);
-    } catch (problem) { setError(problem instanceof Error ? problem.message : '提交失败'); }
-    finally { setBusy(false); }
+      if (!validDetail(response.feedback)) throw new Error('提交结果无法确认，请重试');
+      if (!mounted.current) return;
+      setDraft(newFeedbackDraft()); setPage(1); setRevision((value) => value + 1);
+      if (onOpenFeedback && routeRef.current !== routeAtStart) return;
+      setDetail(response.feedback); onOpenFeedback?.(response.feedback.id);
+    } catch (problem) { if (mounted.current) setError(problem instanceof Error ? problem.message : '提交失败'); }
+    finally { if (mounted.current) setBusy(false); }
   }
   async function openDetail(id: string) {
     if (!ownerId) return;
+    if (onOpenFeedback) { onOpenFeedback(id); return; }
     setBusy(true); setError('');
     try {
       const response = await api<{ feedback: FeedbackDetail }>(`/api/feedback/${encodeURIComponent(id)}`, { headers: { 'X-Workspace-Owner': ownerId } });
+      if (!validDetail(response.feedback, id)) throw new Error('反馈数据无法读取');
       setDetail(response.feedback); setSupplement('');
     } catch (problem) { setError(problem instanceof Error ? problem.message : '加载失败'); }
     finally { setBusy(false); }
   }
   async function addMessage(event: FormEvent) {
     event.preventDefault(); if (!ownerId || !detail) return;
+    const requestedId = detail.id;
     setBusy(true); setError('');
     try {
-      const response = await api<{ feedback: FeedbackDetail }>(`/api/feedback/${encodeURIComponent(detail.id)}/messages`, { method: 'POST', headers: { 'X-Workspace-Owner': ownerId }, body: { text: supplement } });
+      const response = await api<{ feedback: FeedbackDetail }>(`/api/feedback/${encodeURIComponent(requestedId)}/messages`, { method: 'POST', headers: { 'X-Workspace-Owner': ownerId }, body: { text: supplement } });
+      if (!validDetail(response.feedback, requestedId)) throw new Error('反馈数据无法读取');
+      if (!mounted.current || (onOpenFeedback && routeRef.current !== requestedId)) return;
       setDetail(response.feedback); setSupplement(''); setRevision((value) => value + 1);
-    } catch (problem) { setError(problem instanceof Error ? problem.message : '补充失败'); }
-    finally { setBusy(false); }
+    } catch (problem) { if (mounted.current && (!onOpenFeedback || routeRef.current === requestedId)) setError(problem instanceof Error ? problem.message : '补充失败'); }
+    finally { if (mounted.current) setBusy(false); }
   }
 
   return <section className="content-panel feature-panel feedback-panel">
     <div className="content-heading"><h1><ChatCircleText size={25} aria-hidden="true" />功能反馈</h1></div>
-    {detail ? <>
-      <FeedbackThread feedback={detail} />
+    {routeFeedbackId && !ownerId ? <div className="feature-form"><p>请先登录</p><button type="button" className="outline-button" onClick={() => onLogin(draft)}>登录</button></div> :
+      routeFeedbackId && !shownDetail ? <div className="feature-form">{detailLoading || !detailError ? <p role="status">正在读取反馈…</p> : <><p className="form-error" role="alert">{detailError}</p><button type="button" className="outline-button" onClick={() => setDetailRetry((value) => value + 1)}>重试</button></>}<button type="button" className="outline-button" onClick={onCloseFeedback}>返回反馈</button></div> :
+      shownDetail ? <>
+      <FeedbackThread feedback={shownDetail} />
       <form className="feature-form" onSubmit={addMessage}><label>补充信息<textarea value={supplement} maxLength={5000} required disabled={busy} onChange={(event) => setSupplement(event.target.value)} /></label>
         {error && <p className="form-error" role="alert">{error}</p>}
-        <div className="feature-actions"><button className="outline-button" type="button" disabled={busy} onClick={() => { setDetail(undefined); setError(''); }}>返回</button><button className="primary-button" disabled={busy}>提交补充</button></div>
+        <div className="feature-actions"><button className="outline-button" type="button" disabled={busy} onClick={() => { setError(''); if (onCloseFeedback) onCloseFeedback(); else setDetail(undefined); }}>返回</button><button className="primary-button" disabled={busy}>提交补充</button></div>
       </form>
     </> : <>
       <form className="feature-form" onSubmit={submit}>
