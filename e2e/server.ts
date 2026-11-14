@@ -31,4 +31,5 @@ const cleanup = async () => {
 };
 process.once('SIGTERM', () => { void cleanup(); });
 process.once('SIGINT', () => { void cleanup(); });
-await app.listen({ host: '127.0.0.1', port: Number(process.env.E2E_PORT || 4178) });
+const address = await app.listen({ host: '127.0.0.1', port: Number(process.env.E2E_PORT || 4178) });
+if (process.env.TYPING_IME_DISCOVER_PORT === '1') console.log(`TYPING_TEST_URL=${address}`);

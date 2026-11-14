@@ -16,3 +16,78 @@ test('password controls keep a stable field name and mouse selection across visi
   await dialog.getByRole('button', { name: '隐藏密码' }).click();
   await expect(password).toHaveAttribute('type', 'password');
 });
+
+test('keeps password visibility local to registration and reset while Enter submits each form', async ({ page }) => {
+  const email = 'visibility_register@example.test'; const username = 'visibility_register';
+  const original = 'original-password-123'; const replacement = 'replacement-password-456';
+  await page.goto('/');
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await page.getByRole('button', { name: '创建账号' }).click();
+  const register = page.getByRole('dialog', { name: '创建账号' });
+  await register.getByLabel('用户名', { exact: true }).fill(username);
+  await register.getByLabel('邮箱', { exact: true }).fill(email);
+  await register.getByRole('button', { name: '获取验证码' }).click();
+  await expect(register.getByText('验证码请求已提交。')).toBeVisible();
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  await register.getByLabel('邮箱验证码').fill(code);
+  const registerPassword = register.getByLabel('密码', { exact: true });
+  await expect(registerPassword).toHaveAttribute('type', 'password');
+  await expect(registerPassword).toHaveAttribute('autocomplete', 'new-password');
+  await registerPassword.fill(original);
+  await register.getByRole('button', { name: '显示密码' }).click();
+  await expect(registerPassword).toHaveAttribute('type', 'text');
+  await expect(registerPassword).toHaveValue(original);
+  await register.getByRole('button', { name: '隐藏密码' }).click();
+  await registerPassword.press('Enter');
+  await expect(page.getByRole('button', { name: username, exact: true })).toBeVisible();
+  await page.getByRole('button', { name: username, exact: true }).click();
+  await page.getByRole('menuitem', { name: '退出登录' }).click();
+  await page.getByRole('dialog', { name: '退出登录' }).getByRole('button', { name: '确认退出' }).click();
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await page.getByRole('button', { name: '忘记密码？' }).click();
+  const reset = page.getByRole('dialog', { name: '找回密码' });
+  await reset.getByLabel('邮箱', { exact: true }).fill(email);
+  await reset.getByRole('button', { name: '获取验证码' }).click();
+  await expect(reset.getByText('验证码请求已提交。')).toBeVisible();
+  const resetCode = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=reset`)).json()).code;
+  await reset.getByLabel('邮箱验证码').fill(resetCode);
+  const next = reset.getByLabel('新密码', { exact: true });
+  await expect(next).toHaveAttribute('type', 'password');
+  await next.fill(replacement);
+  await reset.getByRole('button', { name: '显示密码' }).click();
+  await expect(next).toHaveAttribute('type', 'text');
+  await expect(next).toHaveValue(replacement);
+  await reset.getByRole('button', { name: '隐藏密码' }).click();
+  await next.press('Enter');
+  const login = page.getByRole('dialog', { name: '登录' });
+  await expect(login.getByText('密码已更新。')).toBeVisible();
+  const loginPassword = login.getByLabel('密码', { exact: true });
+  await expect(loginPassword).toHaveAttribute('type', 'password');
+  await loginPassword.fill(replacement);
+  await loginPassword.press('Enter');
+  await expect(page.getByRole('button', { name: username, exact: true })).toBeVisible();
+});
+
+test('independently toggles all change-password fields and hides them again when the form closes', async ({ page }) => {
+  const username = 'visibility_change'; const email = `${username}@example.test`; const original = 'original-password-123'; const replacement = 'replacement-password-456';
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  expect((await page.request.post('/api/auth/register', { data: { username, email, password: original, code } })).ok()).toBe(true);
+  await page.goto('/account');
+  const account = page.getByRole('dialog', { name: '账号设置' });
+  const section = account.locator('details').filter({ has: page.getByText('修改密码', { exact: true }) });
+  await section.locator('summary').click();
+  for (const [label, value] of [['当前密码', original], ['新密码', replacement], ['确认新密码', replacement]] as const) {
+    const input = section.getByLabel(label, { exact: true });
+    await input.fill(value);
+    await section.getByRole('button', { name: `显示${label}`, exact: true }).click();
+    await expect(input).toHaveAttribute('type', 'text');
+    await expect(input).toHaveValue(value);
+  }
+  await section.locator('summary').click();
+  await section.locator('summary').click();
+  for (const label of ['当前密码', '新密码', '确认新密码']) await expect(section.getByLabel(label, { exact: true })).toHaveAttribute('type', 'password');
+  await section.getByLabel('确认新密码', { exact: true }).press('Enter');
+  await expect(page.getByRole('button', { name: '登录', exact: true })).toBeVisible();
+  expect((await (await page.request.get('/api/me')).json()).user).toBeNull();
+});
