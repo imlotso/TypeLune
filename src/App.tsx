@@ -38,6 +38,7 @@ import { articles, type Difficulty, type Language } from './data/articles';
 import { infoLabels, type InfoPage } from './data/site-content';
 import { continuationDraftId, discardSavedDraft, draftAwaitingStart, localHistory, practiceDraftId, readDraft, readDrafts, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
+import { useSiteFeatures } from './hooks/useSiteFeatures';
 import { api, ApiError, type User } from './lib/api';
 import { catalogSnapshotKey, compareDraftProgress, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PracticeRecord, type ReaderSettings, type SavedPractice } from './lib/models';
 import { readableCharacter } from './lib/practice-lines';
@@ -187,6 +188,7 @@ export function App() {
 function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, onWorkspaceReset, pendingCleanup, cleanupBusy, onRetryCleanup, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; onWorkspaceReset: () => void; pendingCleanup: number; cleanupBusy: boolean; onRetryCleanup: () => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
   const ownerId = user?.id ?? null;
   const workspace = useWorkspace(ownerId, authReady);
+  const site = useSiteFeatures();
   const [selection, setSelection] = useState(builtIns[0]);
   const [publicArticles, setPublicArticles] = useState(builtIns);
   const [catalogRevision, setCatalogRevision] = useState(0);
@@ -247,6 +249,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     article: selection, articleId: selection.id, title: displayTitle, text, language, difficulty, duration,
     custom: selection.custom || publicById.get(selection.id) !== selectedCatalogKey,
     guardCatalog: true, onCatalogStale: refreshCatalog, ownerId,
+    guestOnlineAllowed: site.features?.guestPracticeEnabled,
     mode: workspace.settings.mode, strict: workspace.settings.strict, autoPause: workspace.settings.autoPause,
     onRecord(record) {
       if (record.recordId) void putWorkspaceValue(record.ownerId ?? null, 'record', record.recordId, record).catch(reportSaveError);
@@ -280,7 +283,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const roundTarget = useMemo(() => targetCharacters.slice(practice.offset, typedCharacters.length).join(''), [targetCharacters, typedCharacters.length, practice.offset]);
   const previewScore = useMemo(() => scoreTyping(roundTarget, roundTyped, Math.max(practice.elapsedMs / 1000, 0.1)), [roundTarget, roundTyped, practice.elapsedMs]);
   const clockMs = currentMode === 'article' ? practice.elapsedMs : Math.max(0, currentDuration * 1000 - practice.elapsedMs);
-  const practiceNotice = feedback || practice.feedback || (!locked && currentMode === 'timed' && !validDuration ? '时长须为 1–60 分钟的整数。' : '');
+  const practiceNotice = feedback || practice.feedback || (!locked && currentMode === 'timed' && !validDuration ? '时长须为 1–60 分钟的整数。' : '') ||
+    (!user && phase === 'ready' && !selection.custom && site.features?.guestPracticeEnabled === false ? '游客在线练习已关闭，本轮仅本机保存。' : '');
   const mistakes = useMemo(() => typedCharacters.flatMap((character, index) => index >= practice.offset && character !== targetCharacters[index] ? [{ index, expected: targetCharacters[index], actual: character }] : []), [typedCharacters, targetCharacters, practice.offset]);
 
   useEffect(() => {
@@ -596,6 +600,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
 
   async function submitRank() {
     if (!result?.attemptId) return;
+    if (!user && site.features?.guestLeaderboardEnabled === false) { setRankMessage('游客上榜已关闭'); return; }
     const attemptId = result.attemptId;
     const request = ++rankRequest.current;
     const current = () => live.current && rankRequest.current === request && currentResult.current?.attemptId === attemptId;
@@ -718,6 +723,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     <RoomBackground theme={theme} background={workspace.backgrounds[theme]}>
       <div className="workspace">
         {!user && pendingCleanup > 0 && <div className="cleanup-warning" role="alert"><span>本机账号缓存清理未完成。</span><button className="outline-button" disabled={cleanupBusy} onClick={onRetryCleanup}>重试清理</button></div>}
+        {site.error && <div className="cleanup-warning" role="status"><span>站点配置读取失败：{site.error}</span><button className="outline-button" onClick={site.retry}>重试</button></div>}
         {view === 'practice' && <>
           {focused ? <div className="focus-actions"><button ref={focusButton} className="outline-button feature-action-button" onClick={exitFocus}>退出专注</button></div> : filters}
           <div className="status-row">
@@ -727,6 +733,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
               : <span><Keyboard size={23} /> 字 / 分钟：{roundTyped ? previewScore.cpm : '—'}</span>}
           </div>
           <div className="progress-row"><span>文章字数：<b data-testid="article-count">{targetCharacters.length}</b></span><span>已打字数：<b data-testid="typed-count">{typedCharacters.length}</b></span><span>当前错误：<b data-testid="error-count">{previewScore.total - previewScore.correct}</b></span><span>退格：<b data-testid="backspace-count">{practice.backspaces}</b></span></div>
+          {practiceNotice && <p className="practice-notice" role="status">{practiceNotice}</p>}
+          {!user && site.features?.guestLeaderboardEnabled === false && <p className="practice-notice" role="status">游客上榜已关闭。</p>}
           <section className="typing-panel" aria-label="文章练习">
             <div className="practice-heading">
               <div className="practice-title"><BookOpen size={22} aria-hidden="true" /><div>
@@ -751,7 +759,6 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
             </div>
             <PracticeLines practice={practice} title={displayTitle} reader={workspace.settings} canStart={canStart} onStart={() => { interacted.current = true; }} />
           </section>
-          {practiceNotice && <p className="practice-notice" role="status">{practiceNotice}</p>}
         </>}
         {view !== 'practice' && feedback && <p className="form-error view-error" role="alert">{feedback}</p>}
         {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">连接失败，显示本机记录。</p>}
@@ -785,7 +792,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       {customError && <p className="form-error" role="alert">{customError}</p>}
       <div className="result-actions"><span className="custom-count">{splitCharacters(customDraft).length} / 20000 字符</span><button className="primary-button" onClick={useCustomText}>使用这段文字</button></div>
     </Dialog>}
-    {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) window.history.replaceState(null, '', '/'); }} onLogin={onUser} />}
+    {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) window.history.replaceState(null, '', '/'); }} onLogin={onUser} registrationEnabled={site.features?.registrationEnabled} />}
     {showAccount && user && <AccountDialog user={user} onClose={() => setShowAccount(false)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} />}
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
     {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} />}
@@ -820,7 +827,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       {practice.canRetryOnline && practice.feedback && <p className="form-error" role="alert">{practice.feedback}</p>}
       {!result.offline && result.eligible && !rankSubmitted && <div className="rank-submit">
         {!user && <label>上榜昵称<input value={nickname} maxLength={32} onChange={(event) => setNickname(event.target.value)} /></label>}
-        <button className="primary-button" disabled={busy || (!user && !nickname.trim())} onClick={() => void submitRank()}><Trophy size={20} /> {busy ? '提交中…' : '提交到排行榜'}</button>
+        <button className="primary-button" disabled={busy || (!user && (!nickname.trim() || site.features?.guestLeaderboardEnabled === false))} onClick={() => void submitRank()}><Trophy size={20} /> {busy ? '提交中…' : '提交到排行榜'}</button>
+        {!user && site.features?.guestLeaderboardEnabled === false && <p className="form-error" role="status">游客上榜已关闭。</p>}
       </div>}
       {rankMessage && <p className={rankSubmitted ? 'form-notice' : 'form-error'} role={rankSubmitted ? 'status' : 'alert'}>{rankSubmitted && <CheckCircle size={18} />} {rankMessage}</p>}
       <div className={`result-actions result-navigation${result.continuation ? ' with-continuation' : ''}`}>

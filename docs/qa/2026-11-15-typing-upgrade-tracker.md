@@ -24,11 +24,11 @@
 | C04 | 待完善 | `a0eeb01` | 已有退出清理选项、未同步保护、按账号本机清理及新版标签页迟到写入阻断；旧版独立资料检查及旧客户端兼容待完善。 |
 | C05 | 待完善 | — | 游客与账号数据隔离；缺显式导入、去重与恢复。 |
 | D01 | 待完善 | — | `/admin` 有入口，主要前台视图由组件状态切换，缺稳定路由。 |
-| D02 | 待完善 | — | 服务端设置已实施；前台缺完整公开配置及预提示。 |
+| D02 | 待完善 | 本阶段 | 公开接口只返回三个功能开关；前台提示并限制注册／游客上榜，游客新练习关闭时直接本机开始。已有在线练习可恢复，待最终整体回归。 |
 | D03 | 待完善 | — | 已有历史详情及部分去重，缺全面筛选、删除和成绩撤回。 |
 | D04 | 待完善 | — | 有部分成绩和复核状态，缺统一状态与公开处理说明。 |
 | D05 | 待完善 | — | 草稿有恢复成绩入口；历史详情尚无对应入口。 |
-| D06 | 待完善 | 本阶段 | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
+| D06 | 待完善 | `a77e3e9` | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
 | E01 | 未实现 | — | 缺按完整练习条件的个人最佳与比较。 |
 | E02 | 待完善 | — | 已有累计错字专项；缺本轮复练和状态管理。 |
 | E03 | 未实现 | — | 缺命名预设及跨设备同步。 |
@@ -106,3 +106,6 @@
 | 私人文章防丢失 | `npx vitest run tests/private-editor.test.tsx tests/feature-views.test.tsx`；`npm run typecheck`、`npm run build`、`npm run test:sites` | 均通过；覆盖未保存修改、TXT 覆盖、保存失败、焦点及删除提示。 |
 | 私人文章防丢失 | `npx playwright test e2e/private-editor.e2e.ts` | 1 项通过：实际创建、编辑和删除私人文章，验证既有草稿继续使用原文快照。 |
 | 私人文章防丢失 | 隔离测试服务 390 px 日间实际页面 | 已查看[未保存修改确认](screenshots/private-editor-confirm-mobile.png)。 |
+| 前台站点开关 | `npm run typecheck`、`npx vitest run tests/site-features-ui.test.tsx tests/site-settings.test.ts tests/recovery-practice.test.tsx`、`npm run build`、`npm run test:sites` | 均通过；定向测试 31 项通过，覆盖公开字段、配置失败重试、注册切换和游客本机练习。 |
+| 前台站点开关 | `npx playwright test e2e/site-features.e2e.ts` | 2 项通过：后台关停后前台提示、既有游客在线练习继续、限制上榜及获取配置失败后重试。 |
+| 前台站点开关 | 隔离测试服务 390 px 日间实际页面 | 已查看[练习状态提示](screenshots/site-flags-mobile-updated.png)及[注册关闭提示](screenshots/site-flags-auth-mobile.png)，测试后已恢复预览开关。 |

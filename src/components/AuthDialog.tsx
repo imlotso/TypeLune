@@ -5,7 +5,7 @@ import { PasswordField } from './PasswordField';
 
 type Mode = 'password' | 'code' | 'register' | 'reset';
 
-export function AuthDialog({ onClose, onLogin }: { onClose: () => void; onLogin: (user: User) => void }) {
+export function AuthDialog({ onClose, onLogin, registrationEnabled }: { onClose: () => void; onLogin: (user: User) => void; registrationEnabled?: boolean }) {
   const [mode, setMode] = useState<Mode>('password');
   const [username, setUsername] = useState('');
   const [identifier, setIdentifier] = useState('');
@@ -29,6 +29,7 @@ export function AuthDialog({ onClose, onLogin }: { onClose: () => void; onLogin:
   const switchMode = (next: Mode) => { setMode(next); setError(''); setNotice(''); setCode(''); };
 
   async function sendCode() {
+    if (mode === 'register' && registrationEnabled === false) { setError('当前已关闭注册'); return; }
     if (!email.trim()) { setError('请先填写邮箱'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
@@ -47,7 +48,9 @@ export function AuthDialog({ onClose, onLogin }: { onClose: () => void; onLogin:
   }
 
   async function submit(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError(''); setNotice('');
+    event.preventDefault();
+    if (mode === 'register' && registrationEnabled === false) { setError('当前已关闭注册'); return; }
+    setBusy(true); setError(''); setNotice('');
     try {
       if (mode === 'reset') {
         await api('/api/auth/reset', { method: 'POST', body: { email, code, password } });
@@ -72,16 +75,17 @@ export function AuthDialog({ onClose, onLogin }: { onClose: () => void; onLogin:
       {mode === 'register' && <label>用户名<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required /></label>}
       {mode === 'password' ? <label>用户名或邮箱<input value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" required /></label> :
         <label>邮箱<input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setNotice(''); setError(''); }} autoComplete="email" required /></label>}
-      {mode !== 'password' && <label>邮箱验证码<span className="code-field"><input aria-label="邮箱验证码" inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} maxLength={6} required /><button type="button" className="text-button" disabled={busy || remaining > 0} onClick={sendCode}>{remaining ? `${remaining} 秒后重发` : '获取验证码'}</button></span></label>}
+      {mode !== 'password' && <label>邮箱验证码<span className="code-field"><input aria-label="邮箱验证码" inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} maxLength={6} required /><button type="button" className="text-button" disabled={busy || remaining > 0 || (mode === 'register' && registrationEnabled === false)} onClick={sendCode}>{remaining ? `${remaining} 秒后重发` : '获取验证码'}</button></span></label>}
       {mode !== 'code' && <PasswordField key={mode} label={mode === 'reset' ? '新密码' : '密码'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'password' ? 'current-password' : 'new-password'} minLength={mode === 'password' ? undefined : 10} required />}
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="form-notice" role="status">{notice}</p>}
-      <button className="primary-button auth-submit" disabled={busy}>{busy ? '处理中…' : mode === 'register' ? '注册并登录' : mode === 'reset' ? '更新密码' : '登录'}</button>
+      <button className="primary-button auth-submit" disabled={busy || (mode === 'register' && registrationEnabled === false)}>{busy ? '处理中…' : mode === 'register' ? '注册并登录' : mode === 'reset' ? '更新密码' : '登录'}</button>
     </form>
     <div className="auth-links">
-      {mode !== 'register' ? <button className="text-button" onClick={() => switchMode('register')}>创建账号</button> : <button className="text-button" onClick={() => switchMode('password')}>返回登录</button>}
+      {mode !== 'register' ? <button className="text-button" disabled={registrationEnabled === false} onClick={() => switchMode('register')}>创建账号</button> : <button className="text-button" onClick={() => switchMode('password')}>返回登录</button>}
       {mode !== 'reset' && <button className="text-button" onClick={() => switchMode('reset')}>忘记密码？</button>}
       {mode === 'reset' && <button className="text-button" onClick={() => switchMode('password')}>返回登录</button>}
     </div>
+    {registrationEnabled === false && <p className="form-error" role="status">当前已关闭注册</p>}
   </Dialog>;
 }

@@ -61,6 +61,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .primary-button:not(:disabled):hover { background: #ad9ae9; transform: translateY(-2px); }
 .start-button { min-width: 132px; min-height: 42px; padding: 9px 20px; font-size: 14px; }
 .practice-notice { text-align: center; color: #6e678b; font-size: 13px; margin: 12px 0 0; }
+.practice-notice + .typing-panel { margin-top: 12px; }
 .sleeping-cat { position: absolute; z-index: 0; pointer-events: none; right: 12%; bottom: 2.5%; width: min(31vw, 420px); height: auto; }
 .content-panel { margin-top: 28px; padding: 28px 32px; border: 1px solid #d6cdef; border-radius: 20px; background: rgba(255,255,255,.88); box-shadow: 0 10px 30px rgba(89,73,125,.06); }
 .content-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }

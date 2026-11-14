@@ -452,6 +452,12 @@ export async function createApp(options: AppOptions) {
     };
   }
 
+  app.get('/api/site/features', async (_request, reply) => {
+    const { registrationEnabled, guestPracticeEnabled, guestLeaderboardEnabled } = siteSettings.read().settings;
+    reply.header('Cache-Control', 'no-store');
+    return { registrationEnabled, guestPracticeEnabled, guestLeaderboardEnabled };
+  });
+
   app.get('/api/workspace', async (request, reply) => {
     const user = userFor(request);
     if (!user) return invalid(reply, '请先登录', 401);

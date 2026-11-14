@@ -11,6 +11,18 @@ let now: number;
 beforeEach(() => { localStorage.clear(); sessionStorage.clear(); now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
+it('starts a guest practice locally without requesting an online challenge when the public switch is closed', async () => {
+  const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+  const session = renderHook(() => usePractice({ ...config, guestOnlineAllowed: false }, null));
+  act(() => session.result.current.updateTyped('甲'));
+  expect(session.result.current.phase).toBe('running');
+  expect(session.result.current.feedback).toBe('游客在线练习已关闭，已转为本地练习。');
+  expect(fetcher).not.toHaveBeenCalled();
+  now = 2000;
+  await act(() => session.result.current.pause());
+  expect(readDraft()).toMatchObject({ typed: '甲', personalOnly: true, offline: true });
+});
+
 it('keeps a guest practice local after the server disables new online practices', async () => {
   const fetch = vi.fn(async () => response({ error: '游客在线练习已关闭', code: 'GUEST_ONLINE_PRACTICE_DISABLED' }, false, 403));
   vi.stubGlobal('fetch', fetch);

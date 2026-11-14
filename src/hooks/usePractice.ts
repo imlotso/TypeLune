@@ -8,6 +8,7 @@ import { isLocalAccountBlocked, readWorkspaceGeneration } from '../lib/workspace
 export type PracticePhase = 'ready' | 'starting' | 'running' | 'pausing' | 'paused' | 'resuming' | 'restoring' | 'finishing' | 'finished';
 type RoundConfig = { articleId: string; title: string; text: string; language: Language; difficulty: Difficulty; duration: number; custom: boolean; ownerId: string | null; article?: ArticleSnapshot; mode?: PracticeMode; strict?: boolean };
 export type PracticeConfig = RoundConfig & {
+  guestOnlineAllowed?: boolean;
   guardCatalog?: boolean;
   onCatalogStale?: () => void;
   autoPause?: boolean;
@@ -765,12 +766,13 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     if (phaseRef.current !== 'ready' || !validDuration(settings.duration) || !settings.text) return;
     const request = ++startRequest.current;
     const { articleId, title, language, difficulty, duration, custom, ownerId, article, mode = 'timed', strict = false } = settings;
-    const clientId = custom ? undefined : clientChallengeId();
+    const guestBlocked = !custom && !ownerId && settings.guestOnlineAllowed === false;
+    const clientId = custom || guestBlocked ? undefined : clientChallengeId();
     const recoveryKey = clientId ? clientRecoveryKey() : undefined;
     const claimId = clientId ? clientChallengeId() : undefined;
     const attempt: Attempt = {
       articleId, title, language, difficulty, duration, custom, ownerId, article, mode, strict,
-      text: settings.text, recordId: clientId ?? uniqueId(), recoveryId: clientId, recoveryKey, claimId, claimVersion: claimId ? 1 : undefined, revision: 0, target: settings.text, offline: true, pendingStart: !!clientId && !!claimId,
+      text: settings.text, recordId: clientId ?? uniqueId(), recoveryId: clientId, recoveryKey, claimId, claimVersion: claimId ? 1 : undefined, revision: 0, target: settings.text, offline: true, personalOnly: guestBlocked || undefined, pendingStart: !!clientId && !!claimId,
       elapsedMs: 0, startedAt: performance.now(), suspicious: pendingSuspicious.current,
       backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [],
     };
@@ -808,7 +810,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       })();
       pendingStart.current = { attempt, promise };
       void promise.finally(() => { if (pendingStart.current?.promise === promise) pendingStart.current = null; });
-    } else if (!custom) setFeedback('在线练习不可用，已转为个人练习。');
+    } else if (!custom) setFeedback(guestBlocked ? guestPracticeDisabledMessage : '在线练习不可用，已转为个人练习。');
     queueMicrotask(() => { if (isCurrent(attempt, 'running') && liveConfig.current.autoPause && document.visibilityState === 'hidden') void pause(); });
   }
 
@@ -821,9 +823,10 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     targetCharacters.current = null; committedCharacters.current = null;
     let testTarget = config.text;
     let id: string | undefined;
-    let offline = custom;
-    let personalOnly = false;
-    if (!custom) {
+    const guestBlocked = !custom && !ownerId && config.guestOnlineAllowed === false;
+    let offline = custom || guestBlocked;
+    let personalOnly = guestBlocked;
+    if (!custom && !guestBlocked) {
       try {
         const challenge = await api<{ id: string; target: string }>('/api/tests/start', {
           method: 'POST', headers: { 'X-Workspace-Owner': ownerId ?? 'guest' }, body: {

@@ -133,6 +133,15 @@ describe('site settings on the production API', () => {
     expect(finished.json()).toMatchObject({ eligible: true, score: { cpm: 120, wpm: 24 } });
   }
 
+  it('exposes only public availability switches and reflects administrator changes', async () => {
+    const first = await app.inject('/api/site/features');
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['cache-control']).toBe('no-store');
+    expect(first.json()).toEqual({ registrationEnabled: true, guestPracticeEnabled: true, guestLeaderboardEnabled: true });
+    await changeSettings({ registrationEnabled: false, guestPracticeEnabled: false, guestLeaderboardEnabled: false, reviewThresholdZh: 111 });
+    expect((await app.inject('/api/site/features')).json()).toEqual({ registrationEnabled: false, guestPracticeEnabled: false, guestLeaderboardEnabled: false });
+  });
+
   it('enforces closed registration with an already-issued code and keeps existing account login working', async () => {
     const newEmail = 'reader@example.test';
     expect((await requestCode(newEmail)).statusCode).toBe(200);
