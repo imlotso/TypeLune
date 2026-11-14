@@ -1,7 +1,7 @@
 import type { User } from './api';
 import { compareDraftProgress, type ArticleSnapshot, type MistakeSample, type PracticeRecord, type ReaderSettings, type SavedPractice, type WorkspaceItem } from './models';
 import type { BackgroundConfig } from './background';
-import { mergeWorkspaceItems, workspaceSettings } from './workspace';
+import { isWorkspaceItem, mergeWorkspaceItems, workspaceSettings } from './workspace';
 import { cleanPracticePreset } from './practice-settings';
 import { mergePracticeRecords, normalizeWorkspaceRecord, stableRecordId } from './records';
 import { isProcessTrace } from './process-trace';
@@ -66,8 +66,37 @@ function mergeRecords(values: PracticeRecord[]) {
   return [...records.values()].sort((a, b) => b.finishedAt - a.finishedAt);
 }
 
+function workspaceCopy(item: WorkspaceItem) {
+  if (item.deleted) return { kind: item.kind, id: item.id, updatedAt: item.updatedAt, deleted: true as const };
+  const payload = item.kind === 'article' ? article(item.value as ArticleSnapshot) : item.kind === 'draft' ? draft(item.value as SavedPractice) :
+    item.kind === 'record' ? record(item.value as PracticeRecord) : item.kind === 'settings' ? settings(item.value as ReaderSettings) :
+      item.kind === 'background' ? background(item.value as BackgroundConfig) : { articleId: item.id };
+  return { kind: item.kind, id: item.id, updatedAt: item.updatedAt, value: payload };
+}
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)]));
+}
+const same = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+function covered(local: unknown, selected: unknown): boolean {
+  if (local === undefined) return true;
+  if (Array.isArray(local)) return Array.isArray(selected) && local.length === selected.length && local.every((item, index) => covered(item, selected[index]));
+  if (local && typeof local === 'object') {
+    if (!selected || typeof selected !== 'object' || Array.isArray(selected)) return false;
+    const other = selected as Record<string, unknown>;
+    return Object.entries(local).every(([key, value]) => ['recordId', 'status', 'localOnly', 'savedAt'].includes(key) || covered(value, other[key]));
+  }
+  return local === selected;
+}
+
 export function buildPersonalExport(input: Inputs) {
-  const items = mergeWorkspaceItems(input.local, input.remote ?? []);
+  const missing = [...input.missing];
+  const local = input.local.filter(isWorkspaceItem);
+  const remote = input.remote?.filter(isWorkspaceItem);
+  if (local.length !== input.local.length) missing.push('部分本机工作区项目无法读取');
+  if (input.remote && remote?.length !== input.remote.length) missing.push('部分云端工作区项目无法读取');
+  const items = mergeWorkspaceItems(local, remote ?? []);
   const drafts = new Map<string, SavedPractice>();
   const deletedDrafts = new Set(items.filter((item) => item.kind === 'draft' && item.deleted).map((item) => item.id));
   for (const item of items) if (item.kind === 'draft' && !item.deleted) drafts.set(item.id, item.value as SavedPractice);
@@ -79,12 +108,56 @@ export function buildPersonalExport(input: Inputs) {
   const workspaceRecords = items.map(normalizeWorkspaceRecord).filter((item): item is PracticeRecord => !!item);
   const deletedRecords = new Set(items.filter((item) => item.kind === 'record' && item.deleted).map((item) => item.id));
   const active = (values: PracticeRecord[]) => values.filter((value) => !deletedRecords.has(stableRecordId(value)));
-  const records = mergeRecords(mergePracticeRecords(active(input.localHistory), active(input.remoteHistory), active(workspaceRecords)));
+  const mergedRecords = mergePracticeRecords(active(input.localHistory), active(input.remoteHistory), active(workspaceRecords));
+  const records = mergeRecords(mergedRecords);
+  const selectedItems = new Map(items.map((item) => [`${item.kind}:${item.id}`, item]));
+  const alternateCopies = (source: WorkspaceItem[]) => source.filter((item) => {
+    const selected = selectedItems.get(`${item.kind}:${item.id}`);
+    if (!selected) return true;
+    const a = workspaceCopy(item); const b = workspaceCopy(selected);
+    return !same('deleted' in a ? { deleted: true } : { value: a.value }, 'deleted' in b ? { deleted: true } : { value: b.value });
+  }).map(workspaceCopy);
+  const workspace = alternateCopies(local);
+  const cloudWorkspace = alternateCopies(remote ?? []);
+  const recoveryDrafts = input.legacyDrafts.filter((value) => {
+    const selected = drafts.get(value.id);
+    return input.preserveLocalCopies || !selected || !covered(draft(value), draft(selected));
+  }).map(draft);
+  const recordsById = new Map<string, PracticeRecord>();
+  for (const item of mergedRecords) {
+    recordsById.set(stableRecordId(item), item);
+    if (!item.legacyIdConflict) for (const alias of item.legacyLocalIds ?? []) recordsById.set(alias, item);
+  }
+  const localItems = new Map(local.map((item) => [`${item.kind}:${item.id}`, item]));
+  for (const item of items) {
+    let different = false;
+    if (item.kind === 'draft' && !item.deleted) {
+      const selected = drafts.get(item.id);
+      different = !!selected && !covered(draft(item.value as SavedPractice), draft(selected));
+    } else {
+      const source = normalizeWorkspaceRecord(item);
+      const selected = source && recordsById.get(stableRecordId(source));
+      different = !!source && !!selected && !covered(record(source), record(selected));
+    }
+    if (!different) continue;
+    const copy = workspaceCopy(item);
+    const localItem = localItems.get(`${item.kind}:${item.id}`);
+    const fromLocal = localItem && same(workspaceCopy(localItem), copy);
+    const destination = fromLocal ? workspace : cloudWorkspace;
+    if (!destination.some((existing) => same(existing, copy))) destination.push(copy);
+  }
+  const recoveryRecords = input.localHistory.filter((value) => {
+    if (input.preserveLocalCopies) return true;
+    const selected = recordsById.get(stableRecordId(value));
+    return !selected || !covered(record(value), record(selected));
+  }).map(record);
+  const hasRecovery = input.preserveLocalCopies || workspace.length > 0 || recoveryDrafts.length > 0 || recoveryRecords.length > 0;
+  const recoveryNames = [hasRecovery ? 'localRecoveryCopies' : '', cloudWorkspace.length ? 'cloudRecoveryCopies' : ''].filter(Boolean);
   return {
     format: 'typing-personal-data', version: 1, exportedAt: input.exportedAt,
     scope: { accountId: input.user.id, localWorkspace: input.localAvailable === false ? 'unavailable' : 'included', cloudWorkspace: input.remote ? 'included' : 'unavailable',
-      note: '导出不包含其他设备未同步的数据。' },
-    missing: [...input.missing],
+      note: recoveryNames.length ? `导出不包含其他设备未同步的数据；未合并的版本见 ${recoveryNames.join('、')}。` : '导出不包含其他设备未同步的数据。' },
+    missing,
     account: { id: input.user.id, username: input.user.username, email: input.user.email, displayName: input.user.displayName || input.user.username, avatar: input.user.avatar ?? null },
     data: {
       settings: settings(workspaceSettings(items)),
@@ -92,7 +165,8 @@ export function buildPersonalExport(input: Inputs) {
       articles: items.filter((item) => item.kind === 'article' && !item.deleted).map((item) => article(item.value as ArticleSnapshot)),
       drafts: [...drafts.values()].map(draft), records,
       backgrounds: items.filter((item) => item.kind === 'background' && !item.deleted).map((item) => ({ theme: item.id, ...background(item.value as BackgroundConfig) })),
-      ...(input.preserveLocalCopies && { localRecoveryCopies: { drafts: input.legacyDrafts.map(draft), records: input.localHistory.map(record) } }),
+      ...(hasRecovery && { localRecoveryCopies: { workspace, drafts: recoveryDrafts, records: recoveryRecords } }),
+      ...(cloudWorkspace.length > 0 && { cloudRecoveryCopies: { workspace: cloudWorkspace } }),
       feedback: input.feedback.map((item) => ({ id: item.id, category: item.category, title: item.title, description: item.description, status: item.status,
         createdAt: item.createdAt, updatedAt: item.updatedAt, ...(item.article && { article: { id: item.article.id, title: item.article.title, snapshotKey: item.article.snapshotKey,
           position: item.article.position, wrongText: item.article.wrongText } }),

@@ -12,7 +12,7 @@ export function WorkspaceRecoveryDialog({ user, reason, onReset, onClose }: Prop
   async function exportLocal() {
     setBusy(true); setError(''); setNotice('');
     try {
-      const missing = (await downloadPersonalData(user, 'json', { localOnly: true })).filter((item) => !item.startsWith('云端工作区、'));
+      const missing = (await downloadPersonalData(user, 'json', { localOnly: true })).missing.filter((item) => !item.startsWith('云端工作区、'));
       setNotice(missing.length ? `部分本机资料无法读取：${missing.join('；')}` : '已导出本机资料');
     } catch (problem) { setError(problem instanceof Error ? problem.message : '导出失败'); }
     finally { setBusy(false); }

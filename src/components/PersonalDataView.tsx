@@ -17,8 +17,11 @@ export async function downloadPersonalData(user: User, format: 'json' | 'csv', o
   const date = data.exportedAt.slice(0, 10);
   if (format === 'json') download(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', `typing-${options?.localOnly ? 'local-recovery' : 'personal-data'}-${date}.json`);
   else download(recordsCsv(data.data.records), 'text/csv;charset=utf-8', `typing-records-${date}.csv`);
-  return data.missing;
+  const recovery = data.data.localRecoveryCopies;
+  return { missing: data.missing, hasLocalRecovery: !!recovery && (recovery.workspace.length + recovery.drafts.length + recovery.records.length > 0),
+    hasCloudRecovery: !!data.data.cloudRecoveryCopies?.workspace.length };
 }
+export function recoveryCopyLabel(local: boolean, cloud: boolean) { return local && cloud ? '本机及云端' : local ? '本机' : cloud ? '云端' : ''; }
 
 export function PersonalDataView({ user, onClear, onCompacted, onGuestImport, onManageCapacity, onResetSettings }: { user: User; onClear: () => void; onCompacted: () => void; onGuestImport: () => void; onManageCapacity: (destination: CapacityDestination) => void; onResetSettings: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
@@ -28,9 +31,10 @@ export function PersonalDataView({ user, onClear, onCompacted, onGuestImport, on
   async function exportData(format: 'json' | 'csv') {
     setBusy(true); setNotice(''); setMissing([]); setError('');
     try {
-      const unavailable = await downloadPersonalData(user, format);
+      const { missing: unavailable, hasLocalRecovery, hasCloudRecovery } = await downloadPersonalData(user, format);
       setMissing(unavailable);
-      setNotice(unavailable.length ? '已导出可读取的部分资料' : '导出完成');
+      const copies = recoveryCopyLabel(hasLocalRecovery, hasCloudRecovery);
+      setNotice(`${unavailable.length ? '已导出可读取的部分资料' : '导出完成'}${copies ? (format === 'csv' ? `；未合并的${copies}副本仅在 JSON 中` : `，含未合并的${copies}副本`) : ''}`);
     } catch (problem) { setError(problem instanceof Error ? problem.message : '导出失败'); }
     finally { setBusy(false); }
   }

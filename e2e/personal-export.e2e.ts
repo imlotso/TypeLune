@@ -46,3 +46,64 @@ test('downloads personal JSON and CSV without authentication or recovery materia
   expect(csv).toContain("'=SUM(1,2)");
   expect(csv).not.toContain(secret);
 });
+
+test('exports a conflicting local article separately from the cloud version', async ({ page, browser, baseURL, clientIp }, testInfo) => {
+  const username = 'export_conflict'; const email = `${username}@example.test`; const password = 'export-password-123';
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  const registration = await page.request.post('/api/auth/register', { data: { username, email, password, code } });
+  const owner = (await registration.json()).user.id as string;
+  const time = Date.now() - 2000;
+  const base = { id: 'conflicted', title: '旧版', text: '原文', language: 'zh', difficulty: 'beginner', custom: true };
+  const headers = { 'X-Workspace-Protocol': '2', 'X-Workspace-Owner': owner };
+  expect((await page.request.post('/api/workspace/sync', { headers, data: { generation: 1, items: [{ kind: 'article', id: base.id, updatedAt: time, baseRevision: 0, value: base }] } })).ok()).toBe(true);
+  await page.goto('/account/data');
+  await expect(page.getByRole('heading', { name: '个人数据' })).toBeVisible();
+  await expect.poll(() => page.evaluate(async (id) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('cloudtyping-workspace', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    const item = await new Promise<unknown>((resolve, reject) => { const request = db.transaction('items').objectStore('items').get([`user:${id}`, 'article', 'conflicted']); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    db.close(); return !!item;
+  }, owner)).toBe(true);
+  const other = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
+  expect((await other.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
+  const cloud = { ...base, title: '云端版本', text: '云端正文' };
+  expect((await other.request.post('/api/workspace/sync', { headers, data: { generation: 1, items: [{ kind: 'article', id: base.id, updatedAt: time + 2000, baseRevision: 1, value: cloud }] } })).ok()).toBe(true);
+  await page.evaluate(async ({ id, at }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('cloudtyping-workspace', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('items', 'readwrite'); const store = tx.objectStore('items');
+      const request = store.get([`user:${id}`, 'article', 'conflicted']);
+      request.onsuccess = () => { const item = request.result; item.updatedAt = at + 1000; item.value = { ...item.value, title: '本机版本', text: '本机正文' }; store.put(item); };
+      tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }, { id: owner, at: time });
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出个人数据 JSON' }).click();
+  const exported = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
+  expect(exported.data.articles).toMatchObject([{ id: 'conflicted', title: '云端版本', text: '云端正文' }]);
+  expect(exported.data.localRecoveryCopies.workspace).toMatchObject([{ kind: 'article', id: 'conflicted', value: { title: '本机版本', text: '本机正文' } }]);
+  await expect(page.getByText('导出完成，含未合并的本机副本')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('export-conflict.png') });
+  await page.evaluate(async ({ id, at }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('cloudtyping-workspace', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('items', 'readwrite'); const store = tx.objectStore('items');
+      const request = store.get([`user:${id}`, 'article', 'conflicted']);
+      request.onsuccess = () => { const item = request.result; item.updatedAt = at + 3000; store.put(item); };
+      tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }, { id: owner, at: time });
+  const secondDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出个人数据 JSON' }).click();
+  const localFirst = JSON.parse(await readFile((await (await secondDownload).path())!, 'utf8'));
+  expect(localFirst.data.articles).toMatchObject([{ id: 'conflicted', title: '本机版本', text: '本机正文' }]);
+  expect(localFirst.data.cloudRecoveryCopies.workspace).toMatchObject([{ kind: 'article', id: 'conflicted', value: { title: '云端版本', text: '云端正文' } }]);
+  await expect(page.getByText('导出完成，含未合并的云端副本')).toBeVisible();
+  const csvDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出记录 CSV' }).click();
+  await csvDownload;
+  await expect(page.getByText('导出完成；未合并的云端副本仅在 JSON 中')).toBeVisible();
+  await other.close();
+});

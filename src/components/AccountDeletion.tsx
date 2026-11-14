@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState, type FormEvent } from 'react';
 import type { User } from '../lib/api';
 import { PasswordField } from './PasswordField';
-import { downloadPersonalData } from './PersonalDataView';
+import { downloadPersonalData, recoveryCopyLabel } from './PersonalDataView';
 
 type Props = { user: User; busy: boolean; setBusy: (busy: boolean) => void; visibilityVersion: number; onDelete: (password: string) => Promise<void>; onDirtyChange?: (dirty: boolean) => void };
 
@@ -14,8 +14,9 @@ export function AccountDeletion({ user, busy, setBusy, visibilityVersion, onDele
   async function exportData() {
     setBusy(true); setError(''); setNotice('');
     try {
-      const missing = await downloadPersonalData(user, 'json');
-      setNotice(missing.length ? `已导出部分资料：${missing.join('；')}` : '导出完成');
+      const { missing, hasLocalRecovery, hasCloudRecovery } = await downloadPersonalData(user, 'json');
+      const copies = recoveryCopyLabel(hasLocalRecovery, hasCloudRecovery);
+      setNotice(missing.length ? `已导出部分资料：${missing.join('；')}` : copies ? `导出完成，含未合并的${copies}副本` : '导出完成');
     } catch (problem) { setError(problem instanceof Error ? problem.message : '导出失败'); }
     finally { setBusy(false); }
   }

@@ -3,7 +3,7 @@ import type { User } from '../lib/api';
 import type { PracticeRecord, SavedPractice, SyncState } from '../lib/models';
 import { inspectLocalPracticeCopies } from '../lib/local-practice-unsynced';
 import { Dialog } from './Dialog';
-import { downloadPersonalData } from './PersonalDataView';
+import { downloadPersonalData, recoveryCopyLabel } from './PersonalDataView';
 
 type Props = { user: User; pendingCount: number | null; syncState: SyncState; syncError: string;
   initialClear?: boolean; drafts?: readonly SavedPractice[]; records?: readonly PracticeRecord[]; onSync: () => Promise<void>; onLogout: (clear: boolean, options?: { rawFingerprint: string; riskAcknowledged: boolean }) => Promise<void>; onClose: () => void };
@@ -45,9 +45,10 @@ export function LogoutDialog({ user, pendingCount, syncState, syncError, initial
   async function exportData(localOnly = false) {
     setBusy(true); setError(''); setNotice('');
     try {
-      const missing = await downloadPersonalData(user, 'json', localOnly ? { localOnly: true } : undefined);
+      const { missing, hasLocalRecovery, hasCloudRecovery } = await downloadPersonalData(user, 'json', localOnly ? { localOnly: true } : undefined);
       const unavailable = localOnly ? missing.filter((item) => !item.startsWith('云端工作区、')) : missing;
-      setNotice(unavailable.length ? `已导出部分资料：${unavailable.join('；')}` : localOnly ? '已导出本机资料；不包含云端资料' : '导出完成');
+      const copies = recoveryCopyLabel(hasLocalRecovery, hasCloudRecovery);
+      setNotice(unavailable.length ? `已导出部分资料：${unavailable.join('；')}` : localOnly ? '已导出本机资料；不包含云端资料' : copies ? `导出完成，含未合并的${copies}副本` : '导出完成');
     } catch (problem) { setError(problem instanceof Error ? problem.message : '导出失败'); }
     finally { setBusy(false); }
   }

@@ -67,3 +67,63 @@ it('deduplicates a legacy local record against its distinct workspace item in ex
   expect(exported.data.records[0]).toMatchObject({ recordId: 'old-cloud-id', localOnly: true });
   expect(JSON.stringify(exported)).not.toContain('legacyLocalIds');
 });
+
+it('keeps conflicting local versions and deleted legacy copies separately in a full export', () => {
+  const localArticle = { id: 'private', title: '本机', text: '本机正文', language: 'zh' as const, difficulty: 'beginner' as const, custom: true as const, token: 'article-secret' };
+  const cloudArticle = { ...localArticle, title: '云端', text: '云端正文' };
+  const draft: SavedPractice = { id: 'draft-1', recordId: '1', article: localArticle, typed: '本', elapsedMs: 1000, backspaces: 0, duration: 300,
+    mode: 'timed', strict: false, offset: 0, offline: true, ownerId: 'user', savedAt: 1, recoveryKey: 'recovery-secret' };
+  const record = { recordId: 'record-1', ownerId: 'user', language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 12, accuracy: 100, finishedAt: 10, token: 'record-secret' };
+  const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false },
+    local: [{ kind: 'article', id: 'private', updatedAt: 1, value: localArticle }], remote: [
+      { kind: 'article', id: 'private', updatedAt: 2, value: cloudArticle }, { kind: 'draft', id: draft.id, updatedAt: 3, deleted: true },
+      { kind: 'record', id: record.recordId, updatedAt: 3, deleted: true },
+    ], legacyDrafts: [draft], localHistory: [record], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
+  expect(exported.data.articles).toMatchObject([{ id: 'private', title: '云端' }]);
+  expect(exported.data.drafts).toEqual([]);
+  expect(exported.data.records).toEqual([]);
+  expect(exported.data.localRecoveryCopies?.workspace).toMatchObject([{ kind: 'article', id: 'private', value: { title: '本机', text: '本机正文' } }]);
+  expect(exported.data.localRecoveryCopies?.drafts).toMatchObject([{ id: 'draft-1', typed: '本' }]);
+  expect(exported.data.localRecoveryCopies?.records).toMatchObject([{ recordId: 'record-1' }]);
+  expect(JSON.stringify(exported)).not.toMatch(/article-secret|record-secret|recovery-secret/u);
+});
+
+it('reports an unreadable local workspace item without losing a valid cloud copy', () => {
+  const cloud = { id: 'private', title: '云端', text: '正文', language: 'zh' as const, difficulty: 'beginner' as const, custom: true as const };
+  const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false },
+    local: [{ kind: 'article', id: 'private', updatedAt: 1, value: { id: 'private', token: 'do-not-export' } }],
+    remote: [{ kind: 'article', id: 'private', updatedAt: 2, value: cloud }], legacyDrafts: [], localHistory: [], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
+  expect(exported.data.articles).toMatchObject([{ id: 'private', title: '云端' }]);
+  expect(exported.missing).toContain('部分本机工作区项目无法读取');
+  expect(JSON.stringify(exported)).not.toContain('do-not-export');
+});
+
+it('keeps an older cloud version separately when a newer local copy is selected', () => {
+  const base = { id: 'private', title: '云端', text: '云端正文', language: 'zh' as const, difficulty: 'beginner' as const, custom: true as const, token: 'cloud-secret' };
+  const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false },
+    local: [{ kind: 'article', id: 'private', updatedAt: 2, value: { ...base, title: '本机', text: '本机正文' } }],
+    remote: [{ kind: 'article', id: 'private', updatedAt: 1, value: base }], legacyDrafts: [], localHistory: [], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
+  expect(exported.data.articles).toMatchObject([{ id: 'private', title: '本机' }]);
+  expect(exported.data.cloudRecoveryCopies?.workspace).toMatchObject([{ kind: 'article', id: 'private', value: { title: '云端', text: '云端正文' } }]);
+  expect(JSON.stringify(exported)).not.toContain('cloud-secret');
+});
+
+it('retains a differing workspace record when official history supplies the main score', () => {
+  const workspaceRecord = { recordId: 'round', language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 10, accuracy: 90, finishedAt: 10, token: 'secret' };
+  const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false }, local: [],
+    remote: [{ kind: 'record', id: 'round', updatedAt: 1, value: workspaceRecord }], legacyDrafts: [], localHistory: [],
+    remoteHistory: [{ ...workspaceRecord, speed: 20 }], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
+  expect(exported.data.records).toMatchObject([{ recordId: 'round', speed: 20 }]);
+  expect(exported.data.cloudRecoveryCopies?.workspace).toMatchObject([{ kind: 'record', id: 'round', value: { speed: 10 } }]);
+  expect(JSON.stringify(exported)).not.toContain('secret');
+});
+
+it('retains an older workspace draft when a newer legacy draft becomes the main copy', () => {
+  const article = { id: 'private', title: '短文', text: '山海', language: 'zh' as const, difficulty: 'beginner' as const, custom: true as const };
+  const older: SavedPractice = { id: 'draft-1', recordId: '1', article, typed: '山', elapsedMs: 1000, backspaces: 0, duration: 300, mode: 'timed', strict: false, offset: 0, offline: true, ownerId: 'user', savedAt: 1, progressVersion: 1 };
+  const newer: SavedPractice = { ...older, typed: '山海', elapsedMs: 2000, savedAt: 2, progressVersion: 2 };
+  const exported = buildPersonalExport({ user: { id: 'user', username: 'reader', email: 'r@example.test', isAdmin: false }, local: [],
+    remote: [{ kind: 'draft', id: older.id, updatedAt: 1, value: older }], legacyDrafts: [newer], localHistory: [], remoteHistory: [], feedback: [], missing: [], exportedAt: '2026-11-15T00:00:00.000Z' });
+  expect(exported.data.drafts).toMatchObject([{ id: 'draft-1', typed: '山海' }]);
+  expect(exported.data.cloudRecoveryCopies?.workspace).toMatchObject([{ kind: 'draft', id: 'draft-1', value: { typed: '山' } }]);
+});
