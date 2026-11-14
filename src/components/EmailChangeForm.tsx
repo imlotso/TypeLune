@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { isValidEmail } from '../lib/account-validation';
 import { api, ApiError } from '../lib/api';
 import { PasswordField } from './PasswordField';
 
-type Props = { ownerId: string; busy: boolean; setBusy: (busy: boolean) => void; onSignedOut: (message: string) => void; visibilityVersion: number };
+type Props = { ownerId: string; busy: boolean; setBusy: (busy: boolean) => void; onSignedOut: (message: string) => void; visibilityVersion: number; onDirtyChange?: (dirty: boolean) => void };
 
-export function EmailChangeForm({ ownerId, busy, setBusy, onSignedOut, visibilityVersion }: Props) {
+export function EmailChangeForm({ ownerId, busy, setBusy, onSignedOut, visibilityVersion, onDirtyChange }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -15,6 +15,7 @@ export function EmailChangeForm({ ownerId, busy, setBusy, onSignedOut, visibilit
   const target = email.trim().toLowerCase();
   const activeTarget = useRef(target);
   activeTarget.current = target;
+  useLayoutEffect(() => { onDirtyChange?.(!!(email || password || code)); }, [email, password, code, onDirtyChange]);
   const remaining = Math.max(0, Math.ceil(((cooldowns[target] ?? 0) - clock) / 1000));
   useEffect(() => {
     const timer = setInterval(() => setClock(Date.now()), 1000);
@@ -48,9 +49,9 @@ export function EmailChangeForm({ ownerId, busy, setBusy, onSignedOut, visibilit
   }
 
   return <form className="auth-form" onSubmit={confirm}>
-    <label>新邮箱<input type="email" autoComplete="email" value={email} required onChange={(event) => { setEmail(event.target.value); setCode(''); setMessage(undefined); }} /></label>
-    <PasswordField key={visibilityVersion} label="当前密码（邮箱）" toggleLabel="当前密码（邮箱）" autoComplete="current-password" value={password} required onChange={(event) => setPassword(event.target.value)} />
-    <label>新邮箱验证码<span className="code-field"><input aria-label="新邮箱验证码" inputMode="numeric" maxLength={6} value={code} required onChange={(event) => setCode(event.target.value)} />
+    <label>新邮箱<input type="email" autoComplete="email" value={email} disabled={busy} required onChange={(event) => { setEmail(event.target.value); setCode(''); setMessage(undefined); }} /></label>
+    <PasswordField key={visibilityVersion} label="当前密码（邮箱）" toggleLabel="当前密码（邮箱）" autoComplete="current-password" value={password} disabled={busy} required onChange={(event) => setPassword(event.target.value)} />
+    <label>新邮箱验证码<span className="code-field"><input aria-label="新邮箱验证码" inputMode="numeric" maxLength={6} value={code} disabled={busy} required onChange={(event) => setCode(event.target.value)} />
       <button type="button" className="text-button" disabled={busy || remaining > 0} onClick={() => void requestCode()}>{remaining ? `${remaining} 秒后重发` : '获取邮箱验证码'}</button>
     </span></label>
     <button className="outline-button" disabled={busy}>验证并更换邮箱</button>

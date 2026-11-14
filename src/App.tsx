@@ -211,6 +211,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const currentPath = useRef(window.location.pathname + window.location.search + window.location.hash);
   const currentHistoryIndex = useRef(0);
   const restoringHistory = useRef(false);
+  const pendingHistoryAction = useRef<(() => void) | undefined>(undefined);
   const popRoute = useRef<() => void>(() => {});
   const [feedbackDraft, setFeedbackDraft] = useState<FeedbackDraft>(() => feedbackResume ?? newFeedbackDraft());
   const [adminLoginDismissed, setAdminLoginDismissed] = useState(false);
@@ -229,7 +230,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [showMore, setShowMore] = useState(false);
   const [focused, setFocused] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
-  const [showAccount, setShowAccount] = useState(false);
+  const [accountGuard, setAccountGuard] = useState({ busy: false, dirty: false });
+  const accountReturn = useRef<MainView>('practice');
   const [showLogout, setShowLogout] = useState<{ clear: boolean }>();
   const [showRecovery, setShowRecovery] = useState<'generation' | 'conflict'>();
   const [showGuestImport, setShowGuestImport] = useState(false);
@@ -613,13 +615,19 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   function openFeedback(id: string) { commitAddress(pathForFeedback(id), 'feedback'); }
 
   function navigate(next: MainView) {
+    if (restoringHistory.current) { pendingHistoryAction.current = () => navigate(next); return; }
     setShowMore(false);
     if (next === view && window.location.pathname === pathForView(next)) return;
     void afterPark(() => { setShowResult(false); setFeedback(''); if (focused && next !== 'practice') exitFocus(); commitView(next); });
   }
 
   popRoute.current = () => {
-    if (restoringHistory.current) { restoringHistory.current = false; return; }
+    if (restoringHistory.current) {
+      restoringHistory.current = false;
+      const pending = pendingHistoryAction.current; pendingHistoryAction.current = undefined;
+      if (pending) queueMicrotask(pending);
+      return;
+    }
     const nextPath = window.location.pathname;
     const nextAddress = nextPath + window.location.search + window.location.hash;
     const targetIndex = navigationIndex(window.history.state);
@@ -631,9 +639,11 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     };
     // Browser back first dismisses a dialog, allowing its own unsaved-change
     // confirmation to run before the underlying view can be replaced.
-    if (document.querySelector('[role="dialog"]') && !(view === 'history' && routeRecordId)) {
+    const accountDialog = view === 'account' && !!user;
+    const routedDialog = (view === 'history' && !!routeRecordId) || (accountDialog && !accountGuard.busy && !accountGuard.dirty);
+    if (document.querySelector('[role="dialog"]') && !routedDialog) {
       restoreAddress();
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      if (!accountDialog || !accountGuard.busy) document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       return;
     }
     let applied = false;
@@ -912,7 +922,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
           </div>}
         </div>
         <button className="theme-button" disabled={!!user && !workspace.settingsReady} aria-label={theme === 'dark' ? '切换至日间模式' : '切换至夜间模式'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={20} /> : <MoonStars size={20} />}<span>{theme === 'dark' ? '日间' : '夜间'}</span></button>
-        {user ? <AccountMenu user={user} disabled={!canChangeAccount} onAccount={() => void afterPark(() => setShowAccount(true))} onRecords={() => navigate('history')} onData={() => navigate('data')} onFeedback={() => navigate('feedback')}
+        {user ? <AccountMenu user={user} disabled={!canChangeAccount} onAccount={() => { accountReturn.current = view === 'article' ? 'library' : view === 'notfound' || view === 'account' ? 'practice' : view; navigate('account'); }} onRecords={() => navigate('history')} onData={() => navigate('data')} onFeedback={() => navigate('feedback')}
           onLogout={() => void changeAccount()} onAdministration={onAdministration ? () => void afterPark(onAdministration) : undefined} /> : <button className="account-button" disabled={!canChangeAccount} onClick={() => void changeAccount()}>登录</button>}
       </nav>
     </header>}
@@ -992,6 +1002,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         })} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} />}
         {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} routeFeedbackId={routeFeedbackId} onOpenFeedback={openFeedback} onCloseFeedback={() => commitView('feedback')} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
+        {view === 'account' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>账号设置</h1></div>{authReady ? <><p>请先登录</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>登录</button></> : <p role="status">正在读取账号…</p>}</section>}
         {view === 'data' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>个人数据</h1></div>{authReady ? <><p>请先登录</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>登录</button></> : <p role="status">正在读取账号…</p>}</section>}
         {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} onGuestImport={() => setShowGuestImport(true)} />}
         {view === 'notfound' && <section className="content-panel feature-panel"><div className="content-heading"><h1>页面未找到</h1></div><button type="button" className="outline-button" onClick={() => navigate('practice')}>返回练习</button></section>}
@@ -1007,7 +1018,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       <div className="result-actions"><span className="custom-count">{splitCharacters(customDraft).length} / 20000 字符</span><button className="primary-button" onClick={useCustomText}>使用这段文字</button></div>
     </Dialog>}
     {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) { window.history.replaceState(null, '', '/'); currentPath.current = '/'; } }} onLogin={onUser} registrationEnabled={site.features?.registrationEnabled} />}
-    {showAccount && user && <AccountDialog user={user} onClose={() => setShowAccount(false)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} />}
+    {view === 'account' && user && <AccountDialog user={user} onClose={() => navigate(accountReturn.current)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} onGuardChange={setAccountGuard} />}
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
     {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} onPresets={() => { setShowSettings(false); setShowPresets(true); }} onSettingsTransfer={() => { setShowSettings(false); setShowSettingsTransfer(true); }} onCommands={() => { setShowSettings(false); setShowCommands(true); }} />}
     {showPresets && <PresetsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} difficulty={difficulty} onAction={workspace.changePresets} onApply={(preset) => applyPracticeConfiguration(preset)} onClose={() => setShowPresets(false)} />}

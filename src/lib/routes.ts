@@ -1,6 +1,6 @@
 export const mainPaths = {
   practice: '/', library: '/library', rankings: '/rankings', history: '/records', drafts: '/drafts', mistakes: '/mistakes', stats: '/stats',
-  feedback: '/feedback', data: '/account/data', help: '/help', about: '/about', privacy: '/privacy', terms: '/terms',
+  feedback: '/feedback', account: '/account', data: '/account/data', help: '/help', about: '/about', privacy: '/privacy', terms: '/terms',
 } as const;
 export type MainView = keyof typeof mainPaths;
 export type MainRoute = MainView | 'article' | 'notfound';

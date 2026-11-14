@@ -1,15 +1,16 @@
-import { useState, type FormEvent } from 'react';
+import { useLayoutEffect, useState, type FormEvent } from 'react';
 import type { User } from '../lib/api';
 import { PasswordField } from './PasswordField';
 import { downloadPersonalData } from './PersonalDataView';
 
-type Props = { user: User; busy: boolean; setBusy: (busy: boolean) => void; visibilityVersion: number; onDelete: (password: string) => Promise<void> };
+type Props = { user: User; busy: boolean; setBusy: (busy: boolean) => void; visibilityVersion: number; onDelete: (password: string) => Promise<void>; onDirtyChange?: (dirty: boolean) => void };
 
-export function AccountDeletion({ user, busy, setBusy, visibilityVersion, onDelete }: Props) {
+export function AccountDeletion({ user, busy, setBusy, visibilityVersion, onDelete, onDirtyChange }: Props) {
   const [password, setPassword] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  useLayoutEffect(() => { onDirtyChange?.(!!password || confirmed); }, [password, confirmed, onDirtyChange]);
   async function exportData() {
     setBusy(true); setError(''); setNotice('');
     try {

@@ -193,7 +193,7 @@ it('shows active devices and signs out immediately when the current session is r
   await within(dialog).findByText('Chrome · Windows');
   fireEvent.click(within(dialog).getByRole('button', { name: '退出 Chrome · Windows' }));
   await waitFor(() => expect(within(dialog).queryByText('Chrome · Windows')).toBeNull());
-  fireEvent.click(within(dialog).getByRole('button', { name: '退出当前设备' }));
+  fireEvent.click(await within(dialog).findByRole('button', { name: '退出当前设备' }));
   await waitFor(() => expect(screen.getByRole('button', { name: '登录' })).toBeTruthy());
   expect(screen.getByText('已退出当前设备')).toBeTruthy();
 });
