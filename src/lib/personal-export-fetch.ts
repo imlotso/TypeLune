@@ -1,4 +1,4 @@
-import { localHistory, readDrafts, savedPracticeFromLegacy } from '../hooks/usePractice';
+import { hasUnloadedLocalHistory, localHistory, readDrafts, savedPracticeFromLegacy } from '../hooks/usePractice';
 import type { FeedbackDetail } from '../components/FeedbackView';
 import { api, type User } from './api';
 import type { PracticeRecord, WorkspaceItem } from './models';
@@ -37,6 +37,7 @@ function legacyData(ownerId: string, missing: string[]) {
     localStorage.getItem('cloudtyping.history.v1');
     legacyDrafts = readDrafts(ownerId).map(savedPracticeFromLegacy);
     history = localHistory().filter((item) => (item.ownerId ?? null) === ownerId);
+    if (hasUnloadedLocalHistory()) missing.push('部分本机旧版记录无法读取');
   } catch (problem) { missing.push(`本机旧版资料：${errorText(problem)}`); }
   return { legacyDrafts, history };
 }

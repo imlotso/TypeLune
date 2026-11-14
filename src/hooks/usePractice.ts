@@ -112,8 +112,43 @@ function storedDraft(recordId: string): PracticeDraft | null {
   try { return JSON.parse(localStorage.getItem(draftPrefix + recordId) || 'null') as PracticeDraft | null; } catch { return null; }
 }
 
+function readRawHistory(): unknown[] {
+  const value: unknown = JSON.parse(localStorage.getItem(historyKey) || '[]');
+  if (!Array.isArray(value)) throw new Error('本机旧版记录无法读取');
+  return value;
+}
+function validLocalHistory(value: unknown): value is History {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if (!['zh', 'en'].includes(record.language as string) || !['beginner', 'intermediate', 'advanced'].includes(record.difficulty as string) ||
+    typeof record.duration !== 'number' || !Number.isFinite(record.duration) || record.duration <= 0 ||
+    typeof record.speed !== 'number' || !Number.isFinite(record.speed) || record.speed < 0 ||
+    typeof record.accuracy !== 'number' || !Number.isFinite(record.accuracy) || record.accuracy < 0 || record.accuracy > 100 ||
+    typeof record.finishedAt !== 'number' || !Number.isFinite(new Date(record.finishedAt).getTime()) ||
+    (record.ownerId != null && typeof record.ownerId !== 'string') || (record.recordId !== undefined && typeof record.recordId !== 'string') ||
+    (record.typed !== undefined && typeof record.typed !== 'string')) return false;
+  return true;
+}
+function completeLegacySnapshot(record: History) {
+  const article = record.article as unknown;
+  if (article === undefined) return true;
+  if (!article || typeof article !== 'object' || Array.isArray(article)) return false;
+  const item = article as Record<string, unknown>;
+  return typeof item.id === 'string' && typeof item.title === 'string' && typeof item.text === 'string' &&
+    ['zh', 'en'].includes(item.language as string) && ['beginner', 'intermediate', 'advanced'].includes(item.difficulty as string) && typeof item.custom === 'boolean';
+}
+function normalizeLegacyRecord(record: History): History {
+  const recordId = record.recordId || stableRecordId(record);
+  if (completeLegacySnapshot(record)) return record.recordId ? record : { ...record, recordId };
+  const { article, ...summary } = record;
+  if (!article || typeof article !== 'object' || Array.isArray(article) || typeof article.id !== 'string' || typeof article.title !== 'string' || typeof article.text !== 'string') {
+    return { ...summary, recordId };
+  }
+  // Missing provenance cannot be upgraded to a verified public article.
+  return { ...summary, recordId, article: { ...article, language: record.language, difficulty: record.difficulty, custom: true } };
+}
 export function localHistory(): History[] {
-  try { const value = JSON.parse(localStorage.getItem(historyKey) || '[]'); return Array.isArray(value) ? value.slice(0, 50) : []; } catch { return []; }
+  try { return readRawHistory().filter(validLocalHistory).map(normalizeLegacyRecord); } catch { return []; }
 }
 export function deleteLocalHistory(ownerId: string | null, ids: string[]) {
   const raw = localStorage.getItem(historyKey);
@@ -128,7 +163,7 @@ export function deleteLocalHistory(ownerId: string | null, ids: string[]) {
   return true;
 }
 export function hasUnloadedLocalHistory() {
-  try { const value: unknown = JSON.parse(localStorage.getItem(historyKey) || '[]'); return !Array.isArray(value) || value.length > 50; }
+  try { return readRawHistory().some((value) => !validLocalHistory(value) || !completeLegacySnapshot(value)); }
   catch { return true; }
 }
 function rememberHistory(entry: History, previousId?: string) {
@@ -136,7 +171,13 @@ function rememberHistory(entry: History, previousId?: string) {
   try {
     const generation = entry.ownerId ? readWorkspaceGeneration(entry.ownerId) : null;
     const saved = generation ? { ...entry, localSyncGeneration: generation } : entry;
-    localStorage.setItem(historyKey, JSON.stringify([saved, ...localHistory().filter((item) => item.ownerId !== entry.ownerId || !item.recordId || (item.recordId !== entry.recordId && item.recordId !== previousId))].slice(0, 50)));
+    const previous = readRawHistory().filter((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return true;
+      const record = item as Partial<PracticeRecord>;
+      const id = record.recordId || (validLocalHistory(item) ? stableRecordId(item) : undefined);
+      return (record.ownerId ?? null) !== (entry.ownerId ?? null) || !id || (id !== entry.recordId && id !== previousId);
+    });
+    localStorage.setItem(historyKey, JSON.stringify([saved, ...previous]));
   } catch { /* Practice still works without storage. */ }
 }
 export function readDrafts(ownerId?: string | null): PracticeDraft[] {
@@ -660,7 +701,9 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
 
   async function loadLegacy(saved: PracticeDraft) {
     if ((saved.ownerId ?? null) !== liveConfig.current.ownerId || !mounted.current) return;
-    if (draftAwaitingStart(saved) && saved.leaseOwner !== ownerToken.current) return;
+    // A completed round may still be settling in another tab after its start
+    // request finishes. Do not restore its provisional result a second time.
+    if ((saved.pendingStart || saved.completed) && leaseTaken(storedDraft(saved.recordId) ?? saved, ownerToken.current)) return;
     const previous = attemptRef.current;
     if (previous && phaseRef.current === 'running' && !await park()) return;
     if (previous !== attemptRef.current || !mounted.current || (saved.ownerId ?? null) !== liveConfig.current.ownerId) return;

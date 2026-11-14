@@ -890,6 +890,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         </>}
         {view !== 'practice' && feedback && <p className="form-error view-error" role="alert">{feedback}</p>}
         {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">连接失败，显示已读取的记录。</p>}
+        {recordViews.includes(view) && hasUnloadedLocalHistory() && <p className="form-error view-error" role="status">部分本机旧版记录或文章快照无法完整读取。</p>}
         {view === 'library' && <ArticleLibrary articles={catalog} favorites={workspace.favorites} onToggleFavorite={(id) => void workspace.toggleFavorite(id).catch(reportSaveError)} onSelect={selectArticle} onSave={(article) => workspace.put('article', article.id, article)} onDelete={(id) => workspace.remove('article', id)} />}
         {view === 'rankings' && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} />}
         {view === 'history' && <RecordsView records={records} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} />}

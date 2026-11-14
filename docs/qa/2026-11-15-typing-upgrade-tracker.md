@@ -25,7 +25,7 @@
 | C05 | 待完善 | `9e0e5a8` | 已有显式导入、冲突保护、个人成绩隔离、云端核对及可选清理；待与历史删除和后续数据模型整体回归，见 [说明](2026-11-15-guest-import.md)。 |
 | D01 | 待完善 | — | `/admin` 有入口，主要前台视图由组件状态切换，缺稳定路由。 |
 | D02 | 待完善 | `6cb2ae2` | 公开接口只返回三个功能开关；前台提示并限制注册／游客上榜，游客新练习关闭时直接本机开始。已有在线练习可恢复，待最终整体回归。 |
-| D03 | 待完善 | `e20806e`、本阶段 | 已有组合筛选、分批加载、单条／批量删除、公开成绩撤回及跨设备防复活；旧版无 ID／超出展示上限历史和总体回归仍待完成，见[筛选](2026-11-15-history-filters.md)、[删除](2026-11-15-history-deletion.md)。 |
+| D03 | 待完善 | `e20806e`、`673152d`、本阶段 | 已有组合筛选、分批加载、删除及成绩撤回；旧版本机历史不再截断，极早期云记录 ID 差异及总体回归仍待完成，见[筛选](2026-11-15-history-filters.md)、[删除](2026-11-15-history-deletion.md)、[旧历史](2026-11-15-legacy-history.md)。 |
 | D04 | 待完善 | — | 有部分成绩和复核状态，缺统一状态与公开处理说明。 |
 | D05 | 待完善 | — | 草稿有恢复成绩入口；历史详情尚无对应入口。 |
 | D06 | 待完善 | `a77e3e9` | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
@@ -153,3 +153,9 @@
 | 阶段回归 | `npm run test:e2e` | 62 项通过；本次仍以模拟事件覆盖中文输入法，未代表真实系统输入法或 SMTP 投递验收。帮助／隐私文案随后单独重新构建和验证。 |
 | 历史删除补充 | `npx vitest run tests/history-delete-api.test.ts` | 5 项通过，包括并发重复请求、游客身份丢失、注销后恢复阻断及容量不足时事务回滚。 |
 | 最终文案重验 | `npm run build`、`npm run test:sites`；`npx vitest run tests/site-info.test.tsx`；`npx playwright test e2e/site-info.e2e.ts e2e/history-delete.e2e.ts` | 均通过；Sites 4 项、相关浏览器流程 5 项通过。 |
+| 旧历史兼容 | `npx vitest run tests/legacy-history.test.ts tests/personal-best-ui.test.tsx tests/personal-export-fetch.test.ts tests/guest-import.test.ts tests/history-delete-client.test.ts` | 21 项通过，覆盖有效旧记录、损坏提示、导出及游客导入兼容。 |
+| 旧历史兼容 | `npx playwright test e2e/legacy-history.e2e.ts` | 1 项通过：65 条旧记录、新成绩、缺字段无 ID 记录及损坏条目的读取、保留和删除。 |
+| 跨标签页结算问题 | 一次 `npm test` | 发现 1 项失败：第二标签页在第一标签页仍结算时打开同一草稿的离线结果；已用延迟 `/finish` 响应稳定复现并增加租约检查。 |
+| 跨标签页结算修复 | `npx vitest run tests/auto-start.test.tsx -t 'keeps one result across tabs\|does not reopen a completed draft' --repeats=15` | 两个场景重复通过；真实浏览器及整体回归结果另记。 |
+| 旧历史与结算回归 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；82 个测试文件、448 项通过；构建仍提示客户端包大于 500 kB。 |
+| 旧历史与结算回归 | `npx playwright test e2e/completed-draft-tabs.e2e.ts e2e/legacy-history.e2e.ts e2e/recovery.e2e.ts` | 8 项通过；实际双标签页结算不重复显示，既有离线恢复和上榜流程回归通过。 |

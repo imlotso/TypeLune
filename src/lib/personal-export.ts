@@ -80,7 +80,7 @@ export function buildPersonalExport(input: Inputs) {
   return {
     format: 'typing-personal-data', version: 1, exportedAt: input.exportedAt,
     scope: { accountId: input.user.id, localWorkspace: input.localAvailable === false ? 'unavailable' : 'included', cloudWorkspace: input.remote ? 'included' : 'unavailable',
-      note: '本机旧版记录最多 50 条；导出不包含其他设备未同步的数据。' },
+      note: '导出不包含其他设备未同步的数据。' },
     missing: [...input.missing],
     account: { id: input.user.id, username: input.user.username, email: input.user.email, displayName: input.user.displayName || input.user.username, avatar: input.user.avatar ?? null },
     data: {
