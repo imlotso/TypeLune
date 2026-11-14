@@ -5,6 +5,15 @@ export const mainPaths = {
 export type MainView = keyof typeof mainPaths;
 export type MainRoute = MainView | 'article' | 'notfound';
 export const pathForView = (view: MainView) => mainPaths[view];
+export const pathForRecord = (id: string) => `/records/${encodeURIComponent(id)}`;
+export function recordIdFromPath(pathname: string): string | undefined {
+  const match = /^\/records\/([^/]+)\/?$/u.exec(pathname);
+  if (!match) return undefined;
+  try {
+    const id = decodeURIComponent(match[1]);
+    return id && id.length <= 200 && !/[\p{Cc}\p{Cf}]/u.test(id) ? id : undefined;
+  } catch { return undefined; }
+}
 export const pathForArticle = (id: string) => `/articles/${encodeURIComponent(id)}`;
 export function articleIdFromPath(pathname: string): string | undefined {
   const match = /^\/articles\/([^/]+)\/?$/u.exec(pathname);
@@ -16,6 +25,7 @@ export function articleIdFromPath(pathname: string): string | undefined {
 }
 export function mainRoute(pathname: string): MainRoute {
   if (articleIdFromPath(pathname)) return 'article';
+  if (recordIdFromPath(pathname)) return 'history';
   const path = pathname.length > 1 ? pathname.replace(/\/+$/u, '') : pathname;
   return (Object.entries(mainPaths).find(([, value]) => value === path)?.[0] as MainView | undefined) ?? 'notfound';
 }

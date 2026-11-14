@@ -22,6 +22,11 @@ test('preserves and displays legacy history beyond fifty records after a new pra
   for (let index = 0; index < 3; index++) await page.getByRole('button', { name: '加载更多' }).click();
   await expect(page.getByRole('button', { name: /详情$/ })).toHaveCount(67);
   await expect(page.getByText('部分本机旧版记录或文章快照无法完整读取。')).toBeVisible();
+  await page.getByRole('button', { name: '《旧文》详情' }).click();
+  await expect(page).toHaveURL(/\/records\/guest-[a-f0-9]+$/);
+  await page.reload();
+  await expect(page.getByRole('dialog', { name: '练习详情' }).getByText('旧文')).toBeVisible();
+  await page.getByRole('dialog', { name: '练习详情' }).getByRole('button', { name: '关闭' }).click();
   await page.getByRole('button', { name: '删除《旧文》' }).click();
   await page.getByRole('dialog', { name: '删除记录' }).getByRole('button', { name: '删除' }).click();
   await expect(page.getByRole('button', { name: '《旧文》详情' })).toHaveCount(0);

@@ -19,3 +19,12 @@ it('round-trips public article IDs and rejects malformed paths', () => {
   expect(mainRoute('/articles/%FF')).toBe('notfound');
   expect(mainRoute('/articles/a/b')).toBe('notfound');
 });
+
+it('round-trips record detail IDs without treating malformed addresses as records', async () => {
+  const { pathForRecord, recordIdFromPath } = await import('../src/lib/routes');
+  expect(pathForRecord('abc/你好')).toBe('/records/abc%2F%E4%BD%A0%E5%A5%BD');
+  expect(recordIdFromPath('/records/abc%2F%E4%BD%A0%E5%A5%BD')).toBe('abc/你好');
+  expect(mainRoute('/records/example')).toBe('history');
+  expect(recordIdFromPath('/records/%FF')).toBeUndefined();
+  expect(mainRoute('/records/%FF')).toBe('notfound');
+});

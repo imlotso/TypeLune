@@ -65,7 +65,7 @@ import { collectGuestImport } from './lib/guest-import';
 import { readPagedHistory } from './lib/history';
 import { deletePracticeRecords } from './lib/history-delete';
 import { mergePracticeRecords, stableRecordId } from './lib/records';
-import { articleIdFromPath, mainRoute, navigationIndex, navigationState, pathForArticle, pathForView, type MainRoute, type MainView } from './lib/routes';
+import { articleIdFromPath, mainRoute, navigationIndex, navigationState, pathForArticle, pathForRecord, pathForView, recordIdFromPath, type MainRoute, type MainView } from './lib/routes';
 
 type View = MainRoute;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
@@ -206,6 +206,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [directAdmin] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
   const [view, setView] = useState<View>(() => feedbackResume ? 'feedback' : directAdmin ? 'practice' : mainRoute(window.location.pathname));
   const [routeArticleId, setRouteArticleId] = useState(() => articleIdFromPath(window.location.pathname));
+  const [routeRecordId, setRouteRecordId] = useState(() => recordIdFromPath(window.location.pathname));
   const currentPath = useRef(window.location.pathname + window.location.search + window.location.hash);
   const currentHistoryIndex = useRef(0);
   const restoringHistory = useRef(false);
@@ -245,6 +246,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [historyError, setHistoryError] = useState(false);
   const [historyCheckedFor, setHistoryCheckedFor] = useState<string>();
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [historyRevision, setHistoryRevision] = useState(0);
   const [localRecordVersion, setLocalRecordVersion] = useState(0);
   const bootstrapped = useRef(false);
   const interacted = useRef(false);
@@ -420,7 +422,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       if (!controller.signal.aborted) { setRemoteHistory(loaded); setHistoryError(true); setHistoryCheckedFor(result?.recordId); setHistoryLoaded(true); }
     });
     return () => controller.abort();
-  }, [view, ownerId, result, paceSettings.enabled, paceSettings.source]);
+  }, [view, ownerId, result, paceSettings.enabled, paceSettings.source, historyRevision]);
 
   useEffect(() => {
     if (!workspace.ready || !workspace.deletedRecordIds.length) return;
@@ -598,13 +600,15 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       window.history.pushState(navigationState(window.history.state, currentHistoryIndex.current), '', path);
     }
     currentPath.current = window.location.pathname + window.location.search + window.location.hash;
-    setView(next); setRouteArticleId(articleIdFromPath(path));
+    setView(next); setRouteArticleId(articleIdFromPath(path)); setRouteRecordId(recordIdFromPath(path));
   }
   function commitView(next: MainView) { commitAddress(pathForView(next), next); }
 
   function openPublicArticle(id: string) {
     void afterPark(() => { setShowResult(false); setFeedback(''); commitAddress(pathForArticle(id), 'article'); });
   }
+
+  function openRecord(id: string) { commitAddress(pathForRecord(id), 'history'); }
 
   function navigate(next: MainView) {
     setShowMore(false);
@@ -625,7 +629,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     };
     // Browser back first dismisses a dialog, allowing its own unsaved-change
     // confirmation to run before the underlying view can be replaced.
-    if (document.querySelector('[role="dialog"]')) {
+    if (document.querySelector('[role="dialog"]') && !(view === 'history' && routeRecordId)) {
       restoreAddress();
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       return;
@@ -635,7 +639,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       const next = mainRoute(nextPath);
       setShowMore(false); setShowResult(false); setFeedback('');
       if (focused && next !== 'practice') exitFocus();
-      setView(next); setRouteArticleId(articleIdFromPath(nextPath)); currentPath.current = nextAddress;
+      setView(next); setRouteArticleId(articleIdFromPath(nextPath)); setRouteRecordId(recordIdFromPath(nextPath)); currentPath.current = nextAddress;
       if (targetIndex !== undefined) currentHistoryIndex.current = targetIndex;
       else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', nextAddress);
       applied = true;
@@ -966,7 +970,9 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
           return <section className="content-panel feature-panel"><div className="content-heading"><h1>文章未找到</h1></div><button type="button" className="outline-button" onClick={() => navigate('library')}>返回文章库</button></section>;
         })()}
         {view === 'rankings' && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} />}
-        {view === 'history' && <RecordsView records={records} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} />}
+        {view === 'history' && <RecordsView records={records} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} routeRecordId={routeRecordId}
+          routeLoading={!workspace.ready || (!!ownerId && !historyLoaded)} routePartial={historyError || !!workspace.error || (!!ownerId && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory()}
+          onOpenRecord={openRecord} onCloseRecord={() => commitView('history')} onRetryRecords={() => { setHistoryRevision((revision) => revision + 1); void workspace.sync(); }} />}
         {view === 'drafts' && <DraftsView drafts={draftBox.drafts} onResume={(draft) => continueDraft(draft)} onDelete={deleteDraft}
           recovery={draftBox.completed.map((draft) => ({
             id: draft.recordId, title: draft.title, savedAt: draft.savedAt,

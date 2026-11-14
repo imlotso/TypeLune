@@ -14,6 +14,12 @@ type Props = {
   onReplay: (article: ArticleSnapshot) => void;
   onContinue: (record: PracticeRecord) => void;
   onDelete: (records: PracticeRecord[]) => Promise<void>;
+  routeRecordId?: string;
+  routeLoading?: boolean;
+  routePartial?: boolean;
+  onOpenRecord?: (id: string) => void;
+  onCloseRecord?: () => void;
+  onRetryRecords?: () => void;
 };
 
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
@@ -83,7 +89,7 @@ function RecordDetail({ record, onClose, onReplay, onContinue }: {
   </Dialog>;
 }
 
-export function RecordsView({ records, onReplay, onContinue, onDelete }: Props) {
+export function RecordsView({ records, onReplay, onContinue, onDelete, routeRecordId, routeLoading, routePartial, onOpenRecord, onCloseRecord, onRetryRecords }: Props) {
   const [filters, setFilters] = useState<HistoryFilters>(emptyHistoryFilters);
   const [limit, setLimit] = useState(20);
   const [selected, setSelected] = useState<PracticeRecord>();
@@ -91,6 +97,8 @@ export function RecordsView({ records, onReplay, onContinue, onDelete }: Props) 
   const [deleting, setDeleting] = useState<PracticeRecord[]>();
   const [deleteError, setDeleteError] = useState('');
   const [busy, setBusy] = useState(false);
+  const detail = routeRecordId ? records.find((record) => stableRecordId(record) === routeRecordId) : selected;
+  const closeDetail = () => { if (routeRecordId && onCloseRecord) onCloseRecord(); else setSelected(undefined); };
   const filtered = filterPracticeRecords(records, filters);
   const setFilter = <K extends keyof HistoryFilters>(key: K, value: HistoryFilters[K]) => {
     setFilters((current) => ({ ...current, [key]: value })); setLimit(20);
@@ -142,7 +150,7 @@ export function RecordsView({ records, onReplay, onContinue, onDelete }: Props) 
           </div>
           <div className="feature-actions">
             <div className="record-speed"><strong>{speedLabel(record)}</strong><span>准确率 {record.accuracy}%</span></div>
-            <button className="outline-button feature-action-button" aria-label={`${record.article ? `《${title}》` : title}详情`} onClick={() => setSelected(record)}>详情</button>
+            <button className="outline-button feature-action-button" aria-label={`${record.article ? `《${title}》` : title}详情`} onClick={() => onOpenRecord ? onOpenRecord(stableRecordId(record)) : setSelected(record)}>详情</button>
             <button type="button" className="text-button" aria-label={`删除《${title}》`} onClick={() => { setDeleteError(''); setDeleting([record]); }}>删除</button>
           </div>
         </li>;
@@ -155,6 +163,7 @@ export function RecordsView({ records, onReplay, onContinue, onDelete }: Props) 
         <div className="feature-actions"><button type="button" className="outline-button" disabled={busy} onClick={() => setDeleting(undefined)}>取消</button><button type="button" className="primary-button" disabled={busy} onClick={() => void confirmDelete()}>删除</button></div>
       </div>
     </Dialog>}
-    {selected && <RecordDetail record={selected} onClose={() => setSelected(undefined)} onReplay={onReplay} onContinue={onContinue} />}
+    {routeRecordId && !detail && <div className="feature-form">{routeLoading ? <p role="status">正在读取记录…</p> : routePartial ? <><p className="form-error" role="alert">记录尚未完整读取</p>{onRetryRecords && <button type="button" className="outline-button" onClick={onRetryRecords}>重试</button>}</> : <p role="status">记录未找到</p>}<button type="button" className="outline-button" onClick={onCloseRecord}>返回记录</button></div>}
+    {detail && <RecordDetail record={detail} onClose={closeDetail} onReplay={onReplay} onContinue={onContinue} />}
   </section>;
 }
