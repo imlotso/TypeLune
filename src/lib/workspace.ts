@@ -89,6 +89,7 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
   if (kind === 'background' && !isTheme(id)) return false;
   if (deleted) return true;
   if (!isObject(payload)) return false;
+  if ((kind === 'draft' || kind === 'record') && payload.mistakesTruncated !== undefined && typeof payload.mistakesTruncated !== 'boolean') return false;
   switch (kind) {
     case 'background': return isBackgroundConfig(payload);
     case 'favorite': return payload.articleId === id;
@@ -103,7 +104,9 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
       (payload.typed === undefined || typeof payload.typed === 'string');
     case 'settings': return Number.isInteger(payload.minutes) && isTheme(payload.theme) && isMode(payload.mode) &&
       typeof payload.autoPause === 'boolean' && typeof payload.strict === 'boolean' &&
-      [payload.fontSize, payload.lineHeight, payload.visibleLines].every(isNumber);
+      [payload.fontSize, payload.lineHeight, payload.visibleLines].every(isNumber) &&
+      (payload.mistakeStates === undefined || (isObject(payload.mistakeStates) && Object.keys(payload.mistakeStates).length <= 2000 &&
+        Object.entries(payload.mistakeStates).every(([key, state]) => key.length > 0 && key.length <= 512 && (state === 'mastered' || state === 'ignored'))));
     default: return false;
   }
 }

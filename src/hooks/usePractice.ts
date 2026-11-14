@@ -22,7 +22,7 @@ export type PracticeResult = { score: Score; recordId?: string; record?: Practic
 type Attempt = RoundConfig & {
   id?: string; recordId: string; revision: number; legacy?: boolean; target: string;
   offline: boolean; elapsedMs: number; startedAt: number | null; suspicious: boolean;
-  backspaces: number; nextCheckpointMs: number; offset?: number; mistakes?: MistakeSample[]; pendingStart?: boolean;
+  backspaces: number; nextCheckpointMs: number; offset?: number; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; pendingStart?: boolean;
   recoveryId?: string; recoveryKey?: string; claimId?: string; claimVersion?: number; recoveryRequestId?: string; recoveryMarker?: string; progressVersion?: number; recoveryBaseVersion?: number; progressFingerprint?: string; personalOnly?: boolean;
 };
 export type PracticeDraft = Omit<Attempt, 'startedAt' | 'nextCheckpointMs'> & { version: 1; typed: string; completed?: boolean; early?: boolean; savedAt?: number; leaseOwner?: string | null; leaseAt?: number; localSyncGeneration?: number };
@@ -196,8 +196,8 @@ export function discardSavedDraft(saved: SavedPractice): boolean {
 function elapsedTime(attempt: Attempt) {
   return Math.min(durationLimit(attempt), attempt.elapsedMs + (attempt.startedAt === null ? 0 : Math.max(0, performance.now() - attempt.startedAt)));
 }
-function progressFingerprint(attempt: Pick<Attempt, 'backspaces' | 'offset' | 'suspicious' | 'mistakes'>, typed: string, elapsed: number) {
-  return JSON.stringify([typed, elapsed, attempt.backspaces, attempt.offset ?? 0, !!attempt.suspicious, attempt.mistakes ?? []]);
+function progressFingerprint(attempt: Pick<Attempt, 'backspaces' | 'offset' | 'suspicious' | 'mistakes' | 'mistakesTruncated'>, typed: string, elapsed: number) {
+  return JSON.stringify([typed, elapsed, attempt.backspaces, attempt.offset ?? 0, !!attempt.suspicious, attempt.mistakes ?? [], !!attempt.mistakesTruncated]);
 }
 function saveDraft(attempt: Attempt, typed: string, owner: string, completed = false, early = false) {
   if (isLocalAccountBlocked(attempt.ownerId)) return false;
@@ -241,7 +241,7 @@ function recordResult(attempt: Attempt, result: PracticeResult, typed: string): 
     accuracy: result.score.accuracy, finishedAt: Date.now(), status: result.status, elapsedMs: Math.round(result.elapsedMs), backspaces: result.backspaces, errors: result.errors,
     recordId: result.attemptId ?? attempt.recordId, ownerId: attempt.ownerId, localOnly: result.offline, article: articleSnapshot(attempt, attempt.target), typed,
     offset: attempt.offset ?? 0, total: result.score.total, correct: result.score.correct, articleTotal: result.articleTotal,
-    mode: attempt.mode ?? 'timed', strict: !!attempt.strict, mistakes: [...(attempt.mistakes ?? [])],
+    mode: attempt.mode ?? 'timed', strict: !!attempt.strict, mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }),
   };
 }
 
@@ -254,7 +254,7 @@ function workspaceDraft(attempt: Attempt, typed: string): SavedPractice {
     claimVersion: attempt.claimVersion, recoveryMarker: attempt.recoveryMarker,
     recoveryBaseVersion: attempt.recoveryRequestId ? attempt.recoveryBaseVersion : undefined,
     progressVersion: attempt.progressVersion, personalOnly: attempt.personalOnly, offline: attempt.offline,
-    ownerId: attempt.ownerId, savedAt: Date.now(), mistakes: [...(attempt.mistakes ?? [])], suspicious: attempt.suspicious,
+    ownerId: attempt.ownerId, savedAt: Date.now(), mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }), suspicious: attempt.suspicious,
   };
 }
 export function savedPracticeFromLegacy(draft: PracticeDraft): SavedPractice {
@@ -275,7 +275,7 @@ function attemptFromSaved(saved: SavedPractice, typed: string, revision = 0): At
     id: custom || saved.offset > 0 || saved.personalOnly ? undefined : saved.attemptId, recoveryId: saved.recoveryId, recoveryKey: saved.recoveryKey,
     claimVersion: saved.claimVersion, progressVersion: saved.progressVersion, recoveryBaseVersion: saved.progressVersion, personalOnly: saved.personalOnly, recordId: saved.recordId, revision, offline,
     elapsedMs: Math.min(durationLimit(saved), Math.max(0, saved.elapsedMs)), startedAt: null, nextCheckpointMs: saved.elapsedMs + 5000,
-    backspaces: saved.backspaces, suspicious: !!saved.suspicious, offset: Math.min(saved.offset, splitCharacters(typed).length), mistakes: [...(saved.mistakes ?? []).slice(0, mistakeLimit)],
+    backspaces: saved.backspaces, suspicious: !!saved.suspicious, offset: Math.min(saved.offset, splitCharacters(typed).length), mistakes: [...(saved.mistakes ?? []).slice(0, mistakeLimit)], mistakesTruncated: saved.mistakesTruncated || (saved.mistakes?.length ?? 0) > mistakeLimit,
   };
 }
 
@@ -393,7 +393,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       const next: Attempt = {
         ...attempt, id: undefined, recoveryId: undefined, recoveryKey: undefined, claimId: undefined, claimVersion: undefined, recoveryRequestId: undefined, recoveryMarker: undefined, progressVersion: 0, recoveryBaseVersion: undefined, progressFingerprint: undefined, personalOnly: true, recordId: nextRecordId(recordId), revision: 0, legacy: false,
         offline: true, elapsedMs: 0, startedAt: null, nextCheckpointMs: 5000,
-        suspicious: false, backspaces: 0, offset: nextOffset, mistakes: [],
+        suspicious: false, backspaces: 0, offset: nextOffset, mistakes: [], mistakesTruncated: false,
       };
       if (!isDeleted(next)) {
         const existing = storedDraft(next.recordId);
@@ -1028,8 +1028,9 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     for (let index = offset; index < next.length; index++) {
       const actual = next[index];
       if (actual === expected[index]) continue;
-      if (!deleting && actual !== previous[index] && mistakes.length < mistakeLimit && actual.length <= 200 && expected[index].length <= 200) {
-        mistakes.push({ position: index, expected: expected[index], actual });
+      if (!deleting && actual !== previous[index]) {
+        if (mistakes.length < mistakeLimit && actual.length <= 200 && expected[index].length <= 200) mistakes.push({ position: index, expected: expected[index], actual });
+        else attempt.mistakesTruncated = true;
       }
       if (attempt.strict) {
         next.length = index + 1;

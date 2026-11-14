@@ -71,4 +71,34 @@ describe('workspace deletion and reclamation protocol', () => {
     expect(after.statusCode).toBe(409);
     expect(after.json().code).toBe('DRAFT_DELETED');
   });
+
+  it('preserves synchronized mistake states when an older client saves unrelated settings', async () => {
+    const settings = { minutes: 5, mode: 'timed', strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light' };
+    const created = await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now, baseRevision: 0,
+      value: { ...settings, mistakeStates: { 'zh:风': 'mastered' } } }]);
+    expect(created.statusCode).toBe(200);
+    const revision = created.json().items[0].serverRevision;
+    expect((await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: now + 1, baseRevision: revision, value: { ...settings, mistakeStates: { 'zh:风': 'invalid' } } }])).statusCode).toBe(400);
+    const oldClient = await sync(1, [{ kind: 'settings', id: 'preferences', updatedAt: ++now, baseRevision: revision, value: { ...settings, minutes: 10 } }]);
+    expect(oldClient.statusCode).toBe(200);
+    expect(oldClient.json().items[0].value).toMatchObject({ minutes: 10, mistakeStates: { 'zh:风': 'mastered' } });
+  });
+
+  it('retains sample truncation through older-client draft and record updates', async () => {
+    const article = { id: 'private', title: '短文', text: '山海', language: 'zh', difficulty: 'beginner', custom: true };
+    const draft = { id: 'draft', recordId: 'round', article, typed: '山', elapsedMs: 1000, backspaces: 0, duration: 300, mode: 'timed', strict: false, offset: 0, offline: true, savedAt: now };
+    const record = { recordId: 'round', language: 'zh', difficulty: 'beginner', duration: 300, speed: 10, accuracy: 90, finishedAt: now };
+    const created = await sync(1, [
+      { kind: 'draft', id: draft.id, updatedAt: now, baseRevision: 0, value: { ...draft, mistakesTruncated: true } },
+      { kind: 'record', id: record.recordId, updatedAt: now, baseRevision: 0, value: { ...record, mistakesTruncated: true } },
+    ]);
+    expect(created.statusCode).toBe(200);
+    const revisions = new Map(created.json().items.map((entry: { id: string; serverRevision: number }) => [entry.id, entry.serverRevision]));
+    const updated = await sync(1, [
+      { kind: 'draft', id: draft.id, updatedAt: now + 1, baseRevision: revisions.get(draft.id), value: { ...draft, typed: '山海' } },
+      { kind: 'record', id: record.recordId, updatedAt: now + 1, baseRevision: revisions.get(record.recordId), value: { ...record, speed: 11 } },
+    ]);
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().items.every((entry: { value: { mistakesTruncated?: boolean } }) => entry.value.mistakesTruncated === true)).toBe(true);
+  });
 });

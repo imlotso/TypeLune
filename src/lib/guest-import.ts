@@ -24,6 +24,7 @@ function cleanDraft(value: SavedPractice, ownerId: string): SavedPractice {
     backspaces: value.backspaces, duration: value.duration, mode: value.mode, strict: value.strict, offset: value.offset,
     offline: true, personalOnly: true, ownerId, savedAt: value.savedAt,
     ...(value.mistakes && { mistakes: value.mistakes.map(({ position, expected, actual }) => ({ position, expected, actual })) }),
+    ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }),
     ...(value.suspicious !== undefined && { suspicious: value.suspicious }) };
 }
 function stableRecordId(value: PracticeRecord) {
@@ -39,11 +40,12 @@ function cleanRecord(value: PracticeRecord, ownerId: string, recordId: string): 
     ...(value.errors !== undefined && { errors: value.errors }), ...(value.article && { article: cleanArticle(value.article) }), ...(value.typed !== undefined && { typed: value.typed }),
     ...(value.offset !== undefined && { offset: value.offset }), ...(value.total !== undefined && { total: value.total }), ...(value.correct !== undefined && { correct: value.correct }),
     ...(value.articleTotal !== undefined && { articleTotal: value.articleTotal }), ...(value.mode !== undefined && { mode: value.mode }), ...(value.strict !== undefined && { strict: value.strict }),
-    ...(value.mistakes && { mistakes: value.mistakes.map(({ position, expected, actual }) => ({ position, expected, actual })) }) };
+    ...(value.mistakes && { mistakes: value.mistakes.map(({ position, expected, actual }) => ({ position, expected, actual })) }),
+    ...(value.mistakesTruncated !== undefined && { mistakesTruncated: value.mistakesTruncated }) };
 }
 function cleanSettings(value: ReaderSettings): ReaderSettings {
   const { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme } = value;
-  return { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme };
+  return { minutes, mode, strict, autoPause, fontSize, lineHeight, visibleLines, theme, ...(value.mistakeStates && { mistakeStates: value.mistakeStates }) };
 }
 
 function guestLegacyData() {

@@ -45,7 +45,7 @@ const schemas = {
   draft: z.object({
     id, article: snapshot, typed: stats.typed, elapsedMs: stats.elapsedMs, backspaces: stats.backspaces,
     duration, mode, strict: z.boolean(), offset: stats.offset, recordId: id,
-    attemptId: id.optional(), offline: z.boolean(), ownerId: id.nullable().optional(), savedAt: timestamp, mistakes, suspicious: z.boolean().optional(),
+    attemptId: id.optional(), offline: z.boolean(), ownerId: id.nullable().optional(), savedAt: timestamp, mistakes, mistakesTruncated: z.boolean().optional(), suspicious: z.boolean().optional(),
     recoveryId: z.string().regex(recoveryIdPattern).optional(),
     recoveryKey: z.string().regex(recoveryKeyPattern).optional(),
     personalOnly: z.boolean().optional(),
@@ -63,12 +63,13 @@ const schemas = {
     recordId: id.optional(), ownerId: id.nullable().optional(), localOnly: z.boolean().optional(),
     article: snapshot.optional(), typed: stats.typed.optional(), offset: stats.offset.optional(),
     total: integer(30_000).optional(), correct: integer(30_000).optional(), articleTotal: integer(30_000).optional(),
-    mode: mode.optional(), strict: z.boolean().optional(), mistakes,
+    mode: mode.optional(), strict: z.boolean().optional(), mistakes, mistakesTruncated: z.boolean().optional(),
   }),
   settings: z.object({
     minutes: z.number().int().min(1).max(60), mode, strict: z.boolean(), autoPause: z.boolean(),
     fontSize: z.number().min(12).max(40), lineHeight: z.number().min(1).max(3),
     visibleLines: z.number().int().min(1).max(12), theme: z.enum(['light', 'dark']),
+    mistakeStates: z.record(z.string().min(1).max(512), z.enum(['mastered', 'ignored'])).refine((value) => Object.keys(value).length <= 2000).optional(),
   }),
 } satisfies Record<WorkspaceKind, z.ZodType>;
 const item = z.object({
@@ -170,7 +171,13 @@ export function createWorkspaceStore(db: Database.Database) {
     if (generation(owner) !== requestedGeneration) throw new WorkspaceGenerationError();
     for (const { kind, id, updatedAt, deleted, value, baseRevision } of items) {
       const previous = readItem.get(owner, kind, id) as { updatedAt: number; value: string | null; revision: number } | undefined;
-      const serialized = deleted ? null : JSON.stringify(value);
+      let mergedValue = value;
+      if (!deleted && previous?.value && value && typeof value === 'object' && !Array.isArray(value)) {
+        const before = JSON.parse(previous.value) as Record<string, unknown>;
+        if (kind === 'settings') mergedValue = { ...before, ...value };
+        else if ((kind === 'record' || kind === 'draft') && before.mistakesTruncated === true && !('mistakesTruncated' in value)) mergedValue = { ...value, mistakesTruncated: true };
+      }
+      const serialized = deleted ? null : JSON.stringify(mergedValue);
       if (kind === 'draft' && !deleted && deletedDraft.get(owner, id)) throw new WorkspaceConflictError();
       if (baseRevision !== (previous?.revision ?? 0)) {
         if (previous && previous.updatedAt === updatedAt && previous.value === serialized) continue;

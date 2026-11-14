@@ -115,7 +115,7 @@ describe('personal progress views', () => {
   it('starts drills from selected recorded mistakes', () => {
     function MistakeHarness() {
       const [selected, setSelected] = useState<ArticleSnapshot>();
-      return <><MistakesView records={[record]} onPractice={setSelected} /><output>{selected?.text}</output></>;
+      return <><MistakesView records={[record]} states={{}} onStatus={() => {}} onPractice={setSelected} /><output>{selected?.text}</output></>;
     }
     render(<MistakeHarness />);
     const practice = screen.getByRole('button', { name: '专项练习' }) as HTMLButtonElement;

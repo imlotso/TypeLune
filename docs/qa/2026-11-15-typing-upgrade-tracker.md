@@ -29,8 +29,8 @@
 | D04 | 待完善 | — | 有部分成绩和复核状态，缺统一状态与公开处理说明。 |
 | D05 | 待完善 | — | 草稿有恢复成绩入口；历史详情尚无对应入口。 |
 | D06 | 待完善 | `a77e3e9` | 关闭／取消、TXT 覆盖已有确认，保存失败保留输入；删除说明并经浏览器验证草稿快照保留，待最终回归。 |
-| E01 | 待完善 | 本阶段 | 已有条件分组、个人最佳、最近 10 次比较、服务端历史分页及不完整范围提示；记录删除后的重算待 D03 完成，见 [口径](2026-11-15-personal-best.md)。 |
-| E02 | 待完善 | — | 已有累计错字专项；缺本轮复练和状态管理。 |
+| E01 | 待完善 | `3608105` | 已有条件分组、个人最佳、最近 10 次比较、服务端历史分页及不完整范围提示；记录删除后的重算待 D03 完成，见 [口径](2026-11-15-personal-best.md)。 |
+| E02 | 待完善 | 本阶段 | 已有本轮复练、重复次数、状态和筛选、跨设备同步及截断提示；待最终整体回归，见 [说明](2026-11-15-mistake-training.md)。 |
 | E03 | 未实现 | — | 缺命名预设及跨设备同步。 |
 | E04 | 未实现 | — | 缺目标配速。 |
 | E05 | 待完善 | — | 有 Escape 暂停；缺命令面板和可配置快捷键。 |
@@ -118,3 +118,7 @@
 | 个人最佳 | `npx playwright test e2e/personal-best.e2e.ts e2e/personal-export.e2e.ts` | 3 项通过：游客连续成绩比较、账号分页与失败范围提示、个人数据导出回归。 |
 | 个人最佳 | 隔离测试服务实际页面 | 已查看[手机日间成绩](screenshots/personal-best-mobile-light.png)及[桌面夜间成绩](screenshots/personal-best-desktop-dark.png)。 |
 | 个人最佳 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 均通过；63 个测试文件、388 项通过。 |
+| 错字训练 | `npm run typecheck`、`npm test` | 通过；65 个测试文件、395 项通过，覆盖截断恢复及旧客户端不抹除状态。 |
+| 错字训练 | `npx playwright test e2e/mistake-training.e2e.ts` | 2 项通过：纠正过的错字生成个人专项，以及两设备掌握／恢复状态同步。 |
+| 错字训练 | 隔离测试服务实际页面 | 已查看[手机结果复练入口](screenshots/mistake-round-mobile.png)及[桌面夜间错字本](screenshots/mistake-notebook-desktop-dark.png)。 |
+| 错字训练 | `npm run build`、`npm run test:sites`；`npx playwright test e2e/mistake-training.e2e.ts e2e/recovery.e2e.ts e2e/guest-import.e2e.ts e2e/personal-best.e2e.ts` | 均通过；12 项浏览器流程覆盖相关恢复、游客导入和成绩比较回归。 |

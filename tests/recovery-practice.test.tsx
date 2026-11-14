@@ -23,6 +23,22 @@ it('starts a guest practice locally without requesting an online challenge when 
   expect(readDraft()).toMatchObject({ typed: '甲', personalOnly: true, offline: true });
 });
 
+it('persists and restores the fact that a round exceeded the mistake sample limit', async () => {
+  const custom = { ...article, id: 'private-truncation', text: '甲甲', custom: true };
+  const first = renderHook(() => usePractice({ ...config, ...custom, article: custom, articleId: custom.id }, null));
+  act(() => { for (let index = 0; index < 501; index++) { first.result.current.updateTyped('乙'); first.result.current.updateTyped(''); } });
+  now = 2000;
+  await act(() => first.result.current.pause());
+  const saved = readDraft()!;
+  expect(saved.mistakes).toHaveLength(500);
+  expect(saved.mistakesTruncated).toBe(true);
+  first.unmount();
+  const resumed = renderHook(() => usePractice({ ...config, ...custom, article: custom, articleId: custom.id }, saved));
+  await act(() => resumed.result.current.finish(true));
+  expect(resumed.result.current.result?.record).toMatchObject({ mistakesTruncated: true });
+  expect(resumed.result.current.result?.record?.mistakes).toHaveLength(500);
+});
+
 it('keeps a guest practice local after the server disables new online practices', async () => {
   const fetch = vi.fn(async () => response({ error: '游客在线练习已关闭', code: 'GUEST_ONLINE_PRACTICE_DISABLED' }, false, 403));
   vi.stubGlobal('fetch', fetch);

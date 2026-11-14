@@ -45,6 +45,7 @@ import { api, ApiError, type User } from './lib/api';
 import { catalogSnapshotKey, compareDraftProgress, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PracticeRecord, type ReaderSettings, type SavedPractice } from './lib/models';
 import { readableCharacter } from './lib/practice-lines';
 import { scoreTyping, splitCharacters } from './lib/scoring';
+import { createRoundMistakeDrill } from './lib/analysis';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
 import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, localAccountBlockPrefix, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
 import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from './lib/local-account-cleanup';
@@ -208,6 +209,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [nickname, setNickname] = useState('');
   const [rankMessage, setRankMessage] = useState('');
   const [rankSubmitted, setRankSubmitted] = useState(false);
+  const [mistakeRepeats, setMistakeRepeats] = useState('3');
   const [busy, setBusy] = useState(false);
   const [accountBusy, setAccountBusy] = useState(false);
   const [feedback, setFeedback] = useState(accountNotice);
@@ -263,6 +265,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     },
   }, null);
   const { phase, target, typed, result } = practice;
+  const roundDrillAvailable = useMemo(() => result?.record ? createRoundMistakeDrill(result.record, 1) : undefined, [result]);
+  const roundDrill = useMemo(() => result?.record ? createRoundMistakeDrill(result.record, Number(mistakeRepeats)) : undefined, [result, mistakeRepeats]);
   const currentResult = useRef(result);
   currentResult.current = result;
   const locked = !['ready', 'finished'].includes(phase);
@@ -778,7 +782,9 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
             }),
           }))}
         />}
-        {view === 'mistakes' && <MistakesView records={records} onPractice={selectArticle} />}
+        {view === 'mistakes' && <MistakesView records={records} states={workspace.settings.mistakeStates ?? {}} onStatus={(id, status) => void workspace.updateMistakeState(id, status).catch((problem: unknown) => {
+          if (live.current) setFeedback(problem instanceof Error ? problem.message : '错字状态保存失败');
+        })} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} />}
         {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
         {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} onGuestImport={() => setShowGuestImport(true)} />}
@@ -829,6 +835,11 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       </div>
       {result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? 'local' :
         historyCheckedFor !== result.recordId ? 'loading' : historyError || workspace.syncState === 'error' ? 'partial' : 'complete'} />}
+      {result.record && (result.record.mistakesTruncated || (result.record.mistakes?.length ?? 0) >= 500) && <p className="feature-muted" role="status">错字样本可能不完整</p>}
+      {roundDrillAvailable && <div className="round-mistake-actions">
+        <label>重复次数<input type="number" min={1} max={10} step={1} value={mistakeRepeats} aria-invalid={!roundDrill} onChange={(event) => setMistakeRepeats(event.target.value)} /></label>
+        <button className="outline-button" disabled={!roundDrill} onClick={() => { if (roundDrill) selectArticle(roundDrill); }}>练习本轮错字</button>
+      </div>}
       {mistakes.length > 0 && <details className="mistake-review"><summary>错字回看 · {mistakes.length > 30 ? `前 30 / ${mistakes.length}` : mistakes.length} 处</summary><ul>{mistakes.slice(0, 30).map((mistake) => <li key={mistake.index}><span>第 {mistake.index + 1} 字</span><span>原文 <b>{readableCharacter(mistake.expected)}</b></span><span>输入 <del>{readableCharacter(mistake.actual)}</del></span></li>)}</ul></details>}
       {practice.canRetryOnline && <div className="rank-submit"><button className="primary-button" disabled={phase === 'restoring'} onClick={() => void practice.retryOnline()}>{phase === 'restoring' ? '正在恢复…' : '重试上榜'}</button></div>}
       {practice.canRetryOnline && practice.feedback && <p className="form-error" role="alert">{practice.feedback}</p>}

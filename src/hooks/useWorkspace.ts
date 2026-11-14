@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { localPracticeNeedsRecovery } from '../lib/local-practice-generation';
-import type { ReaderSettings, SyncState, WorkspaceItem, WorkspaceKind, WorkspaceValues } from '../lib/models';
+import type { MistakeStatus, ReaderSettings, SyncState, WorkspaceItem, WorkspaceKind, WorkspaceValues } from '../lib/models';
 import {
   cachedWorkspace, chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceItem, mergeRemoteWorkspace, mutateWorkspaceValue,
   newerWorkspaceItems, putWorkspaceValue, readWorkspace, readWorkspaceGeneration, saveWorkspaceGeneration, subscribeWorkspace, workspaceGenerationKey, workspaceItemKey, workspaceRecoveryReason, WorkspaceMergeConflictError, workspaceSettings, workspaceValue,
@@ -248,6 +248,16 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
   }, [ownerId, settingsAvailable]);
   const toggleFavorite = useCallback((id: string) =>
     mutateWorkspaceValue(ownerId, 'favorite', id, (old) => old ? undefined : { articleId: id }), [ownerId]);
+  const updateMistakeState = useCallback((id: string, status?: MistakeStatus) => {
+    if (!settingsAvailable) return Promise.reject(new Error('账号设置尚未读取'));
+    if (!id || id.length > 512) return Promise.reject(new Error('错字过长，无法标记状态'));
+    return mutateWorkspaceValue(ownerId, 'settings', 'preferences', (_saved, items) => {
+      const settings = workspaceSettings(items); const mistakeStates = { ...settings.mistakeStates };
+      if (status) mistakeStates[id] = status; else delete mistakeStates[id];
+      if (Object.keys(mistakeStates).length > 2000) throw new Error('错字状态已达上限');
+      return { ...settings, mistakeStates };
+    });
+  }, [ownerId, settingsAvailable]);
   const sync = useCallback(() =>
     enabled && lifecycle.current?.ownerId === ownerId ? lifecycle.current.sync() : Promise.resolve(), [enabled, ownerId]);
 
@@ -279,6 +289,6 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     pendingCount: visible?.pendingCount ?? null,
     cloudCount: visible?.cloudCount ?? null,
     recoveryReason: visible?.recoveryReason ?? null,
-    put, remove, updateSettings, toggleFavorite, sync,
+    put, remove, updateSettings, updateMistakeState, toggleFavorite, sync,
   };
 }

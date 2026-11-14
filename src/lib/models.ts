@@ -2,6 +2,7 @@ import type { ArticleSource, Difficulty, Language } from '../data/articles';
 import type { BackgroundConfig } from './background';
 
 export type PracticeMode = 'timed' | 'article';
+export type MistakeStatus = 'mastered' | 'ignored';
 export type ReaderSettings = {
   minutes: number;
   mode: PracticeMode;
@@ -11,6 +12,7 @@ export type ReaderSettings = {
   lineHeight: number;
   visibleLines: number;
   theme: 'light' | 'dark';
+  mistakeStates?: Record<string, MistakeStatus>;
 };
 export const defaultSettings: ReaderSettings = { minutes: 5, mode: 'timed', strict: false, autoPause: true, fontSize: 18, lineHeight: 1.6, visibleLines: 4, theme: 'light' };
 export type ArticleSnapshot = { id: string; title: string; text: string; language: Language; difficulty: Difficulty; custom: boolean; author?: string; theme?: string; source?: ArticleSource };
@@ -20,12 +22,12 @@ export type PracticeRecord = {
   language: Language; difficulty: Difficulty; duration: number; speed: number; accuracy: number; finishedAt: number;
   status?: string; elapsedMs?: number; backspaces?: number; errors?: number; recordId?: string; ownerId?: string | null; localOnly?: boolean;
   article?: ArticleSnapshot; typed?: string; offset?: number; total?: number; correct?: number; articleTotal?: number;
-  mode?: PracticeMode; strict?: boolean; mistakes?: MistakeSample[];
+  mode?: PracticeMode; strict?: boolean; mistakes?: MistakeSample[]; mistakesTruncated?: boolean;
 };
 export type SavedPractice = {
   id: string; article: ArticleSnapshot; typed: string; elapsedMs: number; backspaces: number;
   duration: number; mode: PracticeMode; strict: boolean; offset: number; recordId: string;
-  attemptId?: string; recoveryId?: string; recoveryKey?: string; claimId?: string; claimVersion?: number; recoveryRequestId?: string; recoveryMarker?: string; recoveryBaseVersion?: number; progressVersion?: number; personalOnly?: boolean; offline: boolean; ownerId: string | null; savedAt: number; mistakes?: MistakeSample[]; suspicious?: boolean;
+  attemptId?: string; recoveryId?: string; recoveryKey?: string; claimId?: string; claimVersion?: number; recoveryRequestId?: string; recoveryMarker?: string; recoveryBaseVersion?: number; progressVersion?: number; personalOnly?: boolean; offline: boolean; ownerId: string | null; savedAt: number; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; suspicious?: boolean;
 };
 export function compareDraftProgress(a: SavedPractice, b: SavedPractice) {
   const claim = (a.claimVersion ?? 0) - (b.claimVersion ?? 0);
@@ -42,7 +44,7 @@ export function sameDraftSnapshot(a: SavedPractice, b: SavedPractice) {
   return a.typed === b.typed && a.elapsedMs === b.elapsedMs && a.backspaces === b.backspaces && a.offset === b.offset &&
     a.recoveryId === b.recoveryId && a.recoveryKey === b.recoveryKey && a.claimId === b.claimId &&
     a.claimVersion === b.claimVersion && a.recoveryRequestId === b.recoveryRequestId && a.recoveryMarker === b.recoveryMarker &&
-    a.recoveryBaseVersion === b.recoveryBaseVersion && !!a.personalOnly === !!b.personalOnly;
+    a.recoveryBaseVersion === b.recoveryBaseVersion && !!a.personalOnly === !!b.personalOnly && !!a.mistakesTruncated === !!b.mistakesTruncated;
 }
 export function staleDraftBase(incoming: SavedPractice, previous: SavedPractice) {
   return (incoming.claimVersion ?? 0) === (previous.claimVersion ?? 0) && !!incoming.recoveryMarker &&

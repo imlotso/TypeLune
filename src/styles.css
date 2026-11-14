@@ -128,6 +128,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .result-metrics small { color: var(--typing-muted); font-size: 11px; }
 .personal-best { display: grid; gap: 5px; margin: 0 0 18px; color: var(--typing-text); font-size: 13px; }
 .personal-best p { margin: 0; }
+.round-mistake-actions { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.round-mistake-actions label { display: grid; gap: 4px; color: var(--typing-text); font-size: 13px; }
+.round-mistake-actions input { width: 76px; min-height: 38px; padding: 6px 8px; color: var(--typing-text); background: var(--typing-input); border: 1px solid var(--typing-border); border-radius: 9px; }
 .english-speed { min-width: 0; }
 .status-row:has(.english-speed) { align-items: flex-start; }
 .status-row:has(.english-speed) > span { min-height: 44px; }

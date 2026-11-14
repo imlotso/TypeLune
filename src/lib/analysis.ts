@@ -89,6 +89,46 @@ export function createMistakeDrill(entries: MistakeEntry[], language: Language):
   return { ...article, id: snapshotKey(article).replace(':', '-') };
 }
 
+export function createRoundMistakeDrill(record: PracticeRecord, repeats: number): ArticleSnapshot | undefined {
+  if (!record.article || !Number.isInteger(repeats) || repeats < 1 || repeats > 10) return undefined;
+  const target = splitCharacters(record.article.text);
+  const words = record.language === 'en' ? englishWordPositions(target) : undefined;
+  const spans = words ? [...new Map([...words.values()].map((word) => [word.start, word])).values()].sort((a, b) => a.start - b.start) : [];
+  const snippets = new Set<string>();
+  for (const sample of recordMistakes(record, target)) {
+    const position = sample.position;
+    if (!Number.isInteger(position) || position < 0 || position >= target.length || target[position] !== sample.expected || sample.actual === sample.expected) continue;
+    let text = '';
+    const word = words?.get(position);
+    if (word) {
+      const index = spans.findIndex((entry) => entry.start === word.start);
+      const before = spans[index - 1]; const after = spans[index + 1];
+      const start = before && /^[ \t]+$/u.test(target.slice(before.end, word.start).join('')) ? before.start : word.start;
+      const end = after && /^[ \t]+$/u.test(target.slice(word.end, after.start).join('')) ? after.end : word.end;
+      text = target.slice(start, end).join('');
+    } else {
+      let start = Math.max(0, position - 5); let end = Math.min(target.length, position + 6);
+      for (let index = position - 1; index >= start; index--) if (/[，。！？；、\n]/u.test(target[index])) { start = index + 1; break; }
+      for (let index = position + 1; index < end; index++) if (/[，。！？；、\n]/u.test(target[index])) { end = index; break; }
+      text = target.slice(start, end).join('').trim();
+    }
+    if (text.trim()) snippets.add(text);
+  }
+  const encoder = new TextEncoder();
+  const selected: string[] = [];
+  let characters = 0; let bytes = 0;
+  for (const text of snippets) {
+    const extraCharacters = text.length * repeats + repeats;
+    const extraBytes = encoder.encode(text).length * repeats + repeats;
+    if (characters + extraCharacters > MAX_PRIVATE_CHARACTERS || bytes + extraBytes > MAX_PRIVATE_BYTES) continue;
+    for (let index = 0; index < repeats; index++) selected.push(text);
+    characters += extraCharacters; bytes += extraBytes;
+  }
+  if (!selected.length) return undefined;
+  const article: ArticleSnapshot = { id: 'round-mistakes', title: '本轮错字专项', text: selected.join('\n'), language: record.language, difficulty: record.difficulty, custom: true };
+  return { ...article, id: snapshotKey(article).replace(':', '-') };
+}
+
 export type DailyStats = {
   date: Date;
   sessions: number;
