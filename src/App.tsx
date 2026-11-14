@@ -35,14 +35,15 @@ import { StatsView } from './components/StatsView';
 import { SiteInfoView } from './components/SiteInfoView';
 import { articles, type Difficulty, type Language } from './data/articles';
 import { infoLabels, type InfoPage } from './data/site-content';
-import { clearLocalPractice, continuationDraftId, discardSavedDraft, draftAwaitingStart, localHistory, practiceDraftId, readDraft, readDrafts, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
-import { clearSyncTime, useWorkspace } from './hooks/useWorkspace';
+import { continuationDraftId, discardSavedDraft, draftAwaitingStart, localHistory, practiceDraftId, readDraft, readDrafts, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
+import { useWorkspace } from './hooks/useWorkspace';
 import { api, ApiError, type User } from './lib/api';
 import { catalogSnapshotKey, compareDraftProgress, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PracticeRecord, type ReaderSettings, type SavedPractice } from './lib/models';
 import { readableCharacter } from './lib/practice-lines';
 import { scoreTyping, splitCharacters } from './lib/scoring';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
-import { allowLocalAccount, blockLocalAccount, clearLocalWorkspace, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, localAccountBlockPrefix, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
+import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, localAccountBlockPrefix, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
+import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from './lib/local-account-cleanup';
 
 type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback' | 'data' | InfoPage;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
@@ -95,6 +96,8 @@ export function App() {
   const [authReady, setAuthReady] = useState(false);
   const [accountNotice, setAccountNotice] = useState('');
   const [identityEpoch, setIdentityEpoch] = useState(0);
+  const [pendingCleanup, setPendingCleanup] = useState<string[]>(pendingLocalCleanups);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
   const currentUser = useRef<User | null>(null);
   const [feedbackResume, setFeedbackResume] = useState<{ ownerId: string; draft: FeedbackDraft }>();
   const pendingFeedback = useRef<FeedbackDraft | undefined>(undefined);
@@ -103,7 +106,7 @@ export function App() {
   const changeUser = useCallback((next: User | null) => {
     request.current?.abort();
     currentUser.current = next;
-    if (next) allowLocalAccount(next.id);
+    if (next) { try { cancelLocalCleanup(next.id); } catch { allowLocalAccount(next.id); } setPendingCleanup(pendingLocalCleanups()); }
     try { localStorage.setItem(authChangeKey, `${Date.now()}-${Math.random()}`); } catch { /* The current tab still changes account. */ }
     setAccountNotice('');
     setFeedbackResume(next && pendingFeedback.current ? { ownerId: next.id, draft: pendingFeedback.current } : undefined);
@@ -117,6 +120,16 @@ export function App() {
     request.current?.abort();
     setUser((current) => current?.id === next.id ? next : current);
   }, []);
+  async function retryCleanup() {
+    setCleanupBusy(true);
+    let failed = false;
+    for (const owner of pendingLocalCleanups()) {
+      try { await finishLocalCleanup(owner); } catch { failed = true; }
+    }
+    setPendingCleanup(pendingLocalCleanups());
+    setAccountNotice(failed ? '本机数据仍未完全清理，请检查浏览器存储后重试' : '本机账号数据已清理');
+    setCleanupBusy(false);
+  }
 
   useEffect(() => {
     function checkAccount() {
@@ -161,13 +174,14 @@ export function App() {
   if (inAdministration && user) return <AdminWorkspace key={user.id} user={user} onLogout={() => changeUser(null)} onPreview={() => setPreviewOwner(user.id)} />;
   return <PracticeApp key={`${user ? `account:${user.id}` : 'guest'}:${identityEpoch}`} user={user} authReady={authReady} onUser={changeUser}
     accountNotice={accountNotice} onAccountReauthentication={(message) => { changeUser(null); setAccountNotice(message); }}
-    onSignedOutNotice={(message) => { if (!currentUser.current) setAccountNotice(message); }}
+    onSignedOutNotice={(message) => { setPendingCleanup(pendingLocalCleanups()); if (!currentUser.current) setAccountNotice(message); }}
+    pendingCleanup={pendingCleanup.length} cleanupBusy={cleanupBusy} onRetryCleanup={() => void retryCleanup()}
     feedbackResume={feedbackResume && user && feedbackResume.ownerId === user.id ? feedbackResume.draft : undefined}
     onFeedbackHandoff={(draft) => { pendingFeedback.current = draft; }} onCancelFeedbackHandoff={() => { pendingFeedback.current = undefined; }}
     onUpdateUser={updateUser} onAdministration={user?.isAdmin ? () => setPreviewOwner(undefined) : undefined} />;
 }
 
-function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
+function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, pendingCleanup, cleanupBusy, onRetryCleanup, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; pendingCleanup: number; cleanupBusy: boolean; onRetryCleanup: () => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
   const ownerId = user?.id ?? null;
   const workspace = useWorkspace(ownerId, authReady);
   const [selection, setSelection] = useState(builtIns[0]);
@@ -613,22 +627,40 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     setAccountBusy(true);
     let blocked = false;
     try {
-      if (clear) { blockLocalAccount(id); blocked = true; }
+      if (clear) { prepareLocalCleanup(id); blocked = true; }
       await api('/api/auth/logout', { method: 'POST', body: {}, headers: { 'X-Workspace-Owner': id } });
       onUser(null);
       if (clear) {
         try {
           if (!blocked) throw new Error('无法保护本机数据清理');
-          await clearLocalWorkspace(id);
-          clearLocalPractice(id);
-          clearSyncTime(id);
+          await finishLocalCleanup(id);
           onSignedOutNotice('已退出并清除此设备的账号数据');
         } catch { onSignedOutNotice('已退出，但本机数据未能完全清理；可重新登录后重试'); }
       }
     } catch (problem) {
-      if (blocked) allowLocalAccount(id);
+      if (blocked) { try { cancelLocalCleanup(id); } catch { allowLocalAccount(id); } }
       throw problem;
     } finally { if (live.current) setAccountBusy(false); }
+  }
+
+  async function deleteAccount(password: string) {
+    if (!user) return;
+    const id = user.id;
+    prepareLocalCleanup(id);
+    try {
+      await api('/api/account/delete', { method: 'POST', headers: { 'X-Workspace-Owner': id }, body: { currentPassword: password } });
+    } catch (problem) {
+      if (problem instanceof ApiError && problem.status >= 400 && problem.status < 500) {
+        try { cancelLocalCleanup(id); } catch { allowLocalAccount(id); }
+        throw problem;
+      }
+      onUser(null);
+      onSignedOutNotice('注销结果无法确认，请重新登录确认，或重试清理本机数据');
+      return;
+    }
+    onUser(null);
+    try { await finishLocalCleanup(id); onSignedOutNotice('账号已注销，本机账号数据已清理'); }
+    catch { onSignedOutNotice('账号已注销，但本机数据未能完全清理；请重试清理'); }
   }
 
   const matchingArticle = availableArticles.find((article) => article.id === selection.id);
@@ -672,6 +704,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     </header>}
     <RoomBackground theme={theme} background={workspace.backgrounds[theme]}>
       <div className="workspace">
+        {!user && pendingCleanup > 0 && <div className="cleanup-warning" role="alert"><span>本机账号缓存清理未完成。</span><button className="outline-button" disabled={cleanupBusy} onClick={onRetryCleanup}>重试清理</button></div>}
         {view === 'practice' && <>
           {focused ? <div className="focus-actions"><button ref={focusButton} className="outline-button feature-action-button" onClick={exitFocus}>退出专注</button></div> : filters}
           <div className="status-row">
@@ -740,7 +773,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       <div className="result-actions"><span className="custom-count">{splitCharacters(customDraft).length} / 20000 字符</span><button className="primary-button" onClick={useCustomText}>使用这段文字</button></div>
     </Dialog>}
     {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) window.history.replaceState(null, '', '/'); }} onLogin={onUser} />}
-    {showAccount && user && <AccountDialog user={user} onClose={() => setShowAccount(false)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} />}
+    {showAccount && user && <AccountDialog user={user} onClose={() => setShowAccount(false)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} />}
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
     {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} />}
     {showBackground && <BackgroundDialog theme={showBackground} value={workspace.backgrounds[showBackground]} onClose={() => setShowBackground(undefined)} onSave={(background) => background ? workspace.put('background', showBackground, background) : workspace.remove('background', showBackground)} />}

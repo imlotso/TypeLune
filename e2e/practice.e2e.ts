@@ -171,7 +171,10 @@ test('shows a result immediately when a custom article is completed', async ({ p
   await expect(result.getByText('100%')).toBeVisible();
 });
 
-test('submits an online result, registers an admin with a test email and publishes the reviewed score', async ({ page }) => {
+test('submits an online result, uses an admin account and publishes the reviewed score', async ({ page, browser, baseURL }) => {
+  const probe = await browser.newContext({ baseURL });
+  const existingAdmin = (await probe.request.post('/api/auth/login', { data: { identifier: 'admin@example.test', password: 'ci-password-123' } })).ok();
+  await probe.close();
   await page.goto('/');
   const target = await page.locator('.line-source').evaluateAll((lines) => lines.map((line) => line.getAttribute('data-text')).join(''));
   expect(target).toBeTruthy();
@@ -209,18 +212,25 @@ test('submits an online result, registers an admin with a test email and publish
   await expect(page.getByText('CI 访客')).toHaveCount(0);
 
   await page.getByRole('button', { name: '登录', exact: true }).click();
-  await page.getByRole('button', { name: '创建账号' }).click();
-  const registration = page.getByRole('dialog', { name: '创建账号' });
-  await registration.getByLabel('用户名', { exact: true }).fill('ci_admin');
-  await registration.getByLabel('邮箱', { exact: true }).fill('admin@example.test');
-  await registration.getByLabel('密码', { exact: true }).fill('ci-password-123');
-  const emailSent = page.waitForResponse((response) => response.url().endsWith('/api/auth/code') && response.request().method() === 'POST');
-  await registration.getByRole('button', { name: '获取验证码' }).click();
-  expect((await emailSent).status()).toBe(200);
-  const email = await page.request.get('/__e2e__/email-code?email=admin%40example.test&purpose=register');
-  expect(email.status()).toBe(200);
-  await registration.getByRole('textbox', { name: '邮箱验证码', exact: true }).fill((await email.json()).code);
-  await registration.getByRole('button', { name: '注册并登录' }).click();
+  if (existingAdmin) {
+    const existing = page.getByRole('dialog', { name: '登录' });
+    await existing.getByLabel('用户名或邮箱').fill('admin@example.test');
+    await existing.getByLabel('密码', { exact: true }).fill('ci-password-123');
+    await existing.getByRole('button', { name: '登录', exact: true }).click();
+  } else {
+    await page.getByRole('button', { name: '创建账号' }).click();
+    const registration = page.getByRole('dialog', { name: '创建账号' });
+    await registration.getByLabel('用户名', { exact: true }).fill('ci_admin');
+    await registration.getByLabel('邮箱', { exact: true }).fill('admin@example.test');
+    await registration.getByLabel('密码', { exact: true }).fill('ci-password-123');
+    const emailSent = page.waitForResponse((response) => response.url().endsWith('/api/auth/code') && response.request().method() === 'POST');
+    await registration.getByRole('button', { name: '获取验证码' }).click();
+    expect((await emailSent).status()).toBe(200);
+    const email = await page.request.get('/__e2e__/email-code?email=admin%40example.test&purpose=register');
+    expect(email.status()).toBe(200);
+    await registration.getByRole('textbox', { name: '邮箱验证码', exact: true }).fill((await email.json()).code);
+    await registration.getByRole('button', { name: '注册并登录' }).click();
+  }
   await expect(page.getByTitle('退出登录')).toContainText('ci_admin');
   await expect(page.getByRole('heading', { name: '管理后台' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: '主要导航' })).toHaveCount(0);

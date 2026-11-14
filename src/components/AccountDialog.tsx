@@ -6,10 +6,11 @@ import { PasswordField } from './PasswordField';
 import { AccountAvatar } from './AccountAvatar';
 import { EmailChangeForm } from './EmailChangeForm';
 import { SessionManager } from './SessionManager';
+import { AccountDeletion } from './AccountDeletion';
 
-type Props = { user: User; onClose: () => void; onUpdate: (user: User) => void; onSignedOut: (message: string) => void };
+type Props = { user: User; onClose: () => void; onUpdate: (user: User) => void; onSignedOut: (message: string) => void; onDelete: (password: string) => Promise<void> };
 
-export function AccountDialog({ user, onClose, onUpdate, onSignedOut }: Props) {
+export function AccountDialog({ user, onClose, onUpdate, onSignedOut, onDelete }: Props) {
   const [username, setUsername] = useState(user.username);
   const [displayName, setDisplayName] = useState(user.displayName || user.username);
   const [avatar, setAvatar] = useState<User['avatar']>(user.avatar ?? null);
@@ -18,7 +19,7 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut }: Props) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [visibility, setVisibility] = useState({ username: 0, email: 0, password: 0 });
+  const [visibility, setVisibility] = useState({ username: 0, email: 0, password: 0, deletion: 0 });
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const closeSection = (area: keyof typeof visibility, open: boolean) => {
     if (!open) setVisibility((current) => ({ ...current, [area]: current[area] + 1 }));
@@ -87,6 +88,9 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut }: Props) {
     </form></details>
     <details className="account-section" onToggle={(event) => setSessionsOpen(event.currentTarget.open)}><summary>登录设备</summary>
       {sessionsOpen && <SessionManager ownerId={user.id} busy={busy} setBusy={setBusy} onSignedOut={onSignedOut} />}
+    </details>
+    <details className="account-section" onToggle={(event) => closeSection('deletion', event.currentTarget.open)}><summary>注销账号</summary>
+      <AccountDeletion user={user} busy={busy} setBusy={setBusy} visibilityVersion={visibility.deletion} onDelete={onDelete} />
     </details>
   </Dialog>;
 }

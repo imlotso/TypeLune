@@ -19,7 +19,7 @@ test('updates account identity and signs out all sessions after a password chang
   await page.getByRole('menuitem', { name: '账号设置' }).click();
   const dialog = page.getByRole('dialog', { name: '账号设置' });
   await page.keyboard.press('Shift+Tab');
-  await expect(dialog.locator('summary').filter({ hasText: '登录设备' })).toBeFocused();
+  await expect(dialog.locator('summary').filter({ hasText: '注销账号' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button', { name: '关闭' })).toBeFocused();
   await dialog.locator('summary').filter({ hasText: '更改用户名' }).click();

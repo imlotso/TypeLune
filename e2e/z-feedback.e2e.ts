@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { expect, test } from './fixtures';
+import { ensureAdmin, expect, test } from './fixtures';
 import type { APIRequestContext } from '@playwright/test';
 
 async function register(request: APIRequestContext, username: string) {
@@ -16,7 +16,7 @@ test('a guest keeps a screenshot draft through login and sees an admin reply wit
   const userContext = await browser.newContext(options);
   const adminContext = await browser.newContext(options);
   const user = await register(userContext.request, 'feedback_user');
-  await register(adminContext.request, 'admin');
+  await ensureAdmin(adminContext.request);
   const admin = await adminContext.newPage();
   await page.goto('/');
   await page.getByRole('button', { name: '功能反馈' }).click();

@@ -12,7 +12,7 @@
 | A06 | 待完善 | `4af0e6b`、`226f2a9` | 已增加分邮箱、用途冷却和一致的发送错误响应；真实邮件投递尚待验收。 |
 | A07 | 待完善 | `d30b251` | 已有设备列表、单设备及其他设备撤销、旧会话迁移；待最终回归。 |
 | A08 | 待完善 | `8ce5874` | 独立昵称、内置头像及旧账号迁移已实现；待历史快照、跨设备和全部角色回归。 |
-| A09 | 未实现 | — | 缺账号注销及其数据删除流程。 |
+| A09 | 待完善 | 本阶段提交 | 已有导出入口、密码确认、事务删除、审计匿名化和最后管理员保护；待最终全量回归与旧客户端兼容检查。 |
 | B01 | 待完善 | `d26f532` | 已有页脚、帮助、联系及可维护的政策草案；运营主体、联系邮箱和正式生效日期待提供，稳定路由及后续功能说明待完善。 |
 | B02 | 待完善 | `0705057` | 已有反馈、截图、游客登录交接、去重及访问控制；待最终回归。 |
 | B03 | 待完善 | `0705057` | 已有筛选、回复、内部备注、状态及版本冲突处理；待最终回归。 |
@@ -21,7 +21,7 @@
 | C01 | 待完善 | `bfdaa46` | 已显示错误、待同步数量、上次云端项目数和最近成功时间；待最终跨设备及容量场景回归。 |
 | C02 | 待完善 | — | 服务端 2,000 项、32 MiB 上限；删除标记占项目数，缺安全回收协议。 |
 | C03 | 待完善 | `e6dac69` | 已有版本化 JSON、记录 CSV、完整历史分页及缺失项报告；待最终跨设备和失败场景回归。 |
-| C04 | 待完善 | 本阶段提交 | 已有退出清理选项、未同步保护、按账号本机清理及新版标签页迟到写入阻断；旧版独立资料检查及旧客户端兼容待完善。 |
+| C04 | 待完善 | `a0eeb01` | 已有退出清理选项、未同步保护、按账号本机清理及新版标签页迟到写入阻断；旧版独立资料检查及旧客户端兼容待完善。 |
 | C05 | 待完善 | — | 游客与账号数据隔离；缺显式导入、去重与恢复。 |
 | D01 | 待完善 | — | `/admin` 有入口，主要前台视图由组件状态切换，缺稳定路由。 |
 | D02 | 待完善 | — | 服务端设置已实施；前台缺完整公开配置及预提示。 |
@@ -75,12 +75,12 @@
 | 邮箱与账号表单 | `npm run typecheck`、`npm test` | 类型检查通过；37 个测试文件、305 项通过，包括错误／过期验证码、不同账号、并发争用、发送失败和已撤销会话。 |
 | 邮箱与账号表单 | `npm run build`；`npx playwright test e2e/account.e2e.ts` | 构建通过，2 项浏览器测试通过，包含换绑前后登录、另一会话失效、键盘焦点和密码显隐复位。 |
 | 邮箱与账号表单 | 隔离测试服务 390 px 日间实际页面 | 已查看分组后的[账号设置](screenshots/account-mobile-grouped.png)及[更换邮箱](screenshots/email-mobile-grouped.png)。使用测试邮件，不代表真实 SMTP 送达。 |
-| 反馈 | `npx playwright test e2e/feedback.e2e.ts` | 1 项通过：游客草稿和截图经登录提交，管理员处理后用户查看公开回复及补充。 |
+| 反馈 | `npx playwright test e2e/feedback.e2e.ts` | 1 项通过：游客草稿和截图经登录提交，管理员处理后用户查看公开回复及补充；测试文件后重命名为 `e2e/z-feedback.e2e.ts`。 |
 | 反馈 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 通过；40 个测试文件、317 项通过；构建仍有既有大包提示。 |
 | 反馈 | `docker build -t typing-upgrade-ci:local .`；`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker` | 通过；临时卷中的反馈图片在容器替换和 SQLite 备份恢复后字节一致。镜像构建后调整了处理人显示，最终须按交付版本重跑。 |
 | 反馈 | 隔离测试服务实际页面 | 已查看[手机反馈表单](screenshots/feedback-mobile-light.png)、[手机后台列表](screenshots/feedback-admin-mobile.png)及[桌面夜间后台详情](screenshots/feedback-admin-desktop-dark.png)。截图中的反馈和账号均为测试数据。 |
 | 帮助与政策 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 通过；41 个测试文件、318 项通过。 |
-| 帮助与政策 | `npx playwright test e2e/site-info.e2e.ts e2e/feedback.e2e.ts` | 2 项通过，包含手机页面跳转、练习暂停保留及反馈流程。 |
+| 帮助与政策 | `npx playwright test e2e/site-info.e2e.ts e2e/feedback.e2e.ts` | 2 项通过，包含手机页面跳转、练习暂停保留及反馈流程；反馈测试文件后重命名为 `e2e/z-feedback.e2e.ts`。 |
 | 帮助与政策 | Docker 测试构建及 `DAZI_TEST_IMAGE=typing-upgrade-config-ci:local npm run test:docker` | 通过；测试配置已进入构建，Compose 配置检查通过，容器替换与备份恢复包含反馈附件。配置值为测试数据。 |
 | 帮助与政策 | 隔离测试服务实际页面 | 已查看[桌面夜间帮助](screenshots/help-desktop-dark.png)和[手机夜间隐私政策](screenshots/privacy-mobile-dark.png)。 |
 | 登录设备 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 通过；42 个测试文件、323 项通过。 |
@@ -94,3 +94,8 @@
 | 本机清理 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 通过；48 个测试文件、335 项通过。 |
 | 本机清理 | `npx playwright test e2e/local-cleanup.e2e.ts e2e/background.e2e.ts` | 6 项通过；包含两个标签页、游客隔离、云端保留、重新登录恢复和背景回归。 |
 | 本机清理 | `npx playwright test e2e/local-cleanup.e2e.ts` | 2 项通过；另外验证未同步提醒、重试同步和清理前确认。 |
+| 账号注销 | `npm run typecheck`、`npm test`、`npm run build`、`npm run test:sites` | 通过；49 个测试文件、342 项通过。 |
+| 账号注销 | `npx playwright test e2e/z-account-delete.e2e.ts e2e/z-feedback.e2e.ts e2e/local-cleanup.e2e.ts` | 6 项通过；包含注销前下载、最后管理员限制、响应丢失后清理重试及相关反馈回归。 |
+| 账号注销 | 隔离测试服务 390 px 日间实际页面 | 已查看[注销确认界面](screenshots/account-delete-mobile.png)；未在该预览中执行注销。 |
+| 阶段回归 | `npm run test:e2e` | 35 项通过，包含现有逐行练习、模拟输入法、恢复上榜、背景、后台、反馈及新增账号／数据流程；未替代真实系统输入法和真实 SMTP 送达。 |
+| 账号注销 | `docker build -t typing-upgrade-ci:local .`；`DAZI_TEST_IMAGE=typing-upgrade-ci:local npm run test:docker` | 容器启动、练习恢复、反馈附件、卷替换和备份恢复通过；该脚本未单独执行账号注销。 |

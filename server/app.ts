@@ -19,6 +19,7 @@ import { migrateAccounts, registerAccountRoutes, type AccountUser } from './acco
 import { registerAccountEmailRoutes } from './account-email';
 import { createFeedbackStore, registerAdminFeedbackRoutes, registerFeedbackRoutes } from './feedback';
 import { describeSessionDevice, migrateSessions, registerSessionRoutes } from './account-sessions';
+import { registerAccountDeletion } from './account-delete';
 
 export type { Mailer } from './smtp';
 export type AppOptions = {
@@ -238,6 +239,7 @@ export async function createApp(options: AppOptions) {
   registerAccountRoutes(app, { db, userFor, accountMatches, publicUser, clearSession: clearAccountSession });
   registerAccountEmailRoutes(app, { db, now, codeSecret, mailer: smtp.mailer, userFor, accountMatches, clearSession: clearAccountSession });
   registerSessionRoutes(app, { db, now, hashSession: digest, userFor, accountMatches, clearSession: clearAccountSession });
+  registerAccountDeletion(app, { db, now, userFor, accountMatches, clearSession: clearAccountSession });
   registerFeedbackRoutes(app, feedbackStore, { userFor, accountMatches });
   const startSession = (request: FastifyRequest, reply: FastifyReply, user: User) => {
     const token = randomBytes(32).toString('base64url');

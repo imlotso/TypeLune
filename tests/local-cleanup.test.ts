@@ -2,6 +2,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { allowLocalAccount, blockLocalAccount, clearLocalWorkspace, mergeRemoteWorkspace, putWorkspaceValue, readWorkspace } from '../src/lib/workspace';
 import { clearLocalPractice } from '../src/hooks/usePractice';
+import { finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from '../src/lib/local-account-cleanup';
 
 afterEach(() => { localStorage.clear(); sessionStorage.clear(); });
 
@@ -29,4 +30,17 @@ it('clears only one account and blocks late writes until that account signs in a
   expect(await readWorkspace('alice')).toEqual([]);
   await putWorkspaceValue('alice', 'favorite', 'new', { articleId: 'new' });
   expect((await readWorkspace('alice')).map((item) => item.id)).toEqual(['new']);
+});
+
+it('retains a retry marker until all local cleanup steps succeed', async () => {
+  await putWorkspaceValue('alice', 'favorite', 'alice', { articleId: 'alice' });
+  localStorage.setItem('cloudtyping.history.v1', 'invalid-json');
+  prepareLocalCleanup('alice');
+  await expect(finishLocalCleanup('alice')).rejects.toThrow();
+  expect(pendingLocalCleanups()).toEqual(['alice']);
+  localStorage.removeItem('cloudtyping.history.v1');
+  await finishLocalCleanup('alice');
+  expect(pendingLocalCleanups()).toEqual([]);
+  expect(await readWorkspace('alice')).toEqual([]);
+  allowLocalAccount('alice');
 });

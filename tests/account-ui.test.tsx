@@ -37,6 +37,7 @@ beforeEach(() => {
       if (submitted.id === 'current-id') account = null;
       body = { ok: true, current: submitted.id === 'current-id' };
     }
+    else if (path === '/api/account/delete') { account = null; body = { ok: true }; }
     else if (path === '/api/account/password' || path === '/api/auth/logout') { account = null; body = { ok: true }; }
     return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
   }));
@@ -110,6 +111,43 @@ it('reports incomplete cleanup after logout if legacy local data cannot be read'
   fireEvent.click(within(dialog).getByRole('checkbox', { name: /确认清除本机数据|确认放弃未同步资料/ }));
   fireEvent.click(within(dialog).getByRole('button', { name: '确认退出' }));
   expect(await screen.findByText('已退出，但本机数据未能完全清理；可重新登录后重试')).toBeTruthy();
+});
+
+it('requires a password and explicit confirmation before deleting an account', async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: '云光' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '账号设置' }));
+  const dialog = await screen.findByRole('dialog', { name: '账号设置' });
+  fireEvent.click(within(dialog).getByText('注销账号'));
+  expect(within(dialog).getByText(/离线设备副本无法即时清除/)).toBeTruthy();
+  expect(within(dialog).getByRole('button', { name: '导出个人数据' })).toBeTruthy();
+  const submit = within(dialog).getByRole('button', { name: '永久注销账号' }) as HTMLButtonElement;
+  expect(submit.disabled).toBe(true);
+  fireEvent.change(within(dialog).getByLabelText('当前密码（注销）'), { target: { value: 'original-password' } });
+  fireEvent.click(within(dialog).getByRole('checkbox', { name: '我了解注销无法恢复' }));
+  fireEvent.click(submit);
+  expect(await screen.findByText('账号已注销，本机账号数据已清理')).toBeTruthy();
+  expect(requests).toContain('/api/account/delete');
+});
+
+it('does not claim deletion succeeded when the response is lost and offers local cleanup retry', async () => {
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  vi.stubGlobal('fetch', vi.fn((path: string, options?: RequestInit) => {
+    if (path === '/api/account/delete') { account = null; return Promise.reject(new Error('response lost')); }
+    return original(path, options);
+  }));
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: '云光' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '账号设置' }));
+  const dialog = await screen.findByRole('dialog', { name: '账号设置' });
+  fireEvent.click(within(dialog).getByText('注销账号'));
+  fireEvent.change(within(dialog).getByLabelText('当前密码（注销）'), { target: { value: 'original-password' } });
+  fireEvent.click(within(dialog).getByRole('checkbox', { name: '我了解注销无法恢复' }));
+  fireEvent.click(within(dialog).getByRole('button', { name: '永久注销账号' }));
+  expect(await screen.findByText('注销结果无法确认，请重新登录确认，或重试清理本机数据')).toBeTruthy();
+  expect(screen.queryByText('账号已注销，本机账号数据已清理')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '重试清理' }));
+  expect(await screen.findByText('本机账号数据已清理')).toBeTruthy();
 });
 
 it('opens an account menu without signing out and restores focus on Escape', async () => {
