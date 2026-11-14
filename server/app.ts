@@ -17,6 +17,7 @@ import { createSmtpSettings, type Mailer, type SmtpConfiguration, type SmtpDeliv
 import { isValidEmail, isValidPassword, isValidUsername } from '../src/lib/account-validation';
 import { migrateAccounts, registerAccountRoutes, type AccountUser } from './account';
 import { registerAccountEmailRoutes } from './account-email';
+import { createFeedbackStore, registerAdminFeedbackRoutes, registerFeedbackRoutes } from './feedback';
 
 export type { Mailer } from './smtp';
 export type AppOptions = {
@@ -195,6 +196,12 @@ export async function createApp(options: AppOptions) {
   migrateAdministration(db, adminEmail);
   migrateAccounts(db);
   const catalog = createCatalogStore(db, now);
+  const feedbackStore = createFeedbackStore(db, now, (id) => {
+    const article = catalog.findPublished(id);
+    if (!article) return undefined;
+    const { content, ...metadata } = article;
+    return { ...metadata, text: content, custom: false };
+  });
   const audit = createAdminAudit(db, now);
   const siteSettings = createSiteSettings(db, audit);
   const smtp = createSmtpSettings(db, { codeSecret: options.codeSecret, deployment: options.smtp, fallbackMailer: options.mailer, delivery: options.smtpDelivery, now });
@@ -225,6 +232,7 @@ export async function createApp(options: AppOptions) {
   };
   registerAccountRoutes(app, { db, userFor, accountMatches, publicUser, clearSession: clearAccountSession });
   registerAccountEmailRoutes(app, { db, now, codeSecret, mailer: smtp.mailer, userFor, accountMatches, clearSession: clearAccountSession });
+  registerFeedbackRoutes(app, feedbackStore, { userFor, accountMatches });
   const startSession = (reply: FastifyReply, user: User) => {
     const token = randomBytes(32).toString('base64url');
     const inserted = db.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) SELECT ?,id,? FROM users WHERE id=? AND password_hash=? AND auth_version=? AND disabled_at IS NULL')
@@ -285,6 +293,7 @@ export async function createApp(options: AppOptions) {
       return reply.send(error);
     });
     registerAdminRoutes(admin, { db, now, audit, publishedArticleCount: () => catalog.counts().published, saveScore });
+    registerAdminFeedbackRoutes(admin, feedbackStore, audit);
     registerCatalogRoutes(admin, catalog, audit);
     registerSiteSettingsRoutes(admin, siteSettings);
     smtp.register(admin, audit, (request) => {

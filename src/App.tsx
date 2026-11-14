@@ -23,6 +23,7 @@ import { AuthDialog } from './components/AuthDialog';
 import { Dialog } from './components/Dialog';
 import { DraftsView } from './components/DraftsView';
 import { EnglishSpeed } from './components/EnglishSpeed';
+import { FeedbackView, newFeedbackDraft, type FeedbackDraft } from './components/FeedbackView';
 import { MistakesView } from './components/MistakesView';
 import { PracticeLines } from './components/PracticeLines';
 import { RankingView } from './components/RankingView';
@@ -39,7 +40,7 @@ import { scoreTyping, splitCharacters } from './lib/scoring';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
 import { deleteWorkspaceValue, DraftDeletedError, isWorkspaceDraftDeleted, mutateWorkspaceValue, putWorkspaceValue } from './lib/workspace';
 
-type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats';
+type View = 'practice' | 'library' | 'rankings' | 'history' | 'drafts' | 'mistakes' | 'stats' | 'feedback';
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean };
 const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
 const languageNames: Record<Language, string> = { zh: '中文', en: 'English' };
@@ -88,11 +89,15 @@ export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [accountNotice, setAccountNotice] = useState('');
+  const [feedbackResume, setFeedbackResume] = useState<{ ownerId: string; draft: FeedbackDraft }>();
+  const pendingFeedback = useRef<FeedbackDraft | undefined>(undefined);
   const [previewOwner, setPreviewOwner] = useState<string>();
   const request = useRef<AbortController | null>(null);
   const changeUser = useCallback((next: User | null) => {
     request.current?.abort();
     setAccountNotice('');
+    setFeedbackResume(next && pendingFeedback.current ? { ownerId: next.id, draft: pendingFeedback.current } : undefined);
+    pendingFeedback.current = undefined;
     setPreviewOwner(undefined);
     window.history.replaceState(null, '', next?.isAdmin ? '/admin' : '/');
     setUser(next);
@@ -136,10 +141,12 @@ export function App() {
   if (inAdministration && user) return <AdminWorkspace key={user.id} user={user} onLogout={() => changeUser(null)} onPreview={() => setPreviewOwner(user.id)} />;
   return <PracticeApp key={user ? `account:${user.id}` : 'guest'} user={user} authReady={authReady} onUser={changeUser}
     accountNotice={accountNotice} onAccountReauthentication={(message) => { changeUser(null); setAccountNotice(message); }}
+    feedbackResume={feedbackResume && user && feedbackResume.ownerId === user.id ? feedbackResume.draft : undefined}
+    onFeedbackHandoff={(draft) => { pendingFeedback.current = draft; }} onCancelFeedbackHandoff={() => { pendingFeedback.current = undefined; }}
     onUpdateUser={updateUser} onAdministration={user?.isAdmin ? () => setPreviewOwner(undefined) : undefined} />;
 }
 
-function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onAdministration?: () => void }) {
+function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
   const ownerId = user?.id ?? null;
   const workspace = useWorkspace(ownerId, authReady);
   const [selection, setSelection] = useState(builtIns[0]);
@@ -148,7 +155,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const refreshCatalog = useCallback(() => setCatalogRevision((revision) => revision + 1), []);
   const [guestTheme, setGuestTheme] = useState(initialTheme);
   const [directAdmin] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
-  const [view, setView] = useState<View>('practice');
+  const [view, setView] = useState<View>(feedbackResume ? 'feedback' : 'practice');
+  const [feedbackDraft, setFeedbackDraft] = useState<FeedbackDraft>(() => feedbackResume ?? newFeedbackDraft());
   const [adminLoginDismissed, setAdminLoginDismissed] = useState(false);
   const [minutesText, setMinutesText] = useState<string>();
   const [pendingTheme, setPendingTheme] = useState<Theme>();
@@ -622,7 +630,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
           </div>}
         </div>
         <button className="theme-button" disabled={!!user && !workspace.settingsReady} aria-label={theme === 'dark' ? '切换至日间模式' : '切换至夜间模式'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={20} /> : <MoonStars size={20} />}<span>{theme === 'dark' ? '日间' : '夜间'}</span></button>
-        {user ? <AccountMenu user={user} disabled={!canChangeAccount} onAccount={() => void afterPark(() => setShowAccount(true))} onRecords={() => navigate('history')}
+        {user ? <AccountMenu user={user} disabled={!canChangeAccount} onAccount={() => void afterPark(() => setShowAccount(true))} onRecords={() => navigate('history')} onFeedback={() => navigate('feedback')}
           onLogout={() => void changeAccount()} onAdministration={onAdministration ? () => void afterPark(onAdministration) : undefined} /> : <button className="account-button" disabled={!canChangeAccount} onClick={() => void changeAccount()}>登录</button>}
       </nav>
     </header>}
@@ -645,6 +653,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
                   {selection.author && <span>{selection.author}</span>}
                   {selection.theme && <span>{selection.theme}</span>}
                   {source && <a href={source.url} target="_blank" rel="noopener noreferrer" title={source.name} aria-label={`查看《${displayTitle}》原文`}>查看原文</a>}
+                  {!selection.custom && publicById.get(selection.id) === selectedCatalogKey && <button className="text-button" disabled={!authReady} onClick={() => void afterPark(() => { setFeedbackDraft(newFeedbackDraft({ id: selection.id, title: selection.title, snapshotKey: selectedCatalogKey, position: '', wrongText: '' })); setView('feedback'); })}>文章纠错</button>}
                 </p>}
               </div></div>
               <div className="practice-actions">
@@ -681,14 +690,16 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         />}
         {view === 'mistakes' && <MistakesView records={records} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} />}
+        {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
       </div>
     </RoomBackground>
+    {!focused && <footer className="site-footer"><button className="text-button" disabled={!authReady} onClick={() => navigate('feedback')}>功能反馈</button></footer>}
     {showCustom && <Dialog title="自定义练习文字" onClose={() => setShowCustom(false)}>
       <label className="custom-editor">练习文字<textarea aria-label="自定义文章内容" value={customDraft} maxLength={20000} onChange={(event) => setCustomDraft(event.target.value)} /></label>
       {customError && <p className="form-error" role="alert">{customError}</p>}
       <div className="result-actions"><span className="custom-count">{splitCharacters(customDraft).length} / 20000 字符</span><button className="primary-button" onClick={useCustomText}>使用这段文字</button></div>
     </Dialog>}
-    {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); setAdminLoginDismissed(true); if (directAdmin) window.history.replaceState(null, '', '/'); }} onLogin={onUser} />}
+    {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) window.history.replaceState(null, '', '/'); }} onLogin={onUser} />}
     {showAccount && user && <AccountDialog user={user} onClose={() => setShowAccount(false)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} />}
     {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} />}
     {showBackground && <BackgroundDialog theme={showBackground} value={workspace.backgrounds[showBackground]} onClose={() => setShowBackground(undefined)} onSave={(background) => background ? workspace.put('background', showBackground, background) : workspace.remove('background', showBackground)} />}

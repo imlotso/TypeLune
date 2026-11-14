@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import sharp from 'sharp';
 
 const suffix = randomUUID();
 const container = `dazi-ci-${suffix}`;
@@ -80,6 +81,24 @@ try {
   assert.equal(pause.status, 200);
   const paused = await pause.json();
   assert.ok(paused.remainingMs > 0);
+
+  // A disposable administrator is created only in this test volume. The
+  // feedback image is stored in SQLite and must survive both restore paths.
+  execFileSync('docker', ['exec', '-i', '-e', 'ADMIN_USERNAME=ci_feedback_admin', '-e', 'ADMIN_EMAIL=ci-feedback@example.test',
+    container, 'node', 'scripts/bootstrap-admin.mjs'], { input: 'test-password-123\n', encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+  const login = await post(baseURL, '/api/auth/login', { identifier: 'ci_feedback_admin', password: 'test-password-123' });
+  assert.equal(login.status, 200);
+  const accountCookie = login.headers.get('set-cookie')?.split(';')[0];
+  assert.ok(accountCookie);
+  const screenshot = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#aabbcc' } }).png().toBuffer();
+  const feedback = await post(baseURL, '/api/feedback', { category: 'issue', title: '持久化测试', description: '测试附件',
+    attachments: [{ name: 'test.png', data: `data:image/png;base64,${screenshot.toString('base64')}` }] }, accountCookie);
+  assert.equal(feedback.status, 201);
+  const attachmentUrl = (await feedback.json()).feedback.attachments[0].url;
+  const attachment = await get(baseURL, attachmentUrl, accountCookie);
+  assert.equal(attachment.status, 200);
+  assert.match(attachment.headers.get('content-type') ?? '', /^image\/webp/);
+  const attachmentBytes = Buffer.from(await attachment.arrayBuffer());
   docker('exec', container, 'node', 'scripts/backup.mjs', '/app/data/ci-backup.sqlite');
   docker('cp', `${container}:/app/data/ci-backup.sqlite`, join(directory, 'backup.sqlite'));
 
@@ -90,6 +109,9 @@ try {
   assert.equal(persisted.status, 200);
   assert.deepEqual(await persisted.json(), { status: 'paused', elapsedMs: paused.elapsedMs, remainingMs: paused.remainingMs, duration: 300 }, 'The named volume must survive container replacement');
   assert.equal((await post(baseURL, `/api/tests/${challenge.id}/resume`, {}, cookie)).status, 200);
+  const persistedAttachment = await get(baseURL, attachmentUrl, accountCookie);
+  assert.equal(persistedAttachment.status, 200);
+  assert.deepEqual(Buffer.from(await persistedAttachment.arrayBuffer()), attachmentBytes, 'Feedback attachment must survive container replacement');
 
   createVolume(restoredVolume);
   docker('run', '--rm', '--user', '0', '--entrypoint', 'sh', '-v', `${restoredVolume}:/app/data`, '-v', `${directory}:/backup:ro`, image, '-c', 'cp /backup/backup.sqlite /app/data/dazi.sqlite && chown node:node /app/data/dazi.sqlite');
@@ -98,7 +120,10 @@ try {
   const restored = await get(backupURL, `/api/tests/${challenge.id}`, cookie);
   assert.equal(restored.status, 200);
   assert.deepEqual(await restored.json(), { status: 'paused', elapsedMs: paused.elapsedMs, remainingMs: paused.remainingMs, duration: 300 }, 'A fresh service must read the SQLite backup');
-  console.log('Production image: homepage, API, ownership, pause/resume, volume replacement and backup restore passed.');
+  const restoredAttachment = await get(backupURL, attachmentUrl, accountCookie);
+  assert.equal(restoredAttachment.status, 200);
+  assert.deepEqual(Buffer.from(await restoredAttachment.arrayBuffer()), attachmentBytes, 'Feedback attachment must be included in the SQLite backup');
+  console.log('Production image: homepage, API, ownership, pause/resume, feedback attachments, volume replacement and backup restore passed.');
 } catch (error) {
   for (const name of containers) {
     const logs = spawnSync('docker', ['logs', name], { encoding: 'utf8' });

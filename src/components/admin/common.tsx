@@ -5,14 +5,14 @@ import { api } from '../../lib/api';
 export type Page<T> = { entries: T[]; page: number; pageSize: number; total: number };
 export type Audit = {
   id: number; actorId: string; actorName: string; action: string;
-  targetType: 'user' | 'article' | 'score' | 'setting'; targetId: string; targetLabel: string; reason: string | null; createdAt: number;
+  targetType: 'user' | 'article' | 'score' | 'setting' | 'feedback'; targetId: string; targetLabel: string; reason: string | null; createdAt: number;
 };
 export type AdminProps = { ownerId: string };
 export type Option = readonly [string, string];
 
 export const languages: Record<Language, string> = { zh: '中文', en: 'English' };
 export const difficulties: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
-export const targets = { user: '用户', article: '文章', score: '成绩', setting: '设置' };
+export const targets = { user: '用户', article: '文章', score: '成绩', setting: '设置', feedback: '反馈' };
 export const reasonLabels: Record<string, string> = {
   paste_or_drop: '粘贴或拖放', unusual_progress: '输入进度异常', missing_activity: '进度记录不足',
   stale_activity: '结束前缺少进度记录', high_speed: '速度较高', paused_session: '曾暂停或恢复',
@@ -25,6 +25,7 @@ const actionLabels: Record<string, string> = {
   'score.approve': '通过成绩', 'score.reject': '拒绝成绩', 'score.remove': '下架成绩',
   'smtp.update': '保存', 'smtp.reset': '恢复默认', 'smtp.verify': '测试连接',
   'settings.site.update': '保存',
+  'feedback.handle': '处理反馈',
 };
 const dateFormat = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -91,10 +92,10 @@ export function QueryField({ label, onSearch, maxLength = 100 }: { label: string
   </form>;
 }
 
-export function SelectField({ label, options, value, onChange, all = false }: {
-  label: string; options: readonly Option[]; value: string; onChange: (value: string) => void; all?: boolean;
+export function SelectField({ label, options, value, onChange, all = false, disabled = false }: {
+  label: string; options: readonly Option[]; value: string; onChange: (value: string) => void; all?: boolean; disabled?: boolean;
 }) {
-  return <label>{label}<select value={value} onChange={(event) => onChange(event.target.value)}>
+  return <label>{label}<select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
     {all && <option value="">全部</option>}
     {options.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
   </select></label>;
