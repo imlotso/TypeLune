@@ -7,13 +7,17 @@ import { UserCircle } from '@phosphor-icons/react/UserCircle';
 import { useWorkspace } from '../hooks/useWorkspace';
 import { api, type User } from '../lib/api';
 import { type Theme } from '../lib/theme';
+import { AdminNavigationGuard, useAdminNavigation } from './AdminNavigationGuard';
 import { AdminConsole } from './AdminConsole';
 import { BrandLogo } from './BrandLogo';
 
 // Returning to the site mounts a fresh practice view, which fetches the current catalog.
 const catalogChanged = () => {};
 
-export function AdminWorkspace({ user, onLogout, onPreview }: { user: User; onLogout: () => void; onPreview: () => void }) {
+type Props = { user: User; onLogout: () => void; onPreview: () => void };
+export function AdminWorkspace(props: Props) { return <AdminNavigationGuard><AdminWorkspaceContent {...props} /></AdminNavigationGuard>; }
+function AdminWorkspaceContent({ user, onLogout, onPreview }: Props) {
+  const leave = useAdminNavigation();
   const workspace = useWorkspace(user.id);
   const [pendingTheme, setPendingTheme] = useState<Theme>();
   const [busy, setBusy] = useState(false);
@@ -52,11 +56,11 @@ export function AdminWorkspace({ user, onLogout, onPreview }: { user: User; onLo
     <header className="administration-header">
       <div className="administration-brand"><BrandLogo /><span className="administration-badge">管理端</span></div>
       <div className="administration-actions">
-        <button className="outline-button" disabled={busy} onClick={onPreview}><ArrowSquareOut size={18} aria-hidden="true" />预览网站</button>
+        <button className="outline-button" disabled={busy} onClick={() => leave(onPreview)}><ArrowSquareOut size={18} aria-hidden="true" />预览网站</button>
         <button className="administration-theme" disabled={!workspace.settingsReady} aria-label={theme === 'dark' ? '切换至日间模式' : '切换至夜间模式'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>
           {theme === 'dark' ? <Sun size={20} aria-hidden="true" /> : <MoonStars size={20} aria-hidden="true" />}<span>{theme === 'dark' ? '日间' : '夜间'}</span>
         </button>
-        <button className="outline-button administration-account" title="退出登录" disabled={busy} onClick={() => void logout()}><UserCircle size={20} aria-hidden="true" /><span>{user.username}</span><SignOut size={17} aria-hidden="true" /></button>
+        <button className="outline-button administration-account" title="退出登录" disabled={busy} onClick={() => leave(() => void logout())}><UserCircle size={20} aria-hidden="true" /><span>{user.username}</span><SignOut size={17} aria-hidden="true" /><span>退出登录</span></button>
       </div>
     </header>
     <main className="administration-content" aria-label="管理工作区">

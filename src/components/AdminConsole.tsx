@@ -1,4 +1,5 @@
 import { useAdminText } from './admin/i18n';
+import { useAdminNavigation } from './AdminNavigationGuard';
 import { useState } from 'react';
 import { ShieldCheck } from '@phosphor-icons/react/ShieldCheck';
 import { ArticlesPanel } from './admin/ArticlesPanel';
@@ -50,13 +51,14 @@ function AuditPanel({ ownerId }: AdminProps) {
 }
 
 export function AdminConsole({ ownerId, onCatalogChange }: AdminProps & { onCatalogChange: () => void }) {
+  const leave = useAdminNavigation();
   const { at } = useAdminText();
   const [tab, setTab] = useState<Tab>('overview');
   const [articleFromFeedback, setArticleFromFeedback] = useState<string>();
   return <section className="content-panel feature-panel admin-console">
     <div className="content-heading"><h1><ShieldCheck size={25} aria-hidden="true" />{at("管理后台")}</h1></div>
     <nav className="admin-navigation" aria-label={at("后台栏目")}>
-      {tabs.map(([value, label]) => <button key={value} aria-current={tab === value ? 'page' : undefined} onClick={() => setTab(value)}>{at(label)}</button>)}
+      {tabs.map(([value, label]) => <button key={value} aria-current={tab === value ? 'page' : undefined} onClick={() => { if (value !== tab) leave(() => setTab(value)); }}>{at(label)}</button>)}
     </nav>
     <div className="admin-panel" key={ownerId}>
       {tab === 'overview' && <OverviewPanel ownerId={ownerId} />}

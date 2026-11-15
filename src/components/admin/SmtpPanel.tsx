@@ -1,4 +1,5 @@
 import { useAdminText } from './i18n';
+import { useAdminEdits } from '../AdminNavigationGuard';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../lib/api';
 import { adminWrite, LoadState, SelectField, useAdminResource, type AdminProps } from './common';
@@ -34,6 +35,7 @@ function SmtpForm({ ownerId, initial, reload }: AdminProps & { initial: Snapshot
   const [conflict, setConflict] = useState(false);
   const baseline = formValues(saved.config);
   const dirty = (Object.keys(values) as (keyof typeof values)[]).some((key) => values[key] !== baseline[key]);
+  useAdminEdits(dirty, !!busy);
   const existingConnection = saved.source === 'admin' || saved.source === 'deployment';
   const keepPassword = saved.passwordState === 'saved' && values.host.trim().toLowerCase() === baseline.host
     && Number(values.port) === Number(baseline.port) && values.security === baseline.security && values.username.trim() === baseline.username;

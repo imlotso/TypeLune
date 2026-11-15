@@ -1,4 +1,5 @@
 import { useAdminText } from './i18n';
+import { useAdminEdits } from '../AdminNavigationGuard';
 import { useState, type FormEvent } from 'react';
 import { FeedbackThread, feedbackCategories, feedbackStatuses, type FeedbackCategory, type FeedbackDetail } from '../FeedbackView';
 import { adminWrite, DateTime, LoadState, Pagination, ScrollList, SelectField, useAdminList, useAdminResource, type AdminProps } from './common';
@@ -16,6 +17,7 @@ function FeedbackEditor({ ownerId, id, onBack, onChange, onArticle }: AdminProps
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const status = statusEdit && data && statusEdit.revision === data.feedback.revision ? statusEdit.value : data?.feedback.status ?? 'pending';
+  useAdminEdits(!!(reply.trim() || note.trim() || (data && status !== data.feedback.status)), busy);
   async function submit(event: FormEvent) {
     event.preventDefault(); if (!data) return;
     setBusy(true); setError(''); setSaved(false);

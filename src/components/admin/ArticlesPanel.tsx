@@ -1,4 +1,5 @@
 import { useAdminText } from './i18n';
+import { useAdminEdits } from '../AdminNavigationGuard';
 import { useState, type FormEvent } from 'react';
 import type { Difficulty, Language } from '../../data/articles';
 import { articleLength } from '../../lib/analysis';
@@ -39,6 +40,7 @@ function ArticleEditor({ ownerId, article, onClose, onChange }: AdminProps & {
   const [confirmation, setConfirmation] = useState<Confirmation>();
   const finish = () => { onClose(); onChange(); };
   const dirty = JSON.stringify(articleInput(article)) !== JSON.stringify(input);
+  useAdminEdits(dirty, busy);
   const path = article ? `/articles/${encodeURIComponent(article.id)}` : '/articles';
   const length = articleLength(input);
   const published = article?.status === 'published';

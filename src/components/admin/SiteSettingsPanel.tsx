@@ -1,4 +1,5 @@
 import { useAdminText } from './i18n';
+import { useAdminEdits } from '../AdminNavigationGuard';
 import { useState, type FormEvent } from 'react';
 import type { SiteSettings, SiteSettingsSnapshot } from '../../../server/site-settings';
 import { ApiError } from '../../lib/api';
@@ -37,6 +38,8 @@ function SiteSettingsForm({ ownerId, initial, reload }: AdminProps & { initial: 
     reviewFields.some(([field]) => availability[field] !== saved.settings[field]) ||
     thresholdFields.some(([field]) => Number(thresholds[field]) !== saved.settings[field]) ||
     Number(thresholds.leaderboardDisplayDays) !== saved.settings.leaderboardDisplayDays;
+
+  useAdminEdits(dirty, busy);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
