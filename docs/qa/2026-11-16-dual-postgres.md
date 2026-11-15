@@ -2,6 +2,8 @@
 
 Both paths are supported. This does not replace Vercel and does not remove the existing SQLite `compose.yaml` compatibility route.
 
+Operator entry points: [Docker + PostgreSQL 18](../docker-postgres.md) and [Vercel + Neon](../vercel-neon.md). The Docker guide includes the persistent-volume layout, fresh-install versus upgrade commands, full-database backup, empty isolated restore, version limits and rollback precautions. Its Docker commands are documented, not claimed to have run here.
+
 ## Vercel + PostgreSQL
 Keep the existing `DATABASE_URL`, `DAZI_DATABASE_SCHEMA`, stable `CODE_SECRET`, routing and Vercel deployment. Before enabling support QR configuration, run the explicitly targeted PostgreSQL operator with action `support` against the selected database/schema. It only adds `support_settings`; it does not change immutable schema 1/2 checksums or legacy settings. Without it the public support entry is hidden and the administrator sees 503, while other routes continue working.
 
@@ -27,7 +29,8 @@ Use `pg_dump`/`pg_restore` for PostgreSQL backup/restore so the optional QR tabl
 
 ## Verification and honest limits
 - Official EDB portable PostgreSQL 18.7 on Windows, loopback-only disposable cluster, no production data.
-- Final complete suite with real PostgreSQL enabled: 130 files / 634 tests passed, no skips (84.08 seconds, maxWorkers=2). Type check and application build passed. A temporary uncommitted operator bundle initially matched test discovery; after renaming it, the clean final run passed.
+- Backend branch complete suite with real PostgreSQL enabled: 130 files / 634 tests passed, no skips (84.08 seconds, maxWorkers=2). Type check and application build passed. A temporary uncommitted operator bundle initially matched test discovery; after renaming it, the clean run passed.
+- Final integrated candidate `143b9bb`: 142 files / 680 tests passed with real PostgreSQL 18.7 and SQLite, no skips (114.51 seconds). The separate full Chrome run passed 130/130 against disposable SQLite, with exit 0 and clean teardown. These are not a new Docker run or a new PostgreSQL-backed full browser run. Details and prior failures/fixes are in the [nightly integration record](2026-11-16-nightly-integration.md).
 - Actual PostgreSQL suite: 11 files / 41 tests passed, including Vercel handler rewrites and HTTP login, Node HTTP endpoints, schema upgrades, target guards, SQLite/PG transfers, rate limits, SMTP configuration, and support upload/public read/restart persistence/QR decoding.
 - Vercel-specific Node 22.23.5 + PostgreSQL 18.7 rerun: 3 files / 14 tests passed; emitted Vercel Function imported successfully. No shared native dependencies were rebuilt.
 - Bundled `support` operator ran twice against a unique disposable PostgreSQL schema and created exactly one table; the test schema was removed afterward.
@@ -35,6 +38,14 @@ Use `pg_dump`/`pg_restore` for PostgreSQL backup/restore so the optional QR tabl
 - New support test proves absent extension fails closed, installation is repeatable, legacy schema verification remains valid, unauthorized writes fail, revision conflicts fail, and metadata does not leak publicly.
 - `scripts/ci-docker-postgres-smoke.mjs` prepares isolated official PG18 + app containers, explicit schema/setup, bootstrap, login, QR upload, unauthorized denial and database/app restart persistence. Run with `DAZI_TEST_IMAGE` pointing to the built image and `npm run test:docker:postgres`.
 - Docker execution has NOT been verified on this host: Soul has no Docker executable/service, and the Dot cloud worker also has no Docker CLI. Node+PG success is not a container pass. Compose and container build/run must be checked on a Docker-enabled isolated host before claiming Docker acceptance.
+- The existing GitHub Actions Docker job calls the SQLite smoke script only. The new PostgreSQL smoke runner is available as `npm run test:docker:postgres` but is not yet wired into that job. It checks actual containers and restart persistence, not Compose/Caddy orchestration, container replacement or `pg_dump`/`pg_restore`; those remain separate acceptance steps. No new container backup/restore result is claimed.
 - No GitHub Actions were triggered; no production deployment, database migration, SMTP delivery or real payment code upload was performed.
+
+## Documentation-only follow-up
+
+- Read-only inspection of candidate `143b9bb` confirmed the Compose file, PostgreSQL 18 volume, explicit migration/support/seed operator and route-specific evidence were present. README still presented unqualified Docker/backup instructions as SQLite, and the Docker PostgreSQL backup/restore instructions were incomplete.
+- Added a dedicated Docker PostgreSQL runbook and explicit README route selection; the Vercel guide now includes the optional `support` installation step. No application, container definition, migration or test implementation changed.
+- Independent review identified that shell-exported values override `--env-file`. Both documented Compose wrappers now remove all 17 interpolation variables in a child process before loading the intended private environment file, including connection strings, credentials and SMTP settings. The parent shell is unchanged.
+- Documentation checks passed: 24 local Markdown links, parse-only checks for 21 Bash snippets, full interpolation-variable coverage and actual child-process removal of 19 synthetic sentinel variables. No Docker, database, backup or restore command was executed for this follow-up. Prior test results above remain historical results for the application candidate, not newly rerun application tests.
 
 Sources: https://www.postgresql.org/about/news/postgresql-187-1712-1616-1520-1425-and-19-rc-2-released-3442/ ; https://www.postgresql.org/download/windows/ ; https://productsdl.enterprisedb.com/download-postgresql-binaries

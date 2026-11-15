@@ -34,12 +34,16 @@ export DAZI_CONFIRM_TARGET="$DAZI_DATABASE_HOST/$DAZI_DATABASE_NAME/$DAZI_DATABA
 
 ```bash
 npm run db:postgres -- migrate
+# 本轮收款码配置使用独立、可选的表；必须显式安装，不随冷启动建表。
+npm run db:postgres -- support
 # 全新空库二选一：载入内置文章，或导入经过核验的 SQLite 快照。
 npm run db:postgres -- seed
 # npm run db:postgres -- import /安全路径/源快照.sqlite
 ```
 
 `migrate` 只接受明确确认的空 schema 或相同版本的已初始化 schema；`seed` 要求文章表为空。`import` 要求整个目标及限流表为空，在事务中核验源库完整性、表结构、逐表内容和审计序列，不支持的源结构会拒绝导入。先停止指向目标库的应用，包括健康检查：任何访问都可能生成限流记录，使导入拒绝继续。中途连接中断时提交状态可能未知，先核查目标库，再决定是否在一个全新的空目标上重试。不要删除或覆盖原库。
+
+`support` 仅添加独立的 `support_settings` 表，可重复执行，不改既有 schema 1/2 校验值或 `site_settings` 内容。已有站点升级时，在先备份并确认目标后单独运行 `support`，不要重跑 `seed`。未安装时公开支持入口隐藏，后台该栏目返回 503，其余站点功能不依赖这张可选表。完整数据库备份应包含它，不能只备份旧表名单；旧版本回滚可保留并忽略它。Docker 自托管使用同一后端能力，独立步骤见 [Docker + PostgreSQL 18](docker-postgres.md)。
 
 没有 SMTP 可用于新空库时，可在明确确认目标后创建**首位**管理员。该命令仅接受标准输入的一行密码，且数据库中已有管理员时拒绝执行；它会写审计记录：
 
@@ -93,5 +97,7 @@ npm run db:postgres -- export /安全路径/新回滚快照.sqlite
 导出使用 PostgreSQL 一致性快照，逐表核对内容并保留审计序列，拒绝覆盖已有文件。核验新 SQLite 文件、与原 `CODE_SECRET` 配套的 SMTP 密文以及关键账号/练习/排行数据后，才可在用户另行授权的维护窗口里切换回旧应用。若恢复到兼容的 PostgreSQL 应用版本，须先将 Vercel Production 的 `DATABASE_URL` 更新为新密码对应的池化连接，再部署经过验证的版本。首次上线没有可回退的 Vercel 生产版本时，应保持服务不可写，直到恢复目标准备并验证完毕。验证失败时保留 PostgreSQL 和备份，不执行切换。
 
 ## 当前验证范围
+
+本轮候选的具体记录见[双 PostgreSQL 路线验证](qa/2026-11-16-dual-postgres.md)和[最终集成记录](qa/2026-11-16-nightly-integration.md)：真实本地 PG18.7 + Node 22 的 Vercel handler 专项通过，并非一次新的 Vercel Preview 部署。Docker 引擎不可用，容器路线尚未实际验收；不将 SQLite 或宿主 Node + PG 结果当作 Docker 结果。
 
 本地隔离 PostgreSQL 覆盖注册和验证码并发、权限撤销、配置冲突、成绩去重、恢复练习、多实例限流、32 MiB 配额并发、超过 4.5 MB 的分页、SQLite 往返迁移、备份恢复、冷启动和连接恢复；现有浏览器用例也分别在 SQLite 和 PostgreSQL 上运行。本机 SMTP 测试使用临时服务验证 TLS 和 STARTTLS 握手、接收验证码以及连接测试不发信。实际 Neon、Vercel Preview、Vercel 至 Neon 延迟、公网 SMTP 连接/送达和实体设备输入法仍需在隔离环境验证。运行 `npm run test:vercel-esm` 可检查 Node 22 对函数入口和其模块图的原生导入；这不能替代真实 Preview。
