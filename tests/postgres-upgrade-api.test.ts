@@ -159,6 +159,35 @@ suite('upgrade APIs on isolated PostgreSQL instances', () => {
     const rows = (await setup.query("SELECT id,ranking_removed FROM challenges WHERE id LIKE 'cleanup-%' ORDER BY id")).rows;
     expect(rows).toEqual([{ id: 'cleanup-a', ranking_removed: '1' }, { id: 'cleanup-b', ranking_removed: '1' }, { id: 'cleanup-user', ranking_removed: '0' }]);
   });
+  it('prevents two PostgreSQL instances from concurrently deleting the last administrators', async () => {
+    const isolated = 'dazi_last_admin_' + randomBytes(8).toString('hex');
+    const connection = new pg.Client({ connectionString: url }); await connection.connect();
+    const created: Awaited<ReturnType<typeof createApp>>[] = []; const mailbox = new Map<string, string>();
+    try {
+      await connection.query(`CREATE SCHEMA "${isolated}"`); await connection.query(`SET search_path TO "${isolated}"`);
+      await migratePostgres(connection, { database: new URL(url!).pathname.slice(1), schema: isolated });
+      for (const _ of [0, 1]) created.push(await createApp({ databaseUrl: url, postgresSchema: isolated, codeSecret: 'x'.repeat(32), secureCookies: false,
+        adminEmail: 'first@example.test', mailer: { async sendCode(email, code) { mailbox.set(email, code); } } }));
+      const send = (instance: number, path: string, payload: object, headers?: Record<string, string>) => created[instance].inject({ method: 'POST', url: path, payload, headers });
+      async function signup(username: string) {
+        const email = `${username}@example.test`;
+        expect((await send(0, '/api/auth/code', { email, purpose: 'register' })).statusCode).toBe(200);
+        const response = await send(0, '/api/auth/register', { username, email, password, code: mailbox.get(email) });
+        expect(response.statusCode).toBe(200);
+        return { id: response.json().user.id as string, headers: { cookie: `session=${response.cookies.find((cookie) => cookie.name === 'session')!.value}` } };
+      }
+      const first = await signup('first'); const second = await signup('second');
+      expect((await send(0, `/api/admin/users/${second.id}/role`, { role: 'admin', reason: '并发测试' }, first.headers)).statusCode).toBe(200);
+      const login = await send(1, '/api/auth/login', { identifier: 'second', password });
+      const secondHeaders = { cookie: `session=${login.cookies.find((cookie) => cookie.name === 'session')!.value}` };
+      const outcomes = await Promise.all([send(0, '/api/account/delete', { currentPassword: password }, first.headers), send(1, '/api/account/delete', { currentPassword: password }, secondHeaders)]);
+      expect(outcomes.map((response) => response.statusCode).sort()).toEqual([200, 409]);
+      expect((await connection.query("SELECT COUNT(*)::int AS count FROM users WHERE role='admin' AND disabled_at IS NULL")).rows[0].count).toBe(1);
+    } finally {
+      await Promise.all(created.map((instance) => instance.close()));
+      await connection.query('SET search_path TO public'); await connection.query(`DROP SCHEMA IF EXISTS "${isolated}" CASCADE`); await connection.end();
+    }
+  });
   it('does not modify feedback after the account session is revoked while a write waits', async () => {
     const alice = await register('feedback_race');
     const created = await post(0, '/api/feedback', { category: 'issue', title: '反馈', description: '说明', attachments: [] }, alice);

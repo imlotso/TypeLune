@@ -233,3 +233,4 @@
 | TypeFlow 浏览器及容器 | GitHub Actions `f4ca005` | SQLite 和 PostgreSQL 的完整 Playwright 回归、Docker 镜像、持久卷及 SQLite 备份恢复通过。此前本机分片中两项测试分别因新查询参数和验证码请求竞态失败，修正后复测通过。 |
 | 线上预览 | Vercel Preview + 独立 Neon 测试 schema | 健康、文章、榜单和页面读取正常；真实浏览器以虚构游客提交待审核成绩并确认公开榜单隔离。Preview 不使用生产用户数据，SMTP 在该预览中禁用。 |
 | 邮件与备份 | Lark TLS 测试；本机 PostgreSQL 18.6 `pg_dump`／`pg_restore` | 指定邮箱收到注册、换绑和重设测试邮件；隔离账号换绑及重设通过。PostgreSQL 恢复核对账号、工作区、删除标记和附件；生产 18.7 备份尚未创建。 |
+| 最后管理员并发 | `DAZI_TEST_DATABASE_URL=<隔离本机 PostgreSQL> npx vitest run tests/postgres-upgrade-api.test.ts -t 'last administrators'` | 两个服务实例同时注销两位管理员时，一次成功、一次被拒绝，至少保留一位有效管理员；仅使用独立测试 schema。 |
