@@ -1,0 +1,20 @@
+import { afterEach, expect, it } from 'vitest';
+import Database from 'better-sqlite3';
+import { AsyncSqlite } from '../server/database/sqlite';
+import { createSiteSettings } from '../server/site-settings';
+import { createSupportSettings } from '../server/support-settings';
+const db = new AsyncSqlite(new Database(':memory:'));
+afterEach(async()=>{ await db.close(); });
+it('isolates support data and revision from unchanged legacy site settings reads and saves',async()=>{
+ const audit=async()=>{};const actor={id:'a',username:'a',authVersion:0};
+ const legacy=await createSiteSettings(db,audit);const before=await legacy.read();
+ await legacy.update(actor,{revision:0,settings:{...before.settings,registrationEnabled:false}});
+ const raw=(await db.prepare('SELECT settings,revision FROM site_settings').get());
+ const support=await createSupportSettings(db,audit);
+ await support.update(actor,{enabled:false,alipay:null,wechat:null},0);
+ expect(await db.prepare('SELECT settings,revision FROM site_settings').get()).toEqual(raw);
+ expect((await legacy.read()).revision).toBe(1);
+ await legacy.update(actor,{revision:1,settings:before.settings});
+ expect((await support.read()).revision).toBe(1);
+ expect(JSON.parse((await db.prepare('SELECT settings FROM site_settings').get()).settings)).not.toHaveProperty('support');
+});

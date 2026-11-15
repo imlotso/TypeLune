@@ -1,3 +1,4 @@
+import { createSupportSettings, registerSupportAdminRoutes, registerSupportPublicRoutes } from './support-settings.js';
 import { registerHistoryDeletion } from './history-delete.js';
 import { createScoreStatus } from './score-status.js';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
@@ -236,6 +237,7 @@ export async function createApp(options: AppOptions) {
   }, feedbackUploads);
   const audit = createAdminAudit(db, now);
   const siteSettings = await createSiteSettings(db, audit);
+  const supportSettings = await createSupportSettings(db, audit);
   const scoreStatus = await createScoreStatus(db, now, async () => (await siteSettings.read()).settings.leaderboardDisplayDays);
   const smtp = await createSmtpSettings(db, { codeSecret: options.codeSecret, deployment: options.smtp, fallbackMailer: options.mailer, delivery: options.smtpDelivery, now });
   if (db.dialect === 'postgres') await smtp.assertStoredSecret();
@@ -353,6 +355,7 @@ export async function createApp(options: AppOptions) {
     registerAdminFeedbackRoutes(admin, feedbackStore, audit);
     registerCatalogRoutes(admin, catalog, audit);
     registerSiteSettingsRoutes(admin, siteSettings);
+    registerSupportAdminRoutes(admin, supportSettings);
     smtp.register(admin, audit, async (request) => {
       const current = (await userFor(request));
       if (!current || current.role !== 'admin' || current.id !== request.admin.id || current.auth_version !== request.admin.authVersion) {
@@ -510,6 +513,7 @@ export async function createApp(options: AppOptions) {
     return response;
   }
 
+  registerSupportPublicRoutes(app, supportSettings);
   app.get('/api/site/features', async (_request, reply) => {
     const { registrationEnabled, guestPracticeEnabled, guestLeaderboardEnabled } = (await siteSettings.read()).settings;
     reply.header('Cache-Control', 'no-store');
