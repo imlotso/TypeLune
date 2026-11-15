@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assessmentArticle, assessmentProgress, weakKeyTraining } from '../src/lib/assessment';
+import { assessmentArticle, assessmentProgress, weakKeyTraining, isAssessmentArticle, isWeakKeyArticle } from '../src/lib/assessment';
 import type { PracticeRecord } from '../src/lib/models';
 const make = (overrides: Partial<PracticeRecord> = {}): PracticeRecord => {
  const article = assessmentArticle('en');
@@ -17,7 +17,9 @@ describe('personal assessment', () => {
  });
  it('excludes other identities, partials, changed text, timed, strict and resumed segments', () => {
   const valid=make();
-  expect(assessmentProgress([valid,make({ownerId:'other'}),make({typed:'short'}),make({strict:true}),make({mode:'timed'}),make({offset:1}),make({elapsedMs:NaN}),make({article:{...valid.article!,text:'changed'}})],null).count).toBe(1);
+    const invalid=[make({ownerId:'other'}),make({typed:'short'}),make({strict:true}),make({mode:'timed'}),make({offset:1}),make({elapsedMs:NaN}),make({article:{...valid.article!,text:'changed'}})];
+  invalid.forEach((r,i)=>{r.recordId='invalid-'+i;expect(assessmentProgress([r],null).count).toBe(0);});
+  expect(assessmentProgress([valid,...invalid],null).count).toBe(1);
   expect(assessmentProgress([valid],'other').count).toBe(0);
  });
 });
@@ -39,4 +41,14 @@ describe('weak key training', () => {
   expect(weakKeyTraining([r],null,'zh')!.keys[0].key).toBe('T');
   expect(weakKeyTraining([{...r,language:'zh'}],null,'en')).toBeUndefined();
  });
+});
+it('recognizes exact assessment and generated drill snapshots only',()=>{
+ const article=assessmentArticle('en');
+ expect(isAssessmentArticle(article)).toBe(true);
+ expect(isAssessmentArticle({...article,custom:false})).toBe(false);
+ expect(isAssessmentArticle({...article,text:article.text+'x'})).toBe(false);
+ const drill=weakKeyTraining([make({typed:'x'+article.text.slice(1)})],null,'en')!.article;
+ expect(isWeakKeyArticle(drill)).toBe(true);
+ expect(isWeakKeyArticle({...drill,custom:false})).toBe(false);
+ expect(isWeakKeyArticle({...drill,text:drill.text+'x'})).toBe(false);
 });
