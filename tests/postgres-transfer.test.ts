@@ -104,6 +104,13 @@ suite('PostgreSQL migration and SQLite import', () => {
     await expect(migratePostgres(client, { ...target, database: 'wrong-database' })).rejects.toThrow(/target/i);
     await migratePostgres(client, target);
     await migratePostgres(client, target);
+    const legacySource = new Database(path);
+    legacySource.exec('DROP TABLE support_settings'); legacySource.close();
+    await client.query('CREATE TABLE support_settings(id BIGINT PRIMARY KEY CHECK(id=1),settings TEXT NOT NULL,revision BIGINT NOT NULL)');
+    await client.query('INSERT INTO support_settings VALUES(1,$1,1)',[JSON.stringify({enabled:false,alipay:null,wechat:null})]);
+    await expect(importSqlite(client,path,target)).rejects.toThrow(/not empty/i);
+    await client.query('DELETE FROM support_settings');
+    const restoreSupport = new Database(path);restoreSupport.exec('CREATE TABLE support_settings(id INTEGER PRIMARY KEY CHECK(id=1),settings TEXT NOT NULL,revision INTEGER NOT NULL)');restoreSupport.close();
     const sqlite = new Database(path);
     sqlite.prepare('UPDATE smtp_settings SET config=? WHERE id=1').run('unsupported\0value');
     sqlite.close();

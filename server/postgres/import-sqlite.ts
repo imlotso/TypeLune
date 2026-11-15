@@ -56,6 +56,7 @@ export async function importSqlite(client: Client, path: string, target: Expecte
     const migration = await client.query<{ version: number; checksum: string }>('SELECT version,checksum FROM dazi_schema_migrations ORDER BY version');
     if (!schemaMatches(migration.rows)) throw new Error('Unsupported PostgreSQL schema version');
     if (sourceTables.includes('support_settings')) await client.query('CREATE TABLE IF NOT EXISTS support_settings (id BIGINT PRIMARY KEY CHECK(id=1), settings TEXT NOT NULL, revision BIGINT NOT NULL CHECK(revision>0))');
+    if (!dataTables.includes('support_settings') && (await client.query("SELECT to_regclass('support_settings') AS name")).rows[0]?.name) dataTables.push('support_settings');
     await client.query(`LOCK TABLE ${[...dataTables, 'rate_limit_entries'].map(quote).join(',')} IN ACCESS EXCLUSIVE MODE`);
     for (const table of dataTables) {
       const result = await client.query(`SELECT 1 FROM ${quote(table)} LIMIT 1`);
