@@ -56,7 +56,7 @@ export function LogoutDialog({ user, pendingCount, syncState, syncError, initial
     <form className="feature-form" onSubmit={submit}>
       <label className="settings-check"><input type="checkbox" checked={clear} disabled={busy} onChange={(event) => { setClear(event.target.checked); setAbandon(false); }} />同时清除此设备的账号数据</label>
       {clear && <>
-        <p className="feature-muted">将清除此设备的账号缓存；未同步内容会丢失。云端资料和其他账号不会删除。</p>
+        <p className="feature-muted">将清除此设备的账号缓存；未同步内容会丢失。云端资料和其他账号不会删除。请关闭此设备的旧版页面，避免再次写入缓存。</p>
         {workspaceRisk && <p className="form-error">{pendingCount != null && pendingCount > 0 ? `${pendingCount} 项资料尚未同步，清理后将丢失。` : '无法确认工作区是否存在未同步资料。'}</p>}
         {legacyRisk.pending > 0 && <p className="form-error">{legacyRisk.pending} 项本机练习资料未确认同步，清理后将丢失。</p>}
         {legacyRisk.unknown && <p className="form-error">部分本机旧版练习资料无法确认，请先导出或检查。</p>}

@@ -27,7 +27,9 @@ test('explicitly imports guest data, can cancel and repeat, and clears only the 
   await auth.getByLabel('用户名', { exact: true }).fill('guest_import');
   await auth.getByLabel('邮箱', { exact: true }).fill(email);
   await auth.getByLabel('密码', { exact: true }).fill('import-password-123');
+  const emailSent = page.waitForResponse((response) => response.url().endsWith('/api/auth/code') && response.request().method() === 'POST');
   await auth.getByRole('button', { name: '获取验证码' }).click();
+  expect((await emailSent).status()).toBe(200);
   const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
   await auth.getByLabel('邮箱验证码', { exact: true }).fill(code);
   await auth.getByRole('button', { name: '注册并登录' }).click();

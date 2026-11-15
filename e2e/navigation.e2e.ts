@@ -6,7 +6,7 @@ test('opens main routes directly, survives refresh and reports invalid addresses
     await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
-    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    expect(new URL(page.url()).pathname).toBe(path);
   }
   await page.goto('/account/data');
   await expect(page.getByText('请先登录')).toBeVisible();
