@@ -1,5 +1,5 @@
 export const mainPaths = {
-  practice: '/', library: '/library', rankings: '/rankings', history: '/records', drafts: '/drafts', mistakes: '/mistakes', stats: '/stats',
+  practice: '/', lessons: '/lessons', library: '/library', rankings: '/rankings', history: '/records', drafts: '/drafts', mistakes: '/mistakes', stats: '/stats',
   feedback: '/feedback', account: '/account', data: '/account/data', help: '/help', about: '/about', privacy: '/privacy', terms: '/terms',
 } as const;
 export type MainView = keyof typeof mainPaths;

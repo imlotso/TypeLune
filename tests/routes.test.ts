@@ -43,3 +43,8 @@ it('routes feedback details without accepting malformed identifiers', async () =
   expect(mainRoute('/feedback/example')).toBe('feedback');
   expect(mainRoute('/feedback/%FF')).toBe('notfound');
 });
+
+it('routes the independent beginner course without changing the public article routes', () => {
+  expect(mainRoute('/lessons')).toBe('lessons');
+  expect(mainRoute('/lessons/')).toBe('lessons');
+});

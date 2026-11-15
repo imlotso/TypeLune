@@ -1,3 +1,4 @@
+import { useI18n } from '../lib/i18n';
 import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 
 type State = { dirty: boolean; busy: boolean };
@@ -5,6 +6,7 @@ type Guard = { register: (id: symbol, state?: State) => void; leave: (action: ()
 const fallback: Guard = { register: () => {}, leave: (action) => action() };
 const Context = createContext<Guard>(fallback);
 export function AdminNavigationGuard({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
   const entries = useRef(new Map<symbol, State>());
   const guard = useMemo<Guard>(() => ({
     register: (id, state) => { if (state) entries.current.set(id, state); else entries.current.delete(id); },
@@ -14,7 +16,7 @@ export function AdminNavigationGuard({ children }: { children: ReactNode }) {
       if (states.some((state) => state.dirty) && !window.confirm('未保存的修改将丢失。继续？')) return;
       action();
     },
-  }), []);
+  }), [t]);
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => {
       if ([...entries.current.values()].some((state) => state.dirty || state.busy)) {

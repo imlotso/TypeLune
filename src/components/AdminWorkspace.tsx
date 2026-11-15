@@ -1,3 +1,5 @@
+import { useI18n } from '../lib/i18n';
+import { LanguageToggle } from './LanguageToggle';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowSquareOut } from '@phosphor-icons/react/ArrowSquareOut';
 import { MoonStars } from '@phosphor-icons/react/MoonStars';
@@ -18,6 +20,7 @@ type Props = { user: User; onLogout: () => void; onPreview: () => void };
 export function AdminWorkspace(props: Props) { return <AdminNavigationGuard><AdminWorkspaceContent {...props} /></AdminNavigationGuard>; }
 function AdminWorkspaceContent({ user, onLogout, onPreview }: Props) {
   const leave = useAdminNavigation();
+  const { t } = useI18n();
   const workspace = useWorkspace(user.id);
   const [pendingTheme, setPendingTheme] = useState<Theme>();
   const [busy, setBusy] = useState(false);
@@ -45,7 +48,7 @@ function AdminWorkspaceContent({ user, onLogout, onPreview }: Props) {
       await api('/api/auth/logout', { method: 'POST', body: {}, headers: { 'X-Workspace-Owner': user.id } });
       if (mounted.current) onLogout();
     } catch (problem) {
-      if (mounted.current) setError(problem instanceof Error ? problem.message : '退出失败');
+      if (mounted.current) setError(problem instanceof Error ? problem.message : t('退出失败', 'Sign out failed'));
     } finally {
       logoutPending.current = false;
       if (mounted.current) setBusy(false);
@@ -54,16 +57,17 @@ function AdminWorkspaceContent({ user, onLogout, onPreview }: Props) {
 
   return <div className="administration-app">
     <header className="administration-header">
-      <div className="administration-brand"><BrandLogo /><span className="administration-badge">管理端</span></div>
+      <div className="administration-brand"><BrandLogo /><span className="administration-badge">{t('管理端', 'Administration')}</span></div>
       <div className="administration-actions">
-        <button className="outline-button" disabled={busy} onClick={() => leave(onPreview)}><ArrowSquareOut size={18} aria-hidden="true" />预览网站</button>
-        <button className="administration-theme" disabled={!workspace.settingsReady} aria-label={theme === 'dark' ? '切换至日间模式' : '切换至夜间模式'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>
-          {theme === 'dark' ? <Sun size={20} aria-hidden="true" /> : <MoonStars size={20} aria-hidden="true" />}<span>{theme === 'dark' ? '日间' : '夜间'}</span>
+        <LanguageToggle />
+        <button className="outline-button" disabled={busy} onClick={() => leave(onPreview)}><ArrowSquareOut size={18} aria-hidden="true" />{t('预览网站', 'Preview site')}</button>
+        <button className="administration-theme" disabled={!workspace.settingsReady} aria-label={theme === 'dark' ? t('切换至日间模式', 'Switch to light mode') : t('切换至夜间模式', 'Switch to dark mode')} aria-pressed={theme === 'dark'} onClick={toggleTheme}>
+          {theme === 'dark' ? <Sun size={20} aria-hidden="true" /> : <MoonStars size={20} aria-hidden="true" />}<span>{theme === 'dark' ? t('日间', 'Light') : t('夜间', 'Dark')}</span>
         </button>
-        <button className="outline-button administration-account" title="退出登录" disabled={busy} onClick={() => leave(() => void logout())}><UserCircle size={20} aria-hidden="true" /><span>{user.username}</span><SignOut size={17} aria-hidden="true" /><span>退出登录</span></button>
+        <button className="outline-button administration-account" title={t('退出登录', 'Sign out')} disabled={busy} onClick={() => leave(() => void logout())}><UserCircle size={20} aria-hidden="true" /><span>{user.username}</span><SignOut size={17} aria-hidden="true" /><span>{t('退出登录', 'Sign out')}</span></button>
       </div>
     </header>
-    <main className="administration-content" aria-label="管理工作区">
+    <main className="administration-content" aria-label={t('管理工作区', 'Administration workspace')}>
       {error && <p className="form-error" role="alert">{error}</p>}
       <AdminConsole ownerId={user.id} onCatalogChange={catalogChanged} />
     </main>
