@@ -23,7 +23,8 @@ test('keeps board filters across browsers and lets an administrator review and c
   await expect(page).toHaveURL(/period=week/);
 
   const otherContext = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
-  const other = await otherContext.newPage(); await other.goto(page.url());
+  const shared = new URL(page.url()); shared.pathname += '/';
+  const other = await otherContext.newPage(); await other.goto(shared.toString());
   await expect(other.getByRole('button', { name: '游客榜', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(other.getByLabel('排行时段')).toHaveValue('week');
   await expect(other.getByText('visitor-浏览器')).toHaveCount(0);

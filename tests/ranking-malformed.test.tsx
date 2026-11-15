@@ -32,3 +32,13 @@ it('keeps the selected board and practice filters in the link across remounts', 
   expect((screen.getByLabelText('限时（分钟）') as HTMLInputElement).value).toBe('2');
   expect(window.history.state).toEqual({ navigation: 1 });
 });
+
+it('reads ranking filters from a shared address with a trailing slash', async () => {
+  window.history.replaceState(null, '', '/rankings/?board=user&language=en&difficulty=advanced&duration=120');
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ entries: [], self: null, total: 0 }))));
+  render(<RankingView initial={{ language: 'zh', difficulty: 'beginner', duration: 300, mode: 'timed', strict: false }} articles={[]} isAdmin={false} ownerId={null} />);
+  expect(await screen.findByText('暂无成绩')).toBeTruthy();
+  expect(screen.getByRole('button', { name: '用户榜' }).getAttribute('aria-pressed')).toBe('true');
+  expect((screen.getByLabelText('难度') as HTMLSelectElement).value).toBe('advanced');
+  expect((screen.getByLabelText('限时（分钟）') as HTMLInputElement).value).toBe('2');
+});

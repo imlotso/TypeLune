@@ -28,8 +28,9 @@ const validBoard = (data: Board) => Array.isArray(data.entries) && data.entries.
   (data.self == null || validEntry(data.self)) && (data.total === undefined || (Number.isSafeInteger(data.total) && data.total >= 0)) &&
   (data.displayDays === undefined || (Number.isSafeInteger(data.displayDays) && data.displayDays > 0 && data.displayDays <= 3650));
 
+const isRankingPath = () => /^\/rankings\/*$/u.test(window.location.pathname);
 function initialFilters(initial: Filters, ownerId: string | null) {
-  const query = new URLSearchParams(window.location.pathname === '/rankings' ? window.location.search : '');
+  const query = new URLSearchParams(isRankingPath() ? window.location.search : '');
   const language = query.get('language'); const difficulty = query.get('difficulty'); const mode = query.get('mode');
   const duration = Number(query.get('duration')); const strict = query.get('strict'); const period = query.get('period'); const board = query.get('board');
   const article = query.get('articleId') ?? '';
@@ -69,7 +70,7 @@ export function RankingView({ initial, articles, isAdmin, ownerId, onAddressChan
   const identity = `${revision}:${request}`;
 
   useEffect(() => {
-    if (!request || window.location.pathname !== '/rankings') return;
+    if (!request || !isRankingPath()) return;
     const current = new URLSearchParams(window.location.search);
     for (const [key, value] of new URLSearchParams(request)) current.set(key, value);
     if (!articleId) current.delete('articleId');
