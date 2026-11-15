@@ -21,3 +21,18 @@ it('rejects unsupported file without preview or write',async()=>{
  fireEvent.change(await screen.findByLabelText('微信收款码'),{target:{files:[new File(['<svg/>'],'a.svg',{type:'image/svg+xml'})]}});
  expect((await screen.findByRole('alert')).textContent).toContain('1 MiB');expect(screen.queryByRole('img')).toBeNull();expect(vi.mocked(api).mock.calls.some(([,o])=>o?.method==='POST')).toBe(false);
 });
+
+it('exposes support settings from the guarded administration navigation', async () => {
+  const {AdminConsole}=await import('../src/components/AdminConsole');
+  const {AdminNavigationGuard}=await import('../src/components/AdminNavigationGuard');
+  vi.mocked(api).mockImplementation(async (url) => url==='/api/admin/support'?{settings:{enabled:false,alipay:null,wechat:null},revision:0}:{metrics:{users:0,disabledUsers:0,admins:1,activeUsers7d:0,finishedPractices7d:0,pendingScores:0,publishedScores:0,publishedArticles:42},recentActions:[]});
+  render(<AdminNavigationGuard><AdminConsole ownerId="admin" onCatalogChange={()=>{}}/></AdminNavigationGuard>);
+  fireEvent.click(screen.getByRole('button',{name:'捐赠设置'}));
+  expect(await screen.findByLabelText('显示捐赠入口')).toBeTruthy();
+  fireEvent.click(screen.getByLabelText('显示捐赠入口'));
+  const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
+  fireEvent.click(screen.getByRole('button',{name:'概览'}));
+  expect(confirm).toHaveBeenCalledOnce();
+  expect(screen.getByLabelText('显示捐赠入口')).toBeTruthy();
+  confirm.mockRestore();
+});

@@ -50,7 +50,7 @@ export function LessonGuide({ lesson, character, onBack }: { lesson: Lesson; cha
     <div className="lesson-guide-top"><button className="text-button" onClick={onBack}><BookOpen size={17} aria-hidden="true" />{t('课程目录', 'Course outline')}</button><span>{String(lessons.indexOf(lesson) + 1).padStart(2, '0')} / {lessons.length} · {lessonCopy(lesson.title, locale)}</span><label><input type="checkbox" checked={showHints} onChange={(event) => setShowHints(event.target.checked)} />{t('键位提示', 'Key hints')}</label></div>
     <p>{lessonCopy(lesson.tip, locale)}</p>
     {showHints && <div className="lesson-keyboard-wrap">
-      <div className="lesson-keyboard" aria-hidden="true">{['qwertyuiop', 'asdfghjkl;', 'zxcvbnm,./'].map((row) => <div className="lesson-key-row" key={row}>{Array.from(row).map((key) => <span key={key} className={(hint?.key.toLowerCase() === key ? 'key-active ' : '') + (key === 'f' || key === 'j' ? 'key-home' : '')}>{key.toUpperCase()}</span>)}</div>)}</div>
+      <div className="lesson-keyboard" aria-hidden="true">{(lesson.id === 'punctuation' ? ['1234567890', 'qwertyuiop', 'asdfghjkl;', 'zxcvbnm,./'] : ['qwertyuiop', 'asdfghjkl;', 'zxcvbnm,./']).map((row) => <div className="lesson-key-row" key={row}>{Array.from(row).map((key) => <span key={key} className={(hint?.key.toLowerCase() === key ? 'key-active ' : '') + (key === 'f' || key === 'j' ? 'key-home' : '')}>{key.toUpperCase()}</span>)}</div>)}</div>
       <div className="lesson-next-key">{hint ? <>{hint.shift && <kbd>Shift</kbd>}<kbd>{hint.key}</kbd><span>{hint.finger}</span></> : <span>{t('本课已输入', 'Lesson entered')}</span>}</div>
     </div>}
   </section>;
@@ -63,7 +63,7 @@ export function LessonResult({ record, onSelect, onReview, onCourse }: { record:
   if (!outcome) return null;
   return <section className="lesson-result" aria-label={t('课程建议', 'Lesson recommendation')}>
     <strong>{outcome.completed ? t('本课完成', 'Lesson completed') : t('本课未完成', 'Lesson not completed')}</strong>
-    <p>{recommendation.kind === 'review' ? t('本轮有错字，建议先复练。', 'Review this round’s mistakes first.') : recommendation.kind === 'retry' ? t('完成全文并达到 95% 准确率。', 'Finish the lesson with at least 95% accuracy.') : recommendation.kind === 'complete' ? t('基础课程已完成。', 'You finished the foundation course.') : t('可以进入下一课。', 'Ready for the next lesson.')}</p>
+    <p>{recommendation.kind === 'review' ? t('本轮有错字，建议先复练。', 'Review this round’s mistakes first.') : recommendation.kind === 'retry' ? t('完成全文并达到 95% 准确率。', 'Finish the lesson with at least 95% accuracy.') : recommendation.kind === 'complete' ? t('本课完成，可回目录复练。', 'Lesson completed. Return to the outline to review.') : t('可以进入下一课。', 'Ready for the next lesson.')}</p>
     <div className="feature-actions">
       {recommendation.kind === 'review' && recommendation.drill && <button className="primary-button" onClick={() => onReview(recommendation.drill!)}>{t('复练本轮错字', 'Review round mistakes')}</button>}
       {recommendation.kind === 'retry' && <button className="primary-button" onClick={() => onSelect(outcome.lesson)}>{t('再练本课', 'Retry lesson')}</button>}

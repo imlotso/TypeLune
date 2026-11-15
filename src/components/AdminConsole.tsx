@@ -1,3 +1,4 @@
+import { SupportSettingsPanel } from './admin/SupportSettingsPanel';
 import { SystemMessage } from './SystemMessage';
 import { useAdminText } from './admin/i18n';
 import { useAdminNavigation } from './AdminNavigationGuard';
@@ -16,7 +17,7 @@ import {
 import '../admin.css';
 
 const tabs = [
-  ['overview', '概览'], ['users', '用户'], ['articles', '文章'], ['scores', '成绩'], ['feedback', '反馈'], ['settings', '站点设置'], ['mail', '邮件'], ['audit', '操作日志'],
+  ['overview', '概览'], ['users', '用户'], ['articles', '文章'], ['scores', '成绩'], ['feedback', '反馈'], ['settings', '站点设置'], ['support', '捐赠设置'], ['mail', '邮件'], ['audit', '操作日志'],
 ] as const;
 type Tab = typeof tabs[number][0];
 const labels = {
@@ -68,6 +69,7 @@ export function AdminConsole({ ownerId, onCatalogChange }: AdminProps & { onCata
       {tab === 'scores' && <ScoresPanel ownerId={ownerId} />}
       {tab === 'feedback' && <FeedbackPanel ownerId={ownerId} onArticle={(id) => { setArticleFromFeedback(id); setTab('articles'); }} />}
       {tab === 'settings' && <SiteSettingsPanel ownerId={ownerId} />}
+      {tab === 'support' && <SupportSettingsPanel ownerId={ownerId} />}
       {tab === 'mail' && <SmtpPanel ownerId={ownerId} />}
       {tab === 'audit' && <AuditPanel ownerId={ownerId} />}
     </div>
