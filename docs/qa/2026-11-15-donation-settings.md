@@ -20,7 +20,7 @@ Branch: dot/typelune-donation. No production changes, no real payment codes, no 
 ## Verification
 - Synthetic non-payment QR generated using qrcode, submitted through admin API, persisted, fetched from public endpoint, decoded using jsQR: exact text and 384x384 dimensions preserved.
 - Targeted tests include unauthenticated/normal-user denial, revoked-admin rollback, revision conflict, malformed/oversized/mislabeled image rejection, public metadata exclusion, hidden disabled QR, settings preservation, UI upload/save/remove/type rejection.
-- Full-suite initial parallel run had three 5-second account tests time out under shared-machine contention. Bounded-concurrency rerun: 600 passed, 32 skipped. After independent-table refactor, targeted 16 tests and typecheck passed; final full rerun ongoing.
+- Full-suite initial parallel run had three 5-second account tests time out under shared-machine contention. Bounded-concurrency rerun: 600 passed, 32 skipped. After independent-table refactor, targeted 16 tests and typecheck passed. Final full suite: 123 files passed, 6 skipped; 600 tests passed, 32 skipped (78.53 seconds, maxWorkers=2). Final npm run build passed.
 - Local type check and client/server build passed; existing >500 kB bundle warning remains.
 - PostgreSQL-specific runtime and integrated browser screenshots still need the integration owner; no claim of production verification.
 
