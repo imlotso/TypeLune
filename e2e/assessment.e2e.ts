@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { assessmentArticle } from '../src/lib/assessment';
+import { mkdirSync } from 'node:fs';
 test('personal baseline and real mistake drill stay unranked',async({page})=>{
  await page.addInitScript(()=>localStorage.setItem('typelune.ui-locale.v1','en'));
  await page.goto('/lessons');
@@ -7,11 +8,17 @@ test('personal baseline and real mistake drill stay unranked',async({page})=>{
  await page.getByRole('button',{name:'Open baseline',exact:true}).click();
  const input=page.getByRole('textbox',{name:'Current line input',exact:true});
  await expect(input).toBeEnabled();
+ await input.fill('x');
+ await page.waitForTimeout(1200);
  await input.fill('x'+assessmentArticle('en').text.slice(1));
- await expect(page.getByRole('dialog',{name:'Practice results'})).toBeVisible();
+ await expect(page.getByRole('dialog',{name:'Practice result',exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:/Submit.*leaderboard/i})).toHaveCount(0);
- await page.goto('/lessons');
+ await page.getByRole('button',{name:'Course outline',exact:true}).last().click();
+ await expect(page.getByRole('button',{name:'Open retest',exact:true})).toBeVisible();
+ await page.reload();
  await expect(page.getByRole('button',{name:'Open retest',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Practice these keys',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Weak-key practice',exact:true})).toBeVisible();
+ mkdirSync('docs/qa/screenshots/2026-11-16-lessons',{recursive:true});
+ await page.screenshot({path:'docs/qa/screenshots/2026-11-16-lessons/desktop-weak-key-en.png',fullPage:true});
 });

@@ -4,10 +4,12 @@ import { useI18n } from '../lib/i18n';
 import { courseProgress, keyHint, lessonCopy, lessonForArticle, lessonOutcome, lessonRecommendation, lessons, type Lesson } from '../lib/lessons';
 import type { ArticleSnapshot, PracticeRecord, SavedPractice } from '../lib/models';
 import '../lessons.css';
+import { AssessmentPanel, WeakKeyPanel } from './AssessmentPanel';
 
-export function LessonsView({ records, drafts, ownerId, onSelect, onResume }: {
+export function LessonsView({ records, drafts, ownerId, onSelect, onResume, onTraining }: {
   records: readonly PracticeRecord[]; drafts: readonly SavedPractice[]; ownerId: string | null;
   onSelect: (lesson: Lesson) => void; onResume: (draft: SavedPractice) => void;
+  onTraining?: (article: ArticleSnapshot) => void;
 }) {
   const { t, locale } = useI18n();
   const progress = courseProgress(records, ownerId);
@@ -18,6 +20,7 @@ export function LessonsView({ records, drafts, ownerId, onSelect, onResume }: {
       <div><span className="lesson-eyebrow">{t('英文键盘基础', 'QWERTY BASICS')}</span><h1>{t('新手课程', 'Beginner course')}</h1></div>
       <div className="lesson-progress"><span>{t('本机进度', 'Local progress')}</span><strong>{progress.completed.length} / {lessons.length}</strong><progress value={progress.completed.length} max={lessons.length} aria-label={t('课程进度', 'Course progress')} /></div>
     </div>
+    {onTraining && <div className="lesson-training-panels"><AssessmentPanel records={records} ownerId={ownerId} onSelect={onTraining} /><WeakKeyPanel records={records} ownerId={ownerId} onSelect={onTraining} /></div>}
     <div className="lesson-start">
       <div><Keyboard size={24} aria-hidden="true" /><span>{latest ? lessonCopy(lessonForArticle(latest.article)!.title, locale) : lessonCopy(progress.next.title, locale)}</span></div>
       <button className="primary-button" onClick={() => latest ? onResume(latest) : onSelect(progress.next)}>
