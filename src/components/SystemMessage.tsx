@@ -152,5 +152,12 @@ const messages:Record<string,string>={
   "此记录已删除": "This record was deleted.",
   "本机草稿已变化，请重试": "Local drafts changed. Please retry."
 };
-export function translateSystemMessage(text:string,locale:UiLocale){return locale==='en'?(messages[text]??text):text;}
+const chineseSupportMessages: Record<string, string> = {
+  'Support settings storage has not been installed': '捐赠设置存储尚未安装，请联系站点管理员',
+  'Invalid support settings': '捐赠设置无效',
+  'Use a valid single-frame PNG, JPG or WebP, up to 1 MiB and 2048×2048 pixels': '请使用有效的单帧 PNG、JPG 或 WebP，最大 1 MiB、2048×2048 像素',
+  'Upload at least one QR image before enabling support': '请先上传至少一张收款码再启用',
+  'Settings changed. Reload before saving.': '设置已变更，请重新加载后保存',
+};
+export function translateSystemMessage(text:string,locale:UiLocale){return locale==='en'?(messages[text]??text):(chineseSupportMessages[text]??text);}
 export function SystemMessage({text}:{text:string}){const {locale}=useI18n();return <>{translateSystemMessage(text,locale)}</>;}

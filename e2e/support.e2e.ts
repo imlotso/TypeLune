@@ -49,6 +49,9 @@ test('administrator publishes real sanitized test QR images to the quiet footer 
   await front.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
   await front.getByRole('button',{name:'Support TypeLune',exact:true}).click();
   await expect(front.getByRole('img',{name:'WeChat payment QR code'})).toBeVisible();
+  const rendered=await front.getByRole('img',{name:'WeChat payment QR code'}).screenshot();
+  const pixels=await sharp(rendered).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+  expect(jsQR(new Uint8ClampedArray(pixels.data),pixels.info.width,pixels.info.height)?.data).toBe(payload);
   expect(await front.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await front.screenshot({path:shots+'/mobile-support-dialog-test-fixtures-en.png',fullPage:false});
   const rejected=await front.request.post('/api/admin/support',{data:{settings:exposed,revision:1}});

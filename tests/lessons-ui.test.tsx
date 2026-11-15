@@ -42,3 +42,13 @@ it('offers a real mistake drill or next lesson from the completed record', () =>
   fireEvent.click(screen.getByRole('button', { name: '复练本轮错字' }));
   expect(review).toHaveBeenCalledWith(expect.objectContaining({ custom: true }));
 });
+it('offers the same-condition phase retest after the two course milestones, not partial work', () => {
+  const review = vi.fn();
+  const article = lessonArticle(lessons[3], 'zh');
+  const props = { onSelect: vi.fn(), onReview: review, onCourse: vi.fn() };
+  const { rerender } = render(<LessonResult {...props} record={{ ...completed, article, typed: article.text }} />);
+  fireEvent.click(screen.getByRole('button', { name: '阶段复测' }));
+  expect(review).toHaveBeenCalledWith(expect.objectContaining({ id: 'assessment-english-v1', custom: true }));
+  rerender(<LessonResult {...props} record={{ ...completed, article, typed: 'zxc' }} />);
+  expect(screen.queryByRole('button', { name: '阶段复测' })).toBeNull();
+});

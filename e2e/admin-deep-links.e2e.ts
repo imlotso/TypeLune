@@ -1,0 +1,34 @@
+import { test, expect, ensureAdmin } from './fixtures';
+import { mkdirSync } from 'node:fs';
+
+test('fresh administrator sign-in preserves a shared column and guards browser history',async({page})=>{
+ await ensureAdmin(page.request);
+ expect((await page.request.post('/api/auth/logout',{data:{}})).ok()).toBe(true);
+ await page.goto('/admin?tab=mail');
+ const login=page.getByRole('dialog',{name:'登录',exact:true});
+ await login.getByLabel('用户名或邮箱').fill('admin@example.test');
+ await login.getByLabel('密码',{exact:true}).fill('ci-password-123');
+ await login.getByRole('button',{name:'登录',exact:true}).click();
+ await expect(page).toHaveURL(/\/admin\?tab=mail$/);
+ await expect(page.getByLabel('SMTP 主机',{exact:true})).toBeVisible();
+ await page.reload();
+ await expect(page.getByLabel('SMTP 主机',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'概览',exact:true}).click();
+ await page.getByRole('button',{name:'邮件',exact:true}).click();
+ await page.getByLabel('SMTP 主机',{exact:true}).fill('smtp.unsaved.example.test');
+ page.once('dialog',dialog=>dialog.dismiss());
+ await page.goBack();
+ await expect(page).toHaveURL(/\/admin\?tab=mail$/);
+ await expect(page.getByLabel('SMTP 主机',{exact:true})).toHaveValue('smtp.unsaved.example.test');
+ page.once('dialog',dialog=>dialog.accept());
+ await page.goBack();
+ await expect(page).toHaveURL(/\/admin\?tab=overview$/);
+ await page.goForward();
+ await expect(page).toHaveURL(/\/admin\?tab=mail$/);
+ await expect(page.getByLabel('SMTP 主机',{exact:true})).toHaveValue('');
+ mkdirSync('docs/qa/screenshots/2026-11-16-lessons',{recursive:true});
+ await page.screenshot({path:'docs/qa/screenshots/2026-11-16-lessons/desktop-admin-mail-zh.png',fullPage:true});
+ await page.goto('/admin?tab=support');
+ await expect(page.getByLabel('显示捐赠入口')).toBeVisible();
+ await page.reload();await expect(page.getByLabel('显示捐赠入口')).toBeVisible();
+});

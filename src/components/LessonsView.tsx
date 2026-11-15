@@ -5,6 +5,7 @@ import { courseProgress, keyHint, lessonCopy, lessonForArticle, lessonOutcome, l
 import type { ArticleSnapshot, PracticeRecord, SavedPractice } from '../lib/models';
 import '../lessons.css';
 import { AssessmentPanel, WeakKeyPanel } from './AssessmentPanel';
+import { assessmentArticle } from '../lib/assessment';
 
 export function LessonsView({ records, drafts, ownerId, onSelect, onResume, onTraining }: {
   records: readonly PracticeRecord[]; drafts: readonly SavedPractice[]; ownerId: string | null;
@@ -60,7 +61,7 @@ export function LessonGuide({ lesson, character, onBack }: { lesson: Lesson; cha
 }
 
 export function LessonResult({ record, onSelect, onReview, onCourse }: { record: PracticeRecord; onSelect: (lesson: Lesson) => void; onReview: (article: ArticleSnapshot) => void; onCourse: () => void }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const outcome = lessonOutcome(record);
   const recommendation = lessonRecommendation(record);
   if (!outcome) return null;
@@ -71,6 +72,7 @@ export function LessonResult({ record, onSelect, onReview, onCourse }: { record:
       {recommendation.kind === 'review' && recommendation.drill && <button className="primary-button" onClick={() => onReview(recommendation.drill!)}>{t('复练本轮错字', 'Review round mistakes')}</button>}
       {recommendation.kind === 'retry' && <button className="primary-button" onClick={() => onSelect(outcome.lesson)}>{t('再练本课', 'Retry lesson')}</button>}
       {recommendation.kind === 'next' && recommendation.lesson && <button className="primary-button" onClick={() => onSelect(recommendation.lesson!)}>{t('下一课', 'Next lesson')} <ArrowRight size={16} aria-hidden="true" /></button>}
+      {outcome.completed && ['lower', 'sentences'].includes(outcome.lesson.id) && <button className="outline-button" onClick={() => onReview(assessmentArticle(locale))}>{t('阶段复测', 'Phase retest')}</button>}
       <button className="text-button" onClick={onCourse}>{t('课程目录', 'Course outline')}</button>
     </div>
   </section>;

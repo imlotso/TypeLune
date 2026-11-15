@@ -87,6 +87,6 @@ test('keeps administrator account settings in the explicit front-site preview', 
   await settings.getByRole('button', { name: '关闭' }).click();
   await page.getByRole('button', { name: 'ci_admin', exact: true }).click();
   await page.getByRole('menuitem', { name: '返回后台' }).click();
-  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page).toHaveURL(/\/admin\?tab=overview$/);
   await expect(page.getByRole('heading', { name: '管理后台' })).toBeVisible();
 });
