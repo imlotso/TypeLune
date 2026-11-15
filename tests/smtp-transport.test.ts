@@ -1,3 +1,4 @@
+import { plainMailBody } from './mail-plain-body';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -33,7 +34,7 @@ describe('local SMTP transport', () => {
       const sent = await app.inject({ method: 'POST', url: '/api/auth/code', payload: { email: 'owner@example.test', purpose: 'register' } });
       expect(sent.statusCode).toBe(200);
       expect(messages).toHaveLength(1);
-      const body = Buffer.from(messages[0].split(/\r?\n\r?\n/).slice(1).join(''), 'base64').toString('utf8');
+      const body = plainMailBody(messages[0]);
       const code = body.match(/验证码是 (\d{6})/)?.[1];
       expect(code).toMatch(/^\d{6}$/);
       const registration = await app.inject({ method: 'POST', url: '/api/auth/register', payload: {
