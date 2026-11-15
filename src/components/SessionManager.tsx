@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
@@ -53,6 +54,6 @@ const date = (value: number | null) => value == null ? t("未知", "Unknown") : 
       <div><strong>{session.device}</strong>{session.current && <span> {t("· 当前设备", "· This device")}</span>}<small>{t("创建：", "Created: ")}{date(session.createdAt)}<br />{t("最近活动：", "Last active: ")}{date(session.lastActiveAt)}</small></div>
       <button type="button" className="text-button" disabled={busy} aria-label={session.current ? t("退出当前设备", "Sign out this device") : t(`退出 ${session.device}`, `Sign out ${session.device}`)} onClick={() => void revoke(session.id)}>{t("退出", "Sign out")}</button>
     </li>)}</ul>{sessions.some((session) => !session.current) && <button type="button" className="outline-button" disabled={busy} onClick={() => void revoke()}>{t("退出其他设备", "Sign out other devices")}</button>}</>}
-    {error && <><p className="form-error" role="alert">{error}</p><button type="button" className="outline-button" disabled={busy} onClick={() => setRevision((value) => value + 1)}>{t("重试", "Retry")}</button></>}
+    {error && <><p className="form-error" role="alert">{<SystemMessage text={error} />}</p><button type="button" className="outline-button" disabled={busy} onClick={() => setRevision((value) => value + 1)}>{t("重试", "Retry")}</button></>}
   </div>;
 }

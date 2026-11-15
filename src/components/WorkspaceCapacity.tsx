@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
@@ -80,8 +81,8 @@ export function WorkspaceCapacity({ ownerId, onCompacted, onManage, onResetSetti
           <button type="button" className="primary-button" disabled={busy} onClick={() => void compact()}>{t("确认整理", "Confirm compaction")}</button></div>
       </div>}
     </>}
-    {error && <p role="alert" className="form-error">{error}</p>}
-    {notice && <p role="status" className="form-notice">{notice}</p>}
+    {error && <p role="alert" className="form-error">{<SystemMessage text={error} />}</p>}
+    {notice && <p role="status" className="form-notice">{<SystemMessage text={notice} />}</p>}
     <button type="button" className="text-button" disabled={busy} onClick={() => void refresh()}>{t("刷新容量", "Refresh capacity")}</button>
   </section>;
 }

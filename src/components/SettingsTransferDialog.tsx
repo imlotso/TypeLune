@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useState, type ChangeEvent } from 'react';
 import type { Difficulty, Language } from '../data/articles';
@@ -64,8 +65,8 @@ const paceName = (pace: PracticeSettingsFile['settings']['pace'], language: Lang
         <p className="form-error">{t("导入将替换当前练习设置和预设；未完成练习会保存为草稿。", "Import replaces current practice settings and presets. Unfinished practice is saved as a draft.")}</p>
         <button type="button" className="primary-button" disabled={busy} onClick={() => void apply()}>{t("确认导入", "Confirm import")}</button>
       </div>}
-      {error && <p role="alert" className="form-error">{error}</p>}
-      {notice && <p role="status" className="form-notice">{notice}</p>}
+      {error && <p role="alert" className="form-error">{<SystemMessage text={error} />}</p>}
+      {notice && <p role="status" className="form-notice">{<SystemMessage text={notice} />}</p>}
     </div>
   </Dialog>;
 }

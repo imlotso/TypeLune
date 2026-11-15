@@ -1,5 +1,6 @@
 import { useI18n } from '../lib/i18n';
 import { LanguageToggle } from './LanguageToggle';
+import { SystemMessage } from './SystemMessage';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowSquareOut } from '@phosphor-icons/react/ArrowSquareOut';
 import { MoonStars } from '@phosphor-icons/react/MoonStars';
@@ -68,7 +69,7 @@ function AdminWorkspaceContent({ user, onLogout, onPreview }: Props) {
       </div>
     </header>
     <main className="administration-content" aria-label={t('管理工作区', 'Administration workspace')}>
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && <p className="form-error" role="alert"><SystemMessage text={error} /></p>}
       <AdminConsole ownerId={user.id} onCatalogChange={catalogChanged} />
     </main>
   </div>;

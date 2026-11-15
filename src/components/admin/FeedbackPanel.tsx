@@ -1,3 +1,4 @@
+import { SystemMessage } from '../SystemMessage';
 import { useAdminText } from './i18n';
 import { useAdminEdits } from '../AdminNavigationGuard';
 import { useState, type FormEvent } from 'react';
@@ -40,7 +41,7 @@ function FeedbackEditor({ ownerId, id, onBack, onChange, onArticle }: AdminProps
       <SelectField label={at("处理状态")} options={Object.entries(feedbackStatuses)} value={status} onChange={(value) => setStatusEdit({ revision: feedback.revision, value })} disabled={busy} />
       <label>{at("公开回复")}<textarea value={reply} maxLength={5000} disabled={busy} onChange={(event) => setReply(event.target.value)} /></label>
       <label>{at("内部备注")}<textarea value={note} maxLength={5000} disabled={busy} onChange={(event) => setNote(event.target.value)} /></label>
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
       {saved && <p className="form-notice" role="status">{at("已保存")}</p>}
       <div className="feature-actions"><button type="button" className="outline-button" disabled={busy} onClick={() => leave(onBack)}>{at("返回")}</button>
         {error && <button type="button" className="outline-button" onClick={() => { setRevision((value) => value + 1); setError(''); }}>{at("刷新反馈")}</button>}

@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n, type UiLocale } from '../lib/i18n';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { ChatCircleText } from '@phosphor-icons/react/ChatCircleText';
@@ -186,7 +187,7 @@ export function FeedbackView({ ownerId, draft, setDraft, onLogin, routeFeedbackI
       shownDetail ? <>
       <FeedbackThread feedback={shownDetail} />
       <form className="feature-form" onSubmit={addMessage}><label>{t("补充信息", "Add information")}<textarea value={supplement} maxLength={5000} required disabled={busy} onChange={(event) => setSupplement(event.target.value)} /></label>
-        {error && <p className="form-error" role="alert">{error}</p>}
+        {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
         <div className="feature-actions"><button className="outline-button" type="button" disabled={busy} onClick={() => { setError(''); if (onCloseFeedback) onCloseFeedback(); else setDetail(undefined); }}>{t("返回", "Back")}</button><button className="primary-button" disabled={busy}>{t("提交补充", "Submit update")}</button></div>
       </form>
     </> : <>
@@ -199,7 +200,7 @@ export function FeedbackView({ ownerId, draft, setDraft, onLogin, routeFeedbackI
         <label>{t("详细描述", "Description")}<textarea value={draft.description} maxLength={5000} required disabled={busy} onChange={(event) => patch({ description: event.target.value })} /></label>
         <label>{t("截图（最多 3 张，每张 5 MiB）", "Screenshots (up to 3, 5 MiB each)")}<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={busy} onChange={chooseFiles} /></label>
         {!!draft.attachments.length && <ul className="feedback-files">{draft.attachments.map((file, index) => <li key={`${file.name}-${index}`}><span>{file.name}</span><button type="button" className="text-button" disabled={busy} aria-label={`${t('移除', 'Remove')} ${file.name}`} onClick={() => patch({ attachments: draft.attachments.filter((_, position) => position !== index) })}>{t("移除", "Remove")}</button></li>)}</ul>}
-        {error && <p className="form-error" role="alert">{error}</p>}
+        {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
         <div className="feature-actions"><button className="primary-button" disabled={busy}>{busy ? t("提交中…", "Submitting…") : ownerId ? t("提交反馈", "Submit feedback") : t("登录后提交", "Sign in to submit")}</button></div>
       </form>
       {ownerId && <div className="feedback-list"><h2>{t("我的反馈", "My feedback")}</h2>

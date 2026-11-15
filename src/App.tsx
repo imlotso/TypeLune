@@ -1,3 +1,4 @@
+import { SystemMessage } from './components/SystemMessage';
 import { useI18n } from './lib/i18n';
 import { LanguageToggle } from './components/LanguageToggle';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
@@ -1072,7 +1073,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       <div className="workspace">
         {!user && pendingCleanup > 0 && <div className="cleanup-warning" role="alert"><span>{t("本机账号缓存清理未完成。", "Local account cleanup is incomplete.")}</span><button className="outline-button" disabled={cleanupBusy} onClick={onRetryCleanup}>{t("重试清理", "Retry cleanup")}</button></div>}
         {user && guestImportOffer && hasGuestData && view !== 'data' && <div className="cleanup-warning" role="status"><span>{t("有游客资料可导入。", "Guest data is available to import.")}</span><button className="outline-button" onClick={() => void afterPark(() => setShowGuestImport(true))}>{t("导入游客资料", "Import guest data")}</button><button className="text-button" onClick={onDismissGuestImport}>{t("稍后", "Later")}</button></div>}
-        {site.error && <div className="cleanup-warning" role="status"><span>{t("站点配置读取失败：", "Could not load site settings:")}{site.error}</span><button className="outline-button" onClick={site.retry}>{t("重试", "Retry")}</button></div>}
+        {site.error && <div className="cleanup-warning" role="status"><span>{t("站点配置读取失败：", "Could not load site settings:")}{<SystemMessage text={site.error} />}</span><button className="outline-button" onClick={site.retry}>{t("重试", "Retry")}</button></div>}
         {view === 'practice' && <>
           {focused ? <div className="focus-actions"><button ref={focusButton} className="outline-button feature-action-button" onClick={exitFocus}>{t("退出专注", "Exit focus")}</button><button className="outline-button feature-action-button" disabled={!canCommand} onClick={openCommands}>{t("功能面板", "Commands")}</button></div> : selectedLesson ? null : filters}
           {selectedLesson && <LessonGuide lesson={selectedLesson} character={targetCharacters[typedCharacters.length]} onBack={() => navigate('lessons')} />}
@@ -1086,7 +1087,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
             notice={phase === 'ready' && user && paceSettings.source !== 'custom' && !historyLoaded ? t("正在读取配速目标…", "Loading pace target…") : phase === 'ready' ? t("暂无同条件成绩", "No matching results yet") : t("本轮未启用配速", "Pace is off for this round")}
             partial={phase === 'ready' && paceSettings.source !== 'custom' && (!user || historyLoaded) && (!!historyError || (!!user && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory())} />}
           <div className="progress-row"><span>{t("文章字数：", "Article chars:")}<b data-testid="article-count">{targetCharacters.length}</b></span><span>{t("已打字数：", "Typed:")}<b data-testid="typed-count">{typedCharacters.length}</b></span><span>{t("当前错误：", "Errors:")}<b data-testid="error-count">{previewScore.total - previewScore.correct}</b></span><span>{t("退格：", "Backspaces:")}<b data-testid="backspace-count">{practice.backspaces}</b></span></div>
-          {practiceNotice && <p className="practice-notice" role="status">{practiceNotice}</p>}
+          {practiceNotice && <p className="practice-notice" role="status">{<SystemMessage text={practiceNotice} />}</p>}
           {!user && site.features?.guestLeaderboardEnabled === false && <p className="practice-notice" role="status">{t("游客上榜已关闭。", "Guest leaderboard submissions are disabled.")}</p>}
           <section className="typing-panel" aria-label={t("文章练习", "Typing practice")}>
             <div className="practice-heading">
@@ -1114,7 +1115,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
           </section>
         </>}
         {view === 'lessons' && <LessonsView records={records} drafts={draftBox.drafts} ownerId={ownerId} onSelect={selectLesson} onResume={(draft) => continueDraft(draft)} />}
-        {view !== 'practice' && feedback && <p className="form-error view-error" role="alert">{feedback}</p>}
+        {view !== 'practice' && feedback && <p className="form-error view-error" role="alert"><SystemMessage text={feedback} /></p>}
         {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">{t("连接失败，显示已读取的记录。", "Connection failed. Showing loaded records.")}</p>}
         {recordViews.includes(view) && hasUnloadedLocalHistory() && <p className="form-error view-error" role="status">{t("部分本机旧版记录或文章快照无法完整读取。", "Some legacy local records or article snapshots could not be fully read.")}</p>}
         {view === 'library' && <ArticleLibrary initialTab={libraryInitialTab} articles={catalog} favorites={workspace.favorites} onOpenArticle={openPublicArticle} onToggleFavorite={(id) => void workspace.toggleFavorite(id).catch(reportSaveError)} onSelect={selectArticle} onSave={(article) => workspace.put('article', article.id, article)} onDelete={(id) => workspace.remove('article', id)} />}

@@ -1,3 +1,4 @@
+import { SystemMessage } from '../SystemMessage';
 import { useAdminText } from './i18n';
 import { useState } from 'react';
 import { Dialog } from '../Dialog';

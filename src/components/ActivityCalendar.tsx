@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n, type UiLocale } from '../lib/i18n';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { activityByDay, activityStreaks, calendarMonthDays, shiftCalendarMonth } from '../lib/activity-calendar';
@@ -92,7 +93,7 @@ export function ActivityCalendar({ records, timeZone, goalMinutes, coverage, onO
       <datalist id="statistics-time-zones">{zones().map((zone) => <option key={zone} value={zone} />)}</datalist>
       <label>{t("每日目标（分钟，0 为关闭）", "Daily goal (minutes, 0 to disable)")}<input type="number" min="0" max="1440" step="1" value={goalDraft} disabled={busy} onChange={(event) => { setGoalDraft(event.target.value); markDirty(); }} /></label>
       {changedElsewhere && <p className="form-error" role="status">{t("设置已在其他设备更新，请确认后保存", "Settings changed on another device. Review before saving.")}</p>}
-      {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="form-notice" role="status">{notice}</p>}
+      {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}{notice && <p className="form-notice" role="status">{<SystemMessage text={notice} />}</p>}
       <div className="feature-actions"><button type="submit" className="outline-button" disabled={busy || !dirty}>{t("保存日历设置", "Save calendar settings")}</button></div>
     </form></details>}
   </section>;

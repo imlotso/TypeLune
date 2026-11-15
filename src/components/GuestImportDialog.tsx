@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState } from 'react';
 import { clearImportedGuestCopies, collectGuestImport, guestImportConflicts, importGuestItems, verifyGuestImport, type GuestImportPlan } from '../lib/guest-import';
@@ -59,7 +60,7 @@ const names: Record<WorkspaceKind, string> = { article: t("私人文章", "Priva
     {confirmClear ? <div className="feature-form">
       <p className="form-error">{t("将清除本浏览器的游客资料，无法恢复。请先保存并关闭其他游客页面，未导入的内容会丢失。", "Guest data in this browser will be permanently cleared. Save and close other guest tabs first. Any content not imported will be lost.")}</p>
       {!!done?.conflicts && <p className="form-error">{t("其中", "Of these, ")}{done.conflicts} {t("项未导入，清除后无法恢复。", "items were not imported and cannot be recovered after clearing.")}</p>}
-      {error && <p role="alert" className="form-error">{error}</p>}
+      {error && <p role="alert" className="form-error">{<SystemMessage text={error} />}</p>}
       <div className="feature-actions"><button ref={safeAction} type="button" className="outline-button" disabled={busy} onClick={() => setConfirmClear(false)}>{t("保留", "Keep")}</button>
         <button type="button" className="primary-button" disabled={busy} onClick={() => void clearGuest()}>{t("确认清除", "Confirm clear")}</button></div>
     </div> : <div className="feature-form">
@@ -74,8 +75,8 @@ const names: Record<WorkspaceKind, string> = { article: t("私人文章", "Priva
           <button type="button" className="outline-button" disabled={busy || syncState === 'syncing' || syncState === 'loading'} onClick={() => void onSync()}>{t("立即同步", "Sync now")}</button>}</>}
       </>}
       {done && <p role="status">{t(`已同步 ${done.count} 项`, `Synced ${done.count} items`)}{done.conflicts ? t(`，${done.conflicts} 项保留账号数据`, `; account data kept for ${done.conflicts} items`) : ''}。</p>}
-      {error && <p role="alert" className="form-error">{error}</p>}
-      {notice && <p role="status" className="form-notice">{notice}</p>}
+      {error && <p role="alert" className="form-error">{<SystemMessage text={error} />}</p>}
+      {notice && <p role="status" className="form-notice">{<SystemMessage text={notice} />}</p>}
       <div className="feature-actions"><button type="button" className="outline-button" disabled={busy} onClick={onClose}>{done ? t("完成", "Done") : t("取消", "Cancel")}</button>
         {!done && plan && <button type="button" className="primary-button" disabled={busy || !total || !cloudLoaded || syncState !== 'synced'} onClick={() => void runImport()}>{attempted ? t("重试导入和同步", "Retry import and sync") : t("导入游客资料", "Import guest data")}</button>}
         {done && !notice && <button type="button" className="primary-button" disabled={busy} onClick={() => setConfirmClear(true)}>{t("清除游客副本", "Clear guest copies")}</button>}

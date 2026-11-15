@@ -331,3 +331,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .ui-language-button:focus-visible { outline: 3px solid #8d7abd; outline-offset: 3px; }
 [data-theme='dark'] .ui-language-button { border-color: #817aa6; }
 @media (max-width: 760px) { .site-header nav .ui-language-button { padding: 8px 10px; font-size: 12px; } }
+@media (max-width: 760px) {
+  /* Long translated action labels must not collapse the article selector. */
+  .article-choice { flex-wrap: wrap; }
+  .article-choice .article-picker { flex: 1 0 100%; }
+  .article-choice .custom-button { margin: 0; }
+}

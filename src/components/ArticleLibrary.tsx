@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Books } from '@phosphor-icons/react/Books';
@@ -149,7 +150,7 @@ const difficultyNames: Record<Difficulty, string> = { beginner: t("入门", "Beg
       <label>{t("正文", "Text")}<textarea ref={bodyField} value={body} rows={7} disabled={busy} onChange={(event) => setBody(event.target.value)} /></label>
       <span className="feature-muted feature-editor-count">{splitCharacters(body.slice(0, MAX_PRIVATE_CHARACTERS + 1)).length.toLocaleString()} {t("字符", "characters")}</span>
       <label className="feature-file"><span><FileText size={16} /> {t("导入 TXT", "Import TXT")}</span><input type="file" accept=".txt,text/plain" disabled={busy} onChange={(event) => void importTxt(event)} /></label>
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
       <div className="feature-actions">
         <button type="button" className="outline-button" disabled={busy} onClick={closeEditor}>{t("取消", "Cancel")}</button>
         <button type="submit" className="primary-button" disabled={busy}>{t("保存", "Save")}</button>

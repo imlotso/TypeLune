@@ -1,3 +1,4 @@
+import { SystemMessage } from '../SystemMessage';
 import { useAdminText } from './i18n';
 import { useAdminEdits } from '../AdminNavigationGuard';
 import { useState, type FormEvent } from 'react';

@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import { Crown } from '@phosphor-icons/react/Crown';
@@ -136,7 +137,7 @@ const difficulties: Record<Difficulty, string> = { beginner: t("入门", "Beginn
       <label>{t("文章", "Article")}<select value={articleId} onChange={(event) => setArticleId(event.target.value)}><option value="">{t("全部", "All")}</option>{articleId && !articles.some((article) => article.id === articleId && article.language === language && article.difficulty === difficulty) && <option value={articleId}>{t("已选文章", "Selected article")}</option>}{articles.filter((article) => article.language === language && article.difficulty === difficulty).map((article) => <option key={article.id} value={article.id}>{article.title}</option>)}</select></label>
     </div>
     {!request && <p className="form-error" role="alert">{t("请输入 1–60 的整数", "Enter a whole number from 1 to 60")}</p>}
-    {error && <><p className="form-error" role="alert">{error}</p><button type="button" className="outline-button" onClick={() => setRevision((value) => value + 1)}>{t("重试", "Retry")}</button></>}
+    {error && <><p className="form-error" role="alert">{<SystemMessage text={error} />}</p><button type="button" className="outline-button" onClick={() => setRevision((value) => value + 1)}>{t("重试", "Retry")}</button></>}
     {!!request && !data && !error && <p className="empty-state" role="status">{t("加载中…", "Loading…")}</p>}
     {!!data?.displayDays && <p className="feature-muted">{t("显示最近 ", "Showing the last  ")}{data.displayDays} {t("天成绩", "days of scores")}</p>}
     {data?.self && <p className="ranking-self"><strong>{t("我的排名", "My rank")}</strong> {t("第 ", "# ")}{data.self.rank} {t("名 ", "players ")}<span>{data.self.speed} {unit} · {data.self.accuracy}%</span></p>}

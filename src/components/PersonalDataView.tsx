@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useState } from 'react';
 import { Database } from '@phosphor-icons/react/Database';
@@ -48,8 +49,8 @@ export function PersonalDataView({ user, onClear, onCompacted, onGuestImport, on
       <button className="outline-button" disabled={busy} onClick={onGuestImport}>{t("导入游客资料", "Import guest data")}</button>
       <button className="outline-button" disabled={busy} onClick={onClear}>{t("清除此设备数据", "Clear data on this device")}</button></div>
     {busy && <p role="status">{t("正在整理数据…", "Preparing data…")}</p>}
-    {notice && <p className="form-notice" role="status">{notice}</p>}
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {notice && <p className="form-notice" role="status">{<SystemMessage text={notice} />}</p>}
+    {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
     {!!missing.length && <ul className="personal-data-missing">{missing.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>}
     <WorkspaceCapacity ownerId={user.id} onCompacted={onCompacted} onManage={onManageCapacity} onResetSettings={onResetSettings} />
   </section>;

@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useState } from 'react';
 import type { User } from '../lib/api';
@@ -32,8 +33,8 @@ export function WorkspaceRecoveryDialog({ user, reason, onReset, onClose }: Prop
       <p className="form-error">{t("重新同步会用云端资料替换本机账号数据，未同步的内容将丢失。", "Resync replaces local account data with cloud data. Unsynced content will be lost.")}</p>
       <button type="button" className="outline-button" disabled={busy} onClick={() => void exportLocal()}>{t("导出本机资料", "Export local data")}</button>
       <label className="settings-check"><input type="checkbox" checked={confirmed} disabled={busy} onChange={(event) => setConfirmed(event.target.checked)} />{t("我已备份或确认放弃本机未同步资料", "I have backed up or chosen to discard unsynced local data")}</label>
-      {notice && <p className="form-notice" role="status">{notice}</p>}
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {notice && <p className="form-notice" role="status">{<SystemMessage text={notice} />}</p>}
+      {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
       <div className="feature-actions"><button type="button" className="outline-button" disabled={busy} onClick={onClose}>{t("取消", "Cancel")}</button><button type="button" className="primary-button" disabled={busy || !confirmed} onClick={() => void reset()}>{t("重新同步", "Resync")}</button></div>
     </div>
   </Dialog>;

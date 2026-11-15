@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useState } from 'react';
 import { articleLength } from '../lib/analysis';
@@ -25,7 +26,7 @@ export function PublicArticleView({ article, offline, onPractice, onBack }: { ar
     <div className="feature-form public-article-share">
       <label>{t("文章链接", "Article link")}<input readOnly value={link} onFocus={(event) => event.currentTarget.select()} /></label>
       <div className="feature-actions"><button type="button" className="outline-button" onClick={onBack}>{t("返回文章库", "Back to library")}</button><button type="button" className="outline-button" onClick={() => void copy()}>{t("复制链接", "Copy link")}</button></div>
-      {notice && <p className="feature-muted" role="status">{notice}</p>}
+      {notice && <p className="feature-muted" role="status">{<SystemMessage text={notice} />}</p>}
     </div>
     <p className="public-article-text">{article.text}</p>
   </section>;

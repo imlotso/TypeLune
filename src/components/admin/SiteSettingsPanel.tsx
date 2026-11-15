@@ -1,3 +1,4 @@
+import { SystemMessage } from '../SystemMessage';
 import { useAdminText } from './i18n';
 import { useAdminEdits } from '../AdminNavigationGuard';
 import { useState, type FormEvent } from 'react';
@@ -95,7 +96,7 @@ function SiteSettingsForm({ ownerId, initial, reload }: AdminProps & { initial: 
           }} /></label>)}
       </div>
     </fieldset>
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
     {savedMessage && <p className="feature-muted" role="status">{savedMessage}</p>}
     <div className="feature-actions">
       {conflict && <button type="button" className="outline-button" onClick={reload}>{at("重新加载")}</button>}

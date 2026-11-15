@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { ImageSquare } from '@phosphor-icons/react/ImageSquare';
@@ -115,7 +116,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose }: Props) {
           </label>)}</div>
         </fieldset>
       </>}
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
       <div className="background-editor-actions">
         <button type="button" className="text-button" disabled={saving || (!draft && !processing)} onClick={() => { cancelProcessing(); setDraft(undefined); setDirty(true); setError(''); }}><ArrowCounterClockwise size={17} aria-hidden="true" />{t("恢复默认", "Restore default")}</button>
         <div><button type="button" className="outline-button" disabled={saving} onClick={close}>{t("取消", "Cancel")}</button><button className="primary-button" disabled={!dirty || processing || saving}>{saving ? t("保存中…", "Saving…") : t("保存", "Save")}</button></div>

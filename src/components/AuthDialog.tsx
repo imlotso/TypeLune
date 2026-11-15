@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError, type User } from '../lib/api';
@@ -80,8 +81,8 @@ export function AuthDialog({ onClose, onLogin, registrationEnabled }: { onClose:
         <label>{t("邮箱", "Email")}<input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setNotice(''); setError(''); }} autoComplete="email" required /></label>}
       {mode !== 'password' && <label>{t("邮箱验证码", "Email code")}<span className="code-field"><input aria-label={t("邮箱验证码", "Email code")} inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} maxLength={6} required /><button type="button" className="text-button" disabled={busy || remaining > 0 || (mode === 'register' && registrationEnabled === false)} onClick={sendCode}>{remaining ? t(`${remaining} 秒后重发`, `Resend in ${remaining}s`) : t("获取验证码", "Get code")}</button></span></label>}
       {mode !== 'code' && <PasswordField key={mode} label={mode === 'reset' ? t("新密码", "New password") : t("密码", "Password")} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'password' ? 'current-password' : 'new-password'} minLength={mode === 'password' ? undefined : 10} required />}
-      {error && <p className="form-error" role="alert">{error}</p>}
-      {notice && <p className="form-notice" role="status">{notice}</p>}
+      {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
+      {notice && <p className="form-notice" role="status">{<SystemMessage text={notice} />}</p>}
       <button className="primary-button auth-submit" disabled={busy || (mode === 'register' && registrationEnabled === false)}>{busy ? t("处理中…", "Working…") : mode === 'register' ? t("注册并登录", "Create account and sign in") : mode === 'reset' ? t("更新密码", "Update password") : t("登录", "Sign in")}</button>
     </form>
     <div className="auth-links">

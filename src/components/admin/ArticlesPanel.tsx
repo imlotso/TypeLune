@@ -1,3 +1,4 @@
+import { SystemMessage } from '../SystemMessage';
 import { useAdminText } from './i18n';
 import { useAdminEdits } from '../AdminNavigationGuard';
 import { useState, type FormEvent } from 'react';
@@ -125,7 +126,7 @@ function ArticleEditor({ ownerId, article, onClose, onChange }: AdminProps & {
           </div>
           <label>{at("原文链接")}<input type="url" value={input.source.url} required={published} maxLength={2048} onChange={(event) => setSource('url', event.target.value)} /></label>
         </fieldset>
-        {error && <p className="form-error" role="alert">{error}</p>}
+        {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
         <div className="feature-actions">
           {article && (published
             ? <button className="outline-button" type="button" disabled={busy || dirty} onClick={() => transition('archived')}>{at("归档")}</button>

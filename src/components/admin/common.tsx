@@ -1,3 +1,4 @@
+import { SystemMessage } from '../SystemMessage';
 import { useAdminText } from './i18n';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { Difficulty, Language } from '../../data/articles';
@@ -116,7 +117,7 @@ export function SelectField({ label, options, value, onChange, all = false, disa
 export function LoadState({ error, retry }: { error?: string; retry: () => void }) {
   const { at } = useAdminText();
   return error
-    ? <div className="admin-load-state"><p className="form-error" role="alert">{error}</p><button className="outline-button feature-action-button" onClick={retry}>{at("重试")}</button></div>
+    ? <div className="admin-load-state"><p className="form-error" role="alert">{<SystemMessage text={error} />}</p><button className="outline-button feature-action-button" onClick={retry}>{at("重试")}</button></div>
     : <p className="admin-load-state feature-muted" role="status">{at("加载中…")}</p>;
 }
 
@@ -192,7 +193,7 @@ export function ConfirmationForm({ confirmation, busy, setBusy, onCancel, onSucc
     {needsReason && <label>{at("原因")}<input maxLength={300} required value={reason} ref={first}
       disabled={busy} onChange={(event) => setReason(event.target.value)} /></label>}
     {confirmation.allowPublicMessage && <label>{at("用户可见说明")}<input maxLength={500} value={publicMessage} disabled={busy} onChange={(event) => setPublicMessage(event.target.value)} /></label>}
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
     <div className="feature-actions">
       <button type="button" className="outline-button" ref={cancel} disabled={busy} onClick={onCancel}>{at("取消")}</button>
       <button className="primary-button" disabled={busy || (needsReason && !reason.trim())}>{busy ? at('处理中…') : `${locale === 'en' ? 'Confirm ' : '确认'}${at(confirmation.action)}`}</button>

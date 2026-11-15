@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useLayoutEffect, useState, type FormEvent } from 'react';
 import type { User } from '../lib/api';
@@ -35,8 +36,8 @@ export function AccountDeletion({ user, busy, setBusy, visibilityVersion, onDele
     <button type="button" className="outline-button" disabled={busy} onClick={() => void exportData()}>{t("导出个人数据", "Export personal data")}</button>
     <PasswordField key={visibilityVersion} label={t("当前密码（注销）", "Current password (delete account)")} toggleLabel={t("当前密码（注销）", "Current password (delete account)")} autoComplete="current-password" value={password} disabled={busy} required onChange={(event) => setPassword(event.target.value)} />
     <label className="settings-check"><input type="checkbox" checked={confirmed} disabled={busy} onChange={(event) => setConfirmed(event.target.checked)} />{t("我了解注销无法恢复", "I understand deletion cannot be undone")}</label>
-    {notice && <p className="form-notice" role="status">{notice}</p>}
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {notice && <p className="form-notice" role="status">{<SystemMessage text={notice} />}</p>}
+    {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
     <button className="primary-button" disabled={busy || !confirmed}>{t("永久注销账号", "Permanently delete account")}</button>
   </form>;
 }

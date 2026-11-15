@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Difficulty, Language } from '../data/articles';
@@ -61,7 +62,7 @@ const difficultyNames: Record<Difficulty, string> = { beginner: t("入门", "Beg
   const close = () => { if (busy) return; if (deleting) setDeleting(undefined); else onClose(); };
   return <Dialog title={deleting ? t("删除预设？", "Delete preset?") : t("练习预设", "Practice presets")} onClose={close} dismissible={!busy}>
     {deleting ? <div className="feature-form"><p>“{deleting.name}{t("”将被删除。", "” will be deleted.")}</p>
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
       <div className="feature-actions"><button ref={safeAction} type="button" className="outline-button" disabled={busy} onClick={() => setDeleting(undefined)}>{t("取消", "Cancel")}</button>
         <button type="button" className="primary-button" disabled={busy} onClick={() => void perform({ type: 'delete', expected: deleting }, t("预设已删除", "Preset deleted")).then((ok) => { if (ok) setDeleting(undefined); })}>{t("确认删除", "Confirm delete")}</button></div>
     </div> : <div className="feature-form">
@@ -80,8 +81,8 @@ const difficultyNames: Record<Difficulty, string> = { beginner: t("入门", "Beg
           <button type="button" className="text-button" aria-label={t(`重命名 ${preset.name}`, `Rename ${preset.name}`)} disabled={busy} onClick={() => setRenaming({ preset, name: preset.name })}>{t("重命名", "Rename")}</button>
           <button type="button" className="text-button" aria-label={t(`删除 ${preset.name}`, `Delete ${preset.name}`)} disabled={busy} onClick={() => { setError(''); setDeleting(preset); }}>{t("删除", "Delete")}</button></div>
       </li>)}</ul>}
-      {error && <p className="form-error" role="alert">{error}</p>}
-      {notice && <p className="form-notice" role="status">{notice}</p>}
+      {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
+      {notice && <p className="form-notice" role="status">{<SystemMessage text={notice} />}</p>}
     </div>}
   </Dialog>;
 }

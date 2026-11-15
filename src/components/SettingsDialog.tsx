@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Language } from '../data/articles';
@@ -169,7 +170,7 @@ const syncNames: Record<SyncState, string> = {
           {isSignedIn && (recoveryReason ? <button className="outline-button feature-action-button" onClick={onRecovery}>{t("处理同步冲突", "Resolve sync conflict")}</button> :
             <button className="outline-button feature-action-button" disabled={syncState === 'loading' || syncState === 'syncing'} onClick={onSync}>{t("立即同步", "Sync now")}</button>)}
         </div>
-        {syncState === 'error' && syncError && <p className="form-error" role="alert">{syncError}</p>}
+        {syncState === 'error' && syncError && <p className="form-error" role="alert">{<SystemMessage text={syncError} />}</p>}
         {pendingCount != null && pendingCount > 0 && <p className="feature-muted">{t("未同步：", "Pending: ")}{pendingCount} {t("项", " items")}</p>}
         {cloudCount != null && <p className="feature-muted">{t("上次读取云端：", "Last cloud count: ")}{cloudCount} {t("项", " items")}</p>}
         {lastSyncedAt != null && <p className="feature-muted">{t("最近成功同步：", "Last synced: ")}{new Date(lastSyncedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}</p>}

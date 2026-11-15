@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState } from 'react';
 import { drawShareCard, type ShareCardData } from '../lib/share-card';
@@ -52,8 +53,8 @@ export function ShareCardDialog({ data, theme, onClose }: { data: ShareCardData;
       <label className="settings-check"><input type="checkbox" checked={showNickname} onChange={(event) => setShowNickname(event.target.checked)} />{t("显示昵称", "Show nickname")}</label>
       {showNickname && <label>{t("昵称", "Nickname")}<input value={nickname} maxLength={32} onChange={(event) => setNickname(event.target.value)} /></label>}
       <label className="settings-check"><input type="checkbox" checked={showTitle} disabled={!data.title} onChange={(event) => setShowTitle(event.target.checked)} />{t("显示文章标题", "Show article title")}</label>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      {notice && <p className="form-notice" role="status">{notice}</p>}
+      {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
+      {notice && <p className="form-notice" role="status">{<SystemMessage text={notice} />}</p>}
       <div className="feature-actions"><button type="button" className="outline-button" disabled={busy} onClick={() => void copy()}>{t("复制图片", "Copy image")}</button>
         <button type="button" className="primary-button" disabled={busy} onClick={() => void download()}>{t("下载图片", "Download image")}</button></div>
     </div>

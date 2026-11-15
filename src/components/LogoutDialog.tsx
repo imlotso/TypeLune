@@ -1,3 +1,4 @@
+import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useState, type FormEvent } from 'react';
 import type { User } from '../lib/api';
@@ -63,14 +64,14 @@ export function LogoutDialog({ user, pendingCount, syncState, syncError, initial
         {workspaceRisk && <p className="form-error">{pendingCount != null && pendingCount > 0 ? t(`${pendingCount} 项资料尚未同步，清理后将丢失。`, `${pendingCount} unsynced items will be lost if cleared.`) : t("无法确认工作区是否存在未同步资料。", "Could not confirm whether the workspace has unsynced data.")}</p>}
         {legacyRisk.pending > 0 && <p className="form-error">{legacyRisk.pending} {t("项本机练习资料未确认同步，清理后将丢失。", "local practice items are not confirmed synced and will be lost.")}</p>}
         {legacyRisk.unknown && <p className="form-error">{t("部分本机旧版练习资料无法确认，请先导出或检查。", "Some legacy local data could not be checked. Export or inspect it first.")}</p>}
-        {atRisk && syncError && <p className="feature-muted">{syncError}</p>}
+        {atRisk && syncError && <p className="feature-muted">{<SystemMessage text={syncError} />}</p>}
         <div className="feature-actions"><button type="button" className="outline-button" disabled={busy || syncState === 'syncing' || syncState === 'loading'} onClick={() => void onSync()}>{t("立即同步", "Sync now")}</button>
           <button type="button" className="outline-button" disabled={busy} onClick={() => void exportData()}>{t("导出个人数据", "Export personal data")}</button>
           {atRisk && <button type="button" className="outline-button" disabled={busy} onClick={() => void exportData(true)}>{t("导出本机资料", "Export local data")}</button>}</div>
         <label className="settings-check"><input type="checkbox" checked={abandon} disabled={busy} onChange={(event) => setAbandon(event.target.checked)} />{atRisk ? t("确认放弃未同步资料", "Discard unsynced data") : t("确认清除本机数据", "Confirm clearing local data")}</label>
       </>}
-      {notice && <p className="form-notice" role="status">{notice}</p>}
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {notice && <p className="form-notice" role="status">{<SystemMessage text={notice} />}</p>}
+      {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
       <div className="feature-actions"><button type="button" className="outline-button" disabled={busy} onClick={onClose}>{t("取消", "Cancel")}</button>
         <button className="primary-button" disabled={busy || (clear && !abandon)}>{t("确认退出", "Confirm sign out")}</button></div>
     </form>
