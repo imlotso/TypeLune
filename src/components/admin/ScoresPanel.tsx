@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Difficulty, Language } from '../../data/articles';
 import type { PracticeMode } from '../../lib/models';
+import { localDateBoundary } from '../../lib/local-date-range';
 import { Dialog } from '../Dialog';
 import {
   adminWrite, ConfirmationForm, DateTime, difficulties, languages, LoadState, Pagination, QueryField, reasonLabels,
@@ -16,16 +17,6 @@ type ScoreRow = {
 const statuses = { pending: '待审核', published: '已发布', rejected: '已拒绝', removed: '已下架' };
 const actions = { approve: '通过', reject: '拒绝', remove: '下架' };
 type Action = keyof typeof actions;
-
-function localDate(value: string, nextDay = false) {
-  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return undefined;
-  const [year, month, day] = value.split('-').map(Number);
-  if (year < 1970 || year > 9999) return undefined;
-  const date = new Date(year, month - 1, day);
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return undefined;
-  if (nextDay) date.setDate(date.getDate() + 1);
-  return date.getTime();
-}
 
 function permitted(status: string): Action[] {
   if (status === 'pending') return ['approve', 'reject'];
@@ -59,8 +50,8 @@ export function ScoresPanel({ ownerId }: AdminProps) {
   }
 
   function applyDates() {
-    const from = dateFrom ? localDate(dateFrom) : undefined;
-    const to = dateTo ? localDate(dateTo, true) : undefined;
+    const from = dateFrom ? localDateBoundary(dateFrom) : undefined;
+    const to = dateTo ? localDateBoundary(dateTo, true) : undefined;
     if ((dateFrom && from === undefined) || (dateTo && to === undefined) || (from !== undefined && to !== undefined && from >= to)) {
       setDateError('请选择有效的日期范围'); return;
     }
