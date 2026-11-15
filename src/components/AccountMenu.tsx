@@ -1,3 +1,4 @@
+import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState } from 'react';
 import { CaretDown } from '@phosphor-icons/react/CaretDown';
 import type { User } from '../lib/api';
@@ -9,6 +10,8 @@ type Props = {
 };
 
 export function AccountMenu({ user, disabled, onAccount, onRecords, onData, onFeedback, onLogout, onAdministration }: Props) {
+  const { t, locale } = useI18n();
+
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -34,12 +37,12 @@ export function AccountMenu({ user, disabled, onAccount, onRecords, onData, onFe
         (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
       items[next]?.focus();
     }}>
-      <button role="menuitem" tabIndex={-1} onClick={() => choose(onAccount)}>账号设置</button>
-      <button role="menuitem" tabIndex={-1} onClick={() => choose(onRecords)}>我的记录</button>
-      <button role="menuitem" tabIndex={-1} onClick={() => choose(onData)}>个人数据</button>
-      <button role="menuitem" tabIndex={-1} onClick={() => choose(onFeedback)}>我的反馈</button>
-      {onAdministration && <button role="menuitem" tabIndex={-1} onClick={() => choose(onAdministration)}>返回后台</button>}
-      <button role="menuitem" tabIndex={-1} onClick={() => choose(onLogout)}>退出登录</button>
+      <button role="menuitem" tabIndex={-1} onClick={() => choose(onAccount)}>{t("账号设置", "Account settings")}</button>
+      <button role="menuitem" tabIndex={-1} onClick={() => choose(onRecords)}>{t("我的记录", "My history")}</button>
+      <button role="menuitem" tabIndex={-1} onClick={() => choose(onData)}>{t("个人数据", "Personal data")}</button>
+      <button role="menuitem" tabIndex={-1} onClick={() => choose(onFeedback)}>{t("我的反馈", "My feedback")}</button>
+      {onAdministration && <button role="menuitem" tabIndex={-1} onClick={() => choose(onAdministration)}>{t("返回后台", "Back to admin")}</button>}
+      <button role="menuitem" tabIndex={-1} onClick={() => choose(onLogout)}>{t("退出登录", "Sign out")}</button>
     </div>}
   </div>;
 }

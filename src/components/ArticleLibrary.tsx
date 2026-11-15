@@ -1,3 +1,4 @@
+import { useI18n } from '../lib/i18n';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Books } from '@phosphor-icons/react/Books';
 import { FileText } from '@phosphor-icons/react/FileText';
@@ -22,21 +23,14 @@ type Props = {
   initialTab?: 'all' | 'favorites' | 'private';
 };
 
-const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
-const libraryTabs = { all: '全部', favorites: '收藏', private: '我的文章' } as const;
-const lengthRanges = [
-  { min: 0, max: 999, label: '少于 1,000' },
-  { min: 1000, max: 1999, label: '1,000–1,999' },
-  { min: 2000, max: Infinity, label: '2,000 以上' },
-];
 
 const emotionsOf = (article: ArticleSnapshot) => article.theme?.split(/[与、]/u).map((part) => part.trim()).filter(Boolean) ?? [];
 const normalizeText = (value: string) => value.replace(/^\uFEFF/u, '').replace(/\r\n?/gu, '\n').normalize('NFC');
 
-function validateText(text: string) {
-  if (!text.trim()) return '请输入正文';
-  if (text.length > MAX_PRIVATE_CHARACTERS) return '正文不能超过 20,000 字符';
-  if (new TextEncoder().encode(text).length > MAX_PRIVATE_BYTES) return '正文不能超过 100 KB';
+function validateText(text: string, t: (zh: string, en: string) => string) {
+  if (!text.trim()) return t("请输入正文", "Enter article text");
+  if (text.length > MAX_PRIVATE_CHARACTERS) return t("正文不能超过 20,000 字符", "Text must not exceed 20,000 characters");
+  if (new TextEncoder().encode(text).length > MAX_PRIVATE_BYTES) return t("正文不能超过 100 KB", "Text must not exceed 100 KB");
   return '';
 }
 
@@ -49,14 +43,14 @@ function privateArticleId() {
   return `my-${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-function readTxt(file: File) {
+function readTxt(file: File, t: (zh: string, en: string) => string) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       try { resolve(new TextDecoder('utf-8', { fatal: true }).decode(reader.result as ArrayBuffer)); }
-      catch { reject(new Error('TXT 编码须为 UTF-8')); }
+      catch { reject(new Error(t("TXT 编码须为 UTF-8", "TXT must use UTF-8 encoding"))); }
     };
-    reader.onerror = () => reject(new Error('无法读取 TXT'));
+    reader.onerror = () => reject(new Error(t("无法读取 TXT", "Could not read TXT")));
     reader.readAsArrayBuffer(file);
   });
 }
@@ -67,6 +61,9 @@ function ArticleEditor({ article, initialLanguage, onSave, onClose }: {
   onSave: (article: PrivateArticle) => Promise<void>;
   onClose: () => void;
 }) {
+  const { t, locale } = useI18n();
+const difficultyNames: Record<Difficulty, string> = { beginner: t("入门", "Beginner"), intermediate: t("进阶", "Intermediate"), advanced: t("挑战", "Advanced") };
+
   const [title, setTitle] = useState(article?.title ?? '');
   const [language, setLanguage] = useState(article?.language ?? initialLanguage);
   const [difficulty, setDifficulty] = useState<Difficulty>(article?.difficulty ?? 'beginner');
@@ -100,18 +97,18 @@ function ArticleEditor({ article, initialLanguage, onSave, onClose }: {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (!/\.txt$/iu.test(file.name)) { setError('请选择 TXT 文件'); return; }
-    if (file.size > MAX_PRIVATE_BYTES) { setError('TXT 文件不能超过 100 KB'); return; }
+    if (!/\.txt$/iu.test(file.name)) { setError(t("请选择 TXT 文件", "Choose a TXT file")); return; }
+    if (file.size > MAX_PRIVATE_BYTES) { setError(t("TXT 文件不能超过 100 KB", "TXT must not exceed 100 KB")); return; }
     setBusy(true);
     setError('');
     try {
-      const text = normalizeText(await readTxt(file));
-      const invalid = validateText(text);
+      const text = normalizeText(await readTxt(file, t));
+      const invalid = validateText(text, t);
       if (invalid) { setError(invalid); return; }
       if (body && body !== text) setConfirmation({ type: 'replace', text, filename: file.name });
       else applyImport(text, file.name);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '无法读取 TXT');
+      setError(reason instanceof Error ? reason.message : t("无法读取 TXT", "Could not read TXT"));
     } finally {
       setBusy(false);
     }
@@ -122,7 +119,7 @@ function ArticleEditor({ article, initialLanguage, onSave, onClose }: {
     if (busy) return;
     const cleanTitle = title.trim();
     const text = normalizeText(body);
-    const invalid = cleanTitle ? validateText(text) : '请输入标题';
+    const invalid = cleanTitle ? validateText(text, t) : t("请输入标题", "Enter a title");
     if (invalid) { setError(invalid); return; }
     setBusy(true);
     setError('');
@@ -130,38 +127,47 @@ function ArticleEditor({ article, initialLanguage, onSave, onClose }: {
       const id = article?.id ?? privateArticleId();
       await onSave({ ...article, id, title: cleanTitle, language, difficulty, text, custom: true });
     } catch {
-      setError('保存失败');
+      setError(t("保存失败", "Could not save"));
       setBusy(false);
     }
   }
 
-  const dialogTitle = confirmation?.type === 'discard' ? '放弃未保存的修改？' : confirmation?.type === 'replace' ? '替换当前正文？' : article ? '编辑文章' : '新建文章';
+  const dialogTitle = confirmation?.type === 'discard' ? t("放弃未保存的修改？", "Discard unsaved changes?") : confirmation?.type === 'replace' ? t("替换当前正文？", "Replace current text?") : article ? t("编辑文章", "Edit article") : t("新建文章", "New article");
   return <Dialog title={dialogTitle} onClose={closeEditor} dismissible={!busy}>
     {confirmation ? <div className="feature-form">
-      <p>{confirmation.type === 'discard' ? '未保存的文章修改将丢失。' : '当前正文将被 TXT 内容替换。'}</p>
+      <p>{confirmation.type === 'discard' ? t("未保存的文章修改将丢失。", "Unsaved article changes will be lost.") : t("当前正文将被 TXT 内容替换。", "The TXT content will replace the current text.")}</p>
       <div className="feature-actions">
-        <button ref={safeAction} type="button" className="outline-button" onClick={() => setConfirmation(undefined)}>{confirmation.type === 'discard' ? '继续编辑' : '取消'}</button>
-        <button type="button" className="primary-button" onClick={() => confirmation.type === 'discard' ? onClose() : applyImport(confirmation.text, confirmation.filename)}>{confirmation.type === 'discard' ? '放弃修改' : '替换正文'}</button>
+        <button ref={safeAction} type="button" className="outline-button" onClick={() => setConfirmation(undefined)}>{confirmation.type === 'discard' ? t("继续编辑", "Keep editing") : t("取消", "Cancel")}</button>
+        <button type="button" className="primary-button" onClick={() => confirmation.type === 'discard' ? onClose() : applyImport(confirmation.text, confirmation.filename)}>{confirmation.type === 'discard' ? t("放弃修改", "Discard changes") : t("替换正文", "Replace text")}</button>
       </div>
     </div> : <form className="feature-form" onSubmit={submit}>
-      <label>标题<input value={title} maxLength={200} disabled={busy} onChange={(event) => setTitle(event.target.value)} /></label>
+      <label>{t("标题", "Title")}<input value={title} maxLength={200} disabled={busy} onChange={(event) => setTitle(event.target.value)} /></label>
       <div className="feature-form-pair">
-        <label>语言<select value={language} disabled={busy} onChange={(event) => setLanguage(event.target.value as Language)}><option value="zh">中文</option><option value="en">English</option></select></label>
-        <label>难度<select value={difficulty} disabled={busy} onChange={(event) => setDifficulty(event.target.value as Difficulty)}>{Object.entries(difficultyNames).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
+        <label>{t("语言", "Article language")}<select value={language} disabled={busy} onChange={(event) => setLanguage(event.target.value as Language)}><option value="zh">{t("中文", "Chinese")}</option><option value="en">English</option></select></label>
+        <label>{t("难度", "Difficulty")}<select value={difficulty} disabled={busy} onChange={(event) => setDifficulty(event.target.value as Difficulty)}>{Object.entries(difficultyNames).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
       </div>
-      <label>正文<textarea ref={bodyField} value={body} rows={7} disabled={busy} onChange={(event) => setBody(event.target.value)} /></label>
-      <span className="feature-muted feature-editor-count">{splitCharacters(body.slice(0, MAX_PRIVATE_CHARACTERS + 1)).length.toLocaleString()} 字符</span>
-      <label className="feature-file"><span><FileText size={16} /> 导入 TXT</span><input type="file" accept=".txt,text/plain" disabled={busy} onChange={(event) => void importTxt(event)} /></label>
+      <label>{t("正文", "Text")}<textarea ref={bodyField} value={body} rows={7} disabled={busy} onChange={(event) => setBody(event.target.value)} /></label>
+      <span className="feature-muted feature-editor-count">{splitCharacters(body.slice(0, MAX_PRIVATE_CHARACTERS + 1)).length.toLocaleString()} {t("字符", "characters")}</span>
+      <label className="feature-file"><span><FileText size={16} /> {t("导入 TXT", "Import TXT")}</span><input type="file" accept=".txt,text/plain" disabled={busy} onChange={(event) => void importTxt(event)} /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="feature-actions">
-        <button type="button" className="outline-button" disabled={busy} onClick={closeEditor}>取消</button>
-        <button type="submit" className="primary-button" disabled={busy}>保存</button>
+        <button type="button" className="outline-button" disabled={busy} onClick={closeEditor}>{t("取消", "Cancel")}</button>
+        <button type="submit" className="primary-button" disabled={busy}>{t("保存", "Save")}</button>
       </div>
     </form>}
   </Dialog>;
 }
 
 export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect, onOpenArticle, onSave, onDelete, initialTab = 'all' }: Props) {
+  const { t, locale } = useI18n();
+const difficultyNames: Record<Difficulty, string> = { beginner: t("入门", "Beginner"), intermediate: t("进阶", "Intermediate"), advanced: t("挑战", "Advanced") };
+const libraryTabs = { all: t("全部", "All"), favorites: t("收藏", "Favorites"), private: t("我的文章", "My articles") } as const;
+const lengthRanges = [
+  { min: 0, max: 999, label: t("少于 1,000", "Under 1,000") },
+  { min: 1000, max: 1999, label: '1,000–1,999' },
+  { min: 2000, max: Infinity, label: t("2,000 以上", "2,000 or more") },
+];
+
   const [language, setLanguage] = useState<Language>('zh');
   const [tab, setTab] = useState<keyof typeof libraryTabs>(initialTab);
   const [search, setSearch] = useState('');
@@ -213,25 +219,25 @@ export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect
 
   return <section className="content-panel library feature-panel">
     <div className="content-heading">
-      <h1><Books size={25} aria-hidden="true" /> 文章库</h1>
-      <button className="outline-button feature-action-button" onClick={() => setEditor(null)}><Plus size={16} aria-hidden="true" /> 新建文章</button>
+      <h1><Books size={25} aria-hidden="true" /> {t("文章库", "Library")}</h1>
+      <button className="outline-button feature-action-button" onClick={() => setEditor(null)}><Plus size={16} aria-hidden="true" /> {t("新建文章", "New article")}</button>
     </div>
     <div className="feature-toolbar">
-      <div className="segmented feature-segments" role="group" aria-label="文章语言">
-        <button aria-pressed={language === 'zh'} onClick={() => { setLanguage('zh'); setEmotion(''); }}>中文</button>
+      <div className="segmented feature-segments" role="group" aria-label={t("文章语言", "Article language")}>
+        <button aria-pressed={language === 'zh'} onClick={() => { setLanguage('zh'); setEmotion(''); }}>{t("中文", "Chinese")}</button>
         <button aria-pressed={language === 'en'} onClick={() => { setLanguage('en'); setEmotion(''); }}>English</button>
       </div>
-      <div className="segmented feature-segments" role="group" aria-label="文章分类">
+      <div className="segmented feature-segments" role="group" aria-label={t("文章分类", "Article collection")}>
         {Object.entries(libraryTabs).map(([key, name]) => <button key={key} aria-pressed={tab === key} onClick={() => setTab(key as keyof typeof libraryTabs)}>{name}</button>)}
       </div>
     </div>
     <div className="feature-filters">
-      <label>搜索<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-      <label>情绪<select value={emotion} onChange={(event) => setEmotion(event.target.value)}><option value="">全部</option>{themes.map((value) => <option key={value}>{value}</option>)}</select></label>
-      <label>难度<select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">全部</option>{Object.entries(difficultyNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
-      <label>篇幅<select value={length} onChange={(event) => setLength(event.target.value)}><option value="">全部</option>{lengthRanges.map(({ label }, index) => <option key={label} value={index}>{label}</option>)}</select></label>
+      <label>{t("搜索", "Search")}<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+      <label>{t("情绪", "Mood")}<select value={emotion} onChange={(event) => setEmotion(event.target.value)}><option value="">{t("全部", "All")}</option>{themes.map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label>{t("难度", "Difficulty")}<select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">{t("全部", "All")}</option>{Object.entries(difficultyNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
+      <label>{t("篇幅", "Length")}<select value={length} onChange={(event) => setLength(event.target.value)}><option value="">{t("全部", "All")}</option>{lengthRanges.map(({ label }, index) => <option key={label} value={index}>{label}</option>)}</select></label>
     </div>
-    {!matches.length ? <p className="empty-state">暂无匹配文章</p> : <ul className="feature-list">
+    {!matches.length ? <p className="empty-state">{t("暂无匹配文章", "No matching articles")}</p> : <ul className="feature-list">
       {matches.map(({ article, size }) => <li key={article.id} className="feature-row">
         <div className="feature-row-main">
           <h2>{article.title}</h2>
@@ -239,29 +245,29 @@ export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect
             {article.author && <span>{article.author}</span>}
             {article.theme && <span>{article.theme}</span>}
             <span>{difficultyNames[article.difficulty]}</span>
-            <span>{size.toLocaleString()} {language === 'zh' ? '字' : '词'}</span>
-            {article.source && /^https?:\/\//iu.test(article.source.url) && <a href={article.source.url} target="_blank" rel="noreferrer" aria-label={`查看《${article.title}》原文`}>原文</a>}
+            <span>{size.toLocaleString()} {language === 'zh' ? t("字", "characters") : t("词", "words")}</span>
+            {article.source && /^https?:\/\//iu.test(article.source.url) && <a href={article.source.url} target="_blank" rel="noreferrer" aria-label={t(`查看《${article.title}》原文`, `Source for ${article.title}`)}>{t("原文", "Source")}</a>}
           </div>
         </div>
         <div className="feature-actions">
-          <button className="icon-button feature-star" aria-label={`收藏《${article.title}》`} aria-pressed={favoriteIds.has(article.id)} onClick={() => onToggleFavorite(article.id)}><Star size={19} weight={favoriteIds.has(article.id) ? 'fill' : 'regular'} aria-hidden="true" /></button>
+          <button className="icon-button feature-star" aria-label={t(`收藏《${article.title}》`, `Favorite ${article.title}`)} aria-pressed={favoriteIds.has(article.id)} onClick={() => onToggleFavorite(article.id)}><Star size={19} weight={favoriteIds.has(article.id) ? 'fill' : 'regular'} aria-hidden="true" /></button>
           {article.custom && <>
-            <button className="icon-button" aria-label={`编辑《${article.title}》`} onClick={() => setEditor({ ...article, custom: true })}><PencilSimple size={19} aria-hidden="true" /></button>
-            <button className="icon-button" aria-label={`删除《${article.title}》`} onClick={() => { setDeleting(article); setDeleteError(false); }}><Trash size={19} aria-hidden="true" /></button>
+            <button className="icon-button" aria-label={t(`编辑《${article.title}》`, `Edit ${article.title}`)} onClick={() => setEditor({ ...article, custom: true })}><PencilSimple size={19} aria-hidden="true" /></button>
+            <button className="icon-button" aria-label={t(`删除《${article.title}》`, `Delete ${article.title}`)} onClick={() => { setDeleting(article); setDeleteError(false); }}><Trash size={19} aria-hidden="true" /></button>
           </>}
-          {!article.custom && onOpenArticle && <button type="button" className="text-button" aria-label={`查看《${article.title}》`} onClick={() => onOpenArticle(article.id)}>详情</button>}
-          <button className="outline-button feature-action-button" aria-label={`练习《${article.title}》`} onClick={() => onSelect(article)}>练习</button>
+          {!article.custom && onOpenArticle && <button type="button" className="text-button" aria-label={t(`查看《${article.title}》`, `View ${article.title}`)} onClick={() => onOpenArticle(article.id)}>{t("详情", "Details")}</button>}
+          <button className="outline-button feature-action-button" aria-label={t(`练习《${article.title}》`, `Practice ${article.title}`)} onClick={() => onSelect(article)}>{t("练习", "Practice")}</button>
         </div>
       </li>)}
     </ul>}
     {editor !== undefined && <ArticleEditor article={editor} initialLanguage={language} onSave={saveArticle} onClose={() => setEditor(undefined)} />}
-    {deleting && <Dialog title={`删除《${deleting.title}》？`} onClose={() => { if (!deletePending) setDeleting(undefined); }}>
+    {deleting && <Dialog title={t(`删除《${deleting.title}》？`, `Delete ${deleting.title}?`)} onClose={() => { if (!deletePending) setDeleting(undefined); }}>
       <div className="feature-form">
-        <p>已有草稿和历史记录保留原文章快照。</p>
-        {deleteError && <p className="form-error" role="alert">删除失败</p>}
+        <p>{t("已有草稿和历史记录保留原文章快照。", "Existing drafts and history keep the original article snapshot.")}</p>
+        {deleteError && <p className="form-error" role="alert">{t("删除失败", "Deletion failed")}</p>}
         <div className="feature-actions">
-          <button className="outline-button" disabled={deletePending} onClick={() => setDeleting(undefined)}>取消</button>
-          <button className="primary-button" disabled={deletePending} onClick={() => void deleteArticle()}>删除</button>
+          <button className="outline-button" disabled={deletePending} onClick={() => setDeleting(undefined)}>{t("取消", "Cancel")}</button>
+          <button className="primary-button" disabled={deletePending} onClick={() => void deleteArticle()}>{t("删除", "Delete")}</button>
         </div>
       </div>
     </Dialog>}

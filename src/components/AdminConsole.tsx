@@ -1,3 +1,4 @@
+import { useAdminText } from './admin/i18n';
 import { useState } from 'react';
 import { ShieldCheck } from '@phosphor-icons/react/ShieldCheck';
 import { ArticlesPanel } from './admin/ArticlesPanel';
@@ -23,36 +24,39 @@ const labels = {
 type Overview = { metrics: Record<keyof typeof labels, number>; recentActions: Audit[] };
 
 function OverviewPanel({ ownerId }: AdminProps) {
+  const { at } = useAdminText();
   const { data, error, retry } = useAdminResource<Overview>(ownerId, '/overview');
   if (!data) return <LoadState error={error} retry={retry} />;
   return <>
-    <Metrics entries={(Object.keys(labels) as (keyof typeof labels)[]).map((key) => [labels[key], data.metrics[key]])} />
-    <h2 className="admin-section-heading">最近操作</h2>
-    <AuditRows entries={data.recentActions} label="最近操作列表" />
+    <Metrics entries={(Object.keys(labels) as (keyof typeof labels)[]).map((key) => [at(labels[key]), data.metrics[key]])} />
+    <h2 className="admin-section-heading">{at("最近操作")}</h2>
+    <AuditRows entries={data.recentActions} label={at("最近操作列表")} />
   </>;
 }
 
 function AuditPanel({ ownerId }: AdminProps) {
+  const { at } = useAdminText();
   const list = useAdminList<Audit>(ownerId, '/audit');
   return <>
     <div className="admin-filters feature-filters">
-      <QueryField label="管理员、对象或原因" onSearch={(value) => list.filter('q', value)} />
-      <SelectField label="对象类型" options={Object.entries(targets)} all value={list.filters.targetType ?? ''} onChange={(value) => list.filter('targetType', value)} />
+      <QueryField label={at("管理员、对象或原因")} onSearch={(value) => list.filter('q', value)} />
+      <SelectField label={at("对象类型")} options={Object.entries(targets)} all value={list.filters.targetType ?? ''} onChange={(value) => list.filter('targetType', value)} />
     </div>
     {!list.data ? <LoadState error={list.error} retry={list.retry} /> : <>
-      <AuditRows entries={list.data.entries} label="操作日志列表" />
+      <AuditRows entries={list.data.entries} label={at("操作日志列表")} />
       <Pagination data={list.data} setPage={list.setPage} />
     </>}
   </>;
 }
 
 export function AdminConsole({ ownerId, onCatalogChange }: AdminProps & { onCatalogChange: () => void }) {
+  const { at } = useAdminText();
   const [tab, setTab] = useState<Tab>('overview');
   const [articleFromFeedback, setArticleFromFeedback] = useState<string>();
   return <section className="content-panel feature-panel admin-console">
-    <div className="content-heading"><h1><ShieldCheck size={25} aria-hidden="true" />管理后台</h1></div>
-    <nav className="admin-navigation" aria-label="后台栏目">
-      {tabs.map(([value, label]) => <button key={value} aria-current={tab === value ? 'page' : undefined} onClick={() => setTab(value)}>{label}</button>)}
+    <div className="content-heading"><h1><ShieldCheck size={25} aria-hidden="true" />{at("管理后台")}</h1></div>
+    <nav className="admin-navigation" aria-label={at("后台栏目")}>
+      {tabs.map(([value, label]) => <button key={value} aria-current={tab === value ? 'page' : undefined} onClick={() => setTab(value)}>{at(label)}</button>)}
     </nav>
     <div className="admin-panel" key={ownerId}>
       {tab === 'overview' && <OverviewPanel ownerId={ownerId} />}

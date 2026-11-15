@@ -48,3 +48,27 @@ export const termsSections = [
   ['成绩与服务', '公开成绩以服务端校验和审核结果为准。网络、邮件服务或设备存储异常可能影响同步及部分功能。'],
   ['联系', '可通过站内反馈或关于页面的联系邮箱与运营方联系。'],
 ] as const;
+
+export const infoLabelsEn: Record<InfoPage, string> = { help: 'Help', about: 'About & contact', privacy: 'Privacy', terms: 'Terms' };
+export const helpSectionsEn = [
+ ['Account', 'Use the sign-in entry to register, sign in or reset your password. Account settings let you change your username, email, password and public profile, and manage signed-in devices. Email verification requires an available mail service.'],
+ ['Practice', 'Timing begins with your first input or IME composition, not focus alone. Pauses do not count as active time. Enable strict correction in settings and resume unfinished long articles from Drafts.'],
+ ['Speed', 'Chinese speed is correct characters divided by active minutes. English CPM uses the same calculation; WPM is CPM divided by 5. Correct spaces and punctuation count.'],
+ ['Drafts & sync', 'Guest data is stored on this device. Account data is isolated per account and can sync. Local data remains available when sync fails; retry in practice settings. Clear data if storage is full.'],
+ ['Results', 'Public article results are verified by the server. Guest nicknames start with visitor, and guest and user leaderboards are separate. Results may await review or be rejected. Eligible interrupted online practice can try to recover submission from Drafts.'],
+ ['Personal data', 'Delete individual or multiple records to withdraw their linked public results; statistics and personal bests update accordingly. Personal data in the account menu can export JSON or records as CSV, or clear this account from the device and sign out. Sync, export or explicitly discard unsynced content first. Account settings also allow account deletion; export your data beforehand.'],
+] as const;
+export const privacySectionsEn = [
+ ['Account & verification', 'Registration stores a username, email, password hash and necessary authentication data. Verification codes and sessions are checked using digests. Sessions record approximate browser and operating-system information and the latest request time. The mail service sends account verification codes.'],
+ ['Practice data', 'Your browser stores drafts, records, settings, favorites, private articles and backgrounds. Signed-in data can sync to your account workspace; guest data stays local. Online practice also submits progress and results to the server for verification.'],
+ ['Public results', 'Public leaderboards show nicknames, results and practice conditions, not email addresses. Guest entries use the nickname provided on submission.'],
+ ['Feedback screenshots', 'Submitted feedback, screenshots and updates are stored on the server and are visible only to the submitter and authorized administrators. Internal notes are visible only to administrators.'],
+ ['Data processing', 'The server uses necessary cookies for sessions and guest practice, and processes request information for access control and rate limiting. Management operations are recorded in audit events.'],
+ ['Deletion & contact', 'Deleting records withdraws their linked public results. The server retains necessary random record identifiers and deletion registrations to prevent old devices from uploading them again or restoring results. Account deletion removes the account, its cloud data and related deletion registrations. Offline devices and existing backup copies are not cleared immediately. Contact the operator through site feedback or the email on the About page.'],
+] as const;
+export const termsSectionsEn = [
+ ['Scope', 'This service provides Chinese and English typing practice, personal data sync and public results. Follow applicable laws and respect the rights of article authors and sources.'],
+ ['User content', 'Private articles and feedback are provided by their submitters. Submit only content you have the right to use. Do not upload unlawful content or other people’s sensitive information.'],
+ ['Results & service', 'Public results are subject to server verification and review. Network, mail-service or device-storage failures may affect sync and some features.'],
+ ['Contact', 'Contact the operator through site feedback or the email on the About page.'],
+] as const;

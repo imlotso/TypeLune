@@ -14,6 +14,7 @@ export default defineConfig({
     browserName: 'chromium',
     channel: process.env.PLAYWRIGHT_USE_SYSTEM_CHROME === '1' ? 'chrome' : undefined,
     colorScheme: 'light',
+    locale: 'zh-CN',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

@@ -1,3 +1,4 @@
+import { useI18n } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import { Crown } from '@phosphor-icons/react/Crown';
 import { Trophy } from '@phosphor-icons/react/Trophy';
@@ -16,7 +17,6 @@ type Props = {
   onAddressChange?: (address: string) => void;
 };
 
-const difficulties: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
 const validEntry = (value: unknown): value is RankingEntry => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
@@ -47,6 +47,9 @@ function initialFilters(initial: Filters, ownerId: string | null) {
 }
 
 export function RankingView({ initial, articles, isAdmin, ownerId, onAddressChange }: Props) {
+  const { t, locale } = useI18n();
+const difficulties: Record<Difficulty, string> = { beginner: t("入门", "Beginner"), intermediate: t("进阶", "Intermediate"), advanced: t("挑战", "Advanced") };
+
   const [selected] = useState(() => initialFilters(initial, ownerId));
   const [language, setLanguage] = useState<Language>(selected.language);
   const [difficulty, setDifficulty] = useState<Difficulty>(selected.difficulty);
@@ -84,7 +87,7 @@ export function RankingView({ initial, articles, isAdmin, ownerId, onAddressChan
     const controller = new AbortController();
     setFailure(undefined);
     api<Board>(`/api/leaderboard?${request}`, { signal: controller.signal, headers: ownerId ? { 'X-Workspace-Owner': ownerId } : undefined }).then((data) => {
-      if (!validBoard(data)) throw new Error('排行榜数据无法读取');
+      if (!validBoard(data)) throw new Error(t("排行榜数据无法读取", "Could not read leaderboard data"));
       if (!controller.signal.aborted) setBoard({ query: identity, data });
     }).catch((error) => {
       if (!controller.signal.aborted) setFailure({ query: identity, message: (error as Error).message });
@@ -110,57 +113,57 @@ export function RankingView({ initial, articles, isAdmin, ownerId, onAddressChan
 
   const data = board?.query === identity ? board.data : undefined;
   const error = failure?.query === identity ? failure.message : '';
-  const unit = language === 'zh' ? '字/分' : 'WPM';
+  const unit = language === 'zh' ? t("字/分", "chars/min") : 'WPM';
 
   return <section className="content-panel feature-panel rankings">
-    <div className="content-heading"><h1><Trophy size={25} aria-hidden="true" /> 排行榜</h1>{!!data?.total && <span className="count-chip">{data.total} 名</span>}</div>
+    <div className="content-heading"><h1><Trophy size={25} aria-hidden="true" /> {t("排行榜", "Leaderboard")}</h1>{!!data?.total && <span className="count-chip">{data.total} {t("名", "players")}</span>}</div>
     <div className="feature-toolbar">
-      <div className="segmented feature-segments" role="group" aria-label="排行榜类型">
-        <button aria-pressed={boardKind === 'guest'} onClick={() => setBoardKind('guest')}>游客榜</button>
-        <button aria-pressed={boardKind === 'user'} onClick={() => setBoardKind('user')}>用户榜</button>
+      <div className="segmented feature-segments" role="group" aria-label={t("排行榜类型", "Leaderboard type")}>
+        <button aria-pressed={boardKind === 'guest'} onClick={() => setBoardKind('guest')}>{t("游客榜", "Guests")}</button>
+        <button aria-pressed={boardKind === 'user'} onClick={() => setBoardKind('user')}>{t("用户榜", "Members")}</button>
       </div>
-      <div className="segmented feature-segments" role="group" aria-label="排行语言">
-        <button aria-pressed={language === 'zh'} onClick={() => { setLanguage('zh'); setArticleId(''); }}>中文</button>
+      <div className="segmented feature-segments" role="group" aria-label={t("排行语言", "Article language")}>
+        <button aria-pressed={language === 'zh'} onClick={() => { setLanguage('zh'); setArticleId(''); }}>{t("中文", "Chinese")}</button>
         <button aria-pressed={language === 'en'} onClick={() => { setLanguage('en'); setArticleId(''); }}>English</button>
       </div>
-      <label className="ranking-strict"><input type="checkbox" checked={strict} onChange={(event) => setStrict(event.target.checked)} />严格纠错</label>
+      <label className="ranking-strict"><input type="checkbox" checked={strict} onChange={(event) => setStrict(event.target.checked)} />{t("严格纠错", "Strict correction")}</label>
     </div>
     <div className="feature-filters ranking-filters">
-      <label>难度<select value={difficulty} onChange={(event) => { setDifficulty(event.target.value as Difficulty); setArticleId(''); }}>{Object.entries(difficulties).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
-      <label>排行时段<select value={period} onChange={(event) => setPeriod(event.target.value)}><option value="all">全部</option><option value="week">近 7 天</option><option value="month">近 30 天</option></select></label>
-      <label>练习模式<select value={mode} onChange={(event) => setMode(event.target.value as PracticeMode)}><option value="timed">限时</option><option value="article">整篇</option></select></label>
-      {mode === 'timed' && <label>限时（分钟）<input type="number" min={1} max={60} step={1} aria-invalid={!validMinutes} value={minutes} onChange={(event) => setMinutes(event.target.value)} /></label>}
-      <label>文章<select value={articleId} onChange={(event) => setArticleId(event.target.value)}><option value="">全部</option>{articleId && !articles.some((article) => article.id === articleId && article.language === language && article.difficulty === difficulty) && <option value={articleId}>已选文章</option>}{articles.filter((article) => article.language === language && article.difficulty === difficulty).map((article) => <option key={article.id} value={article.id}>{article.title}</option>)}</select></label>
+      <label>{t("难度", "Difficulty")}<select value={difficulty} onChange={(event) => { setDifficulty(event.target.value as Difficulty); setArticleId(''); }}>{Object.entries(difficulties).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
+      <label>{t("排行时段", "Period")}<select value={period} onChange={(event) => setPeriod(event.target.value)}><option value="all">{t("全部", "All")}</option><option value="week">{t("近 7 天", "Last 7 days")}</option><option value="month">{t("近 30 天", "Last 30 days")}</option></select></label>
+      <label>{t("练习模式", "Practice mode")}<select value={mode} onChange={(event) => setMode(event.target.value as PracticeMode)}><option value="timed">{t("限时", "Timed")}</option><option value="article">{t("整篇", "Full article")}</option></select></label>
+      {mode === 'timed' && <label>{t("限时（分钟）", "Time limit (minutes)")}<input type="number" min={1} max={60} step={1} aria-invalid={!validMinutes} value={minutes} onChange={(event) => setMinutes(event.target.value)} /></label>}
+      <label>{t("文章", "Article")}<select value={articleId} onChange={(event) => setArticleId(event.target.value)}><option value="">{t("全部", "All")}</option>{articleId && !articles.some((article) => article.id === articleId && article.language === language && article.difficulty === difficulty) && <option value={articleId}>{t("已选文章", "Selected article")}</option>}{articles.filter((article) => article.language === language && article.difficulty === difficulty).map((article) => <option key={article.id} value={article.id}>{article.title}</option>)}</select></label>
     </div>
-    {!request && <p className="form-error" role="alert">请输入 1–60 的整数</p>}
-    {error && <><p className="form-error" role="alert">{error}</p><button type="button" className="outline-button" onClick={() => setRevision((value) => value + 1)}>重试</button></>}
-    {!!request && !data && !error && <p className="empty-state" role="status">加载中…</p>}
-    {!!data?.displayDays && <p className="feature-muted">显示最近 {data.displayDays} 天成绩</p>}
-    {data?.self && <p className="ranking-self"><strong>我的排名</strong> 第 {data.self.rank} 名 <span>{data.self.speed} {unit} · {data.self.accuracy}%</span></p>}
-    {data && !data.entries.length && <p className="empty-state">暂无成绩</p>}
+    {!request && <p className="form-error" role="alert">{t("请输入 1–60 的整数", "Enter a whole number from 1 to 60")}</p>}
+    {error && <><p className="form-error" role="alert">{error}</p><button type="button" className="outline-button" onClick={() => setRevision((value) => value + 1)}>{t("重试", "Retry")}</button></>}
+    {!!request && !data && !error && <p className="empty-state" role="status">{t("加载中…", "Loading…")}</p>}
+    {!!data?.displayDays && <p className="feature-muted">{t("显示最近 ", "Showing the last  ")}{data.displayDays} {t("天成绩", "days of scores")}</p>}
+    {data?.self && <p className="ranking-self"><strong>{t("我的排名", "My rank")}</strong> {t("第 ", "# ")}{data.self.rank} {t("名 ", "players ")}<span>{data.self.speed} {unit} · {data.self.accuracy}%</span></p>}
+    {data && !data.entries.length && <p className="empty-state">{t("暂无成绩", "No scores yet")}</p>}
     {!!data?.entries.length && <ol className="ranking-list">{data.entries.map((entry, index) => {
       const rank = entry.rank ?? index + 1;
       return <li key={entry.attemptId ?? index} className={entry.mine ? 'rank-mine' : undefined}>
-        <span className={`rank-number rank-${rank}`} aria-label={`第 ${rank} 名`}>{rank <= 3 ? <Crown size={21} weight="fill" aria-hidden="true" /> : rank}</span>
-        <span className="rank-identity"><span className="rank-name">{entry.nickname}</span>{Number.isFinite(entry.createdAt) && Number.isFinite(new Date(entry.createdAt).getTime()) && <time className="rank-time" dateTime={new Date(entry.createdAt).toISOString()}>{new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(entry.createdAt)}</time>}</span>
-        <span className="rank-accuracy">准确率 {entry.accuracy}%</span>
+        <span className={`rank-number rank-${rank}`} aria-label={t(`第 ${rank} 名`, `Rank ${rank}`)}>{rank <= 3 ? <Crown size={21} weight="fill" aria-hidden="true" /> : rank}</span>
+        <span className="rank-identity"><span className="rank-name">{entry.nickname}</span>{Number.isFinite(entry.createdAt) && Number.isFinite(new Date(entry.createdAt).getTime()) && <time className="rank-time" dateTime={new Date(entry.createdAt).toISOString()}>{new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(entry.createdAt)}</time>}</span>
+        <span className="rank-accuracy">{t("准确率 ", "Accuracy ")}{entry.accuracy}%</span>
         <strong>{entry.speed} <small>{unit}</small></strong>
         {isAdmin && <button className="text-button" onClick={() => {
           setReason('');
           setRemoveError('');
           setSelectedScore(entry);
-        }}>下架</button>}
+        }}>{t("下架", "Unpublish")}</button>}
       </li>;
     })}</ol>}
-    {selectedScore && <Dialog title="下架成绩" onClose={() => setSelectedScore(undefined)} dismissible={!removing}>
+    {selectedScore && <Dialog title={t("下架成绩", "Unpublish score")} onClose={() => setSelectedScore(undefined)} dismissible={!removing}>
       <form onSubmit={(event) => { event.preventDefault(); void removeScore(); }}>
         <p className="dialog-intro">{selectedScore.nickname} · {selectedScore.speed} {unit}</p>
-        <label className="custom-editor">原因<textarea value={reason} maxLength={500} disabled={removing}
+        <label className="custom-editor">{t("原因", "Reason")}<textarea value={reason} maxLength={500} disabled={removing}
           onChange={(event) => setReason(event.target.value)} /></label>
         {removeError && <p className="form-error" role="alert">{removeError}</p>}
         <div className="result-actions">
-          <button type="button" className="outline-button" onClick={() => setSelectedScore(undefined)} disabled={removing}>取消</button>
-          <button type="submit" className="primary-button" disabled={!reason.trim() || removing}>确认下架</button>
+          <button type="button" className="outline-button" onClick={() => setSelectedScore(undefined)} disabled={removing}>{t("取消", "Cancel")}</button>
+          <button type="submit" className="primary-button" disabled={!reason.trim() || removing}>{t("确认下架", "Confirm unpublish")}</button>
         </div>
       </form>
     </Dialog>}

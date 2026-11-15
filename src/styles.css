@@ -324,3 +324,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .result-navigation { display: flex; justify-content: flex-start; }
   .result-navigation > button { flex: 1 1 auto; }
 }
+
+/* Interface locale is separate from the practice language selector. */
+.ui-language-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; border: 1px solid #b8afd2; border-radius: 999px; padding: 8px 12px; color: inherit; background: transparent; white-space: nowrap; font-weight: 700; }
+.site-header nav .ui-language-button { padding: 9px 12px; border: 1px solid #b8afd2; font-size: 14px; }
+.ui-language-button:focus-visible { outline: 3px solid #8d7abd; outline-offset: 3px; }
+[data-theme='dark'] .ui-language-button { border-color: #817aa6; }
+@media (max-width: 760px) { .site-header nav .ui-language-button { padding: 8px 10px; font-size: 12px; } }

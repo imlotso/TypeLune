@@ -4,7 +4,7 @@ import { splitCharacters } from './scoring';
 
 export type ShareCardData = { siteName: string; siteUrl: string; language: Language; mode: PracticeMode; duration: number; elapsedMs: number | null;
   speed: number; accuracy: number; correctCpm?: number; nickname: string; title: string; personalBest: boolean };
-export type ShareCardOptions = { showNickname: boolean; showTitle: boolean; theme: 'light' | 'dark' };
+export type ShareCardOptions = { showNickname: boolean; showTitle: boolean; theme: 'light' | 'dark'; locale?: 'zh' | 'en' };
 
 export function makeShareCardData(record: PracticeRecord, siteUrl: string, nickname: string, personalBest: boolean, correctCpm?: number): ShareCardData {
   let url: URL;
@@ -49,6 +49,7 @@ function timeText(milliseconds: number | null) {
 }
 
 export function drawShareCard(canvas: HTMLCanvasElement, data: ShareCardData, options: ShareCardOptions) {
+  const t = (zh:string,en:string)=> options.locale === 'en' ? en : zh;
   canvas.width = 1200; canvas.height = 630;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('无法生成图片');
@@ -64,23 +65,23 @@ export function drawShareCard(canvas: HTMLCanvasElement, data: ShareCardData, op
   ctx.textAlign = 'right'; ctx.fillStyle = color.muted; ctx.font = '500 22px system-ui, sans-serif';
   ctx.fillText(truncateCanvasText(data.siteUrl, 480, (text) => ctx.measureText(text).width), 1090, 110);
   ctx.textAlign = 'left'; ctx.fillStyle = color.ink; ctx.font = '700 36px system-ui, sans-serif';
-  const title = options.showTitle && data.title ? data.title : '练习成绩';
+  const title = options.showTitle && data.title ? data.title : t("练习成绩","Practice result");
   ctx.fillText(truncateCanvasText(title, data.personalBest ? 740 : 980, (text) => ctx.measureText(text).width), 108, 185);
   if (data.personalBest) {
     rounded(ctx, 900, 152, 190, 48, 24); ctx.fillStyle = dark ? '#51447c' : '#eee8fb'; ctx.fill();
-    ctx.fillStyle = color.accent; ctx.font = '700 20px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('个人最佳', 995, 176); ctx.textAlign = 'left';
+    ctx.fillStyle = color.accent; ctx.font = '700 20px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(t("个人最佳","Personal best"), 995, 176); ctx.textAlign = 'left';
   }
-  ctx.fillStyle = color.muted; ctx.font = '600 22px system-ui, sans-serif'; ctx.fillText(data.language === 'zh' ? '速度 · 字/分' : '速度 · WPM', 110, 255); ctx.fillText('准确率', 680, 255);
+  ctx.fillStyle = color.muted; ctx.font = '600 22px system-ui, sans-serif'; ctx.fillText(data.language === 'zh' ? t("速度 · 字/分","Speed · chars/min") : t("速度 · WPM","Speed · WPM"), 110, 255); ctx.fillText(t("准确率","Accuracy"), 680, 255);
   ctx.fillStyle = color.accent; ctx.font = '700 88px system-ui, sans-serif';
   ctx.fillText(truncateCanvasText(String(data.speed), 460, (text) => ctx.measureText(text).width), 105, 330);
   ctx.fillText(truncateCanvasText(`${data.accuracy}%`, 400, (text) => ctx.measureText(text).width), 675, 330);
-  if (data.correctCpm !== undefined) { ctx.fillStyle = color.muted; ctx.font = '500 20px system-ui, sans-serif'; ctx.fillText(`${data.correctCpm} 正确字符/分`, 110, 382); }
+  if (data.correctCpm !== undefined) { ctx.fillStyle = color.muted; ctx.font = '500 20px system-ui, sans-serif'; ctx.fillText(t(`${data.correctCpm} 正确字符/分`,`${data.correctCpm} correct chars/min`), 110, 382); }
   ctx.strokeStyle = color.border; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(110, 413); ctx.lineTo(1090, 413); ctx.stroke();
   ctx.fillStyle = color.ink; ctx.font = '600 25px system-ui, sans-serif';
-  const language = data.language === 'zh' ? '中文' : 'English';
-  const mode = data.mode === 'article' ? '整篇' : `限时 ${data.duration / 60} 分钟`;
-  ctx.fillText(`${language}  ·  ${mode}  ·  用时 ${timeText(data.elapsedMs)}`, 110, 458);
-  ctx.fillStyle = color.muted; ctx.font = '500 22px system-ui, sans-serif'; ctx.fillText('个人成绩', 110, 525);
+  const language = data.language === 'zh' ? t("中文","Chinese") : 'English';
+  const mode = data.mode === 'article' ? t("整篇","Full article") : t(`限时 ${data.duration / 60} 分钟`, `Timed ${data.duration / 60} min`);
+  ctx.fillText(`${language}  ·  ${mode}  ·  ${t("用时","Time")} ${timeText(data.elapsedMs)}`, 110, 458);
+  ctx.fillStyle = color.muted; ctx.font = '500 22px system-ui, sans-serif'; ctx.fillText(t("个人成绩","Personal result"), 110, 525);
   if (options.showNickname && data.nickname.trim()) {
     ctx.textAlign = 'right'; ctx.fillText(truncateCanvasText(data.nickname.trim(), 600, (text) => ctx.measureText(text).width), 1090, 525);
   }

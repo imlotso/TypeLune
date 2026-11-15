@@ -1,3 +1,4 @@
+import { useAdminText } from './i18n';
 import { useState, type FormEvent } from 'react';
 import type { SiteSettings, SiteSettingsSnapshot } from '../../../server/site-settings';
 import { ApiError } from '../../lib/api';
@@ -20,6 +21,7 @@ const thresholdFields = [
 ] as const;
 
 function SiteSettingsForm({ ownerId, initial, reload }: AdminProps & { initial: SiteSettingsSnapshot; reload: () => void }) {
+  const { at } = useAdminText();
   const [saved, setSaved] = useState(initial);
   const [availability, setAvailability] = useState(initial.settings);
   const [thresholds, setThresholds] = useState({
@@ -48,10 +50,10 @@ function SiteSettingsForm({ ownerId, initial, reload }: AdminProps & { initial: 
     try {
       const updated = await adminWrite<SiteSettingsSnapshot>(ownerId, settingsPath, { settings, revision: saved.revision });
       setSaved(updated);
-      setSavedMessage('已保存');
+      setSavedMessage(at('已保存'));
     } catch (problem) {
       setConflict(problem instanceof ApiError && problem.status === 409);
-      setError(problem instanceof Error ? problem.message : '保存失败');
+      setError(problem instanceof Error ? problem.message : at('保存失败'));
     } finally {
       setBusy(false);
     }
@@ -59,7 +61,7 @@ function SiteSettingsForm({ ownerId, initial, reload }: AdminProps & { initial: 
 
   return <form className="feature-form" onSubmit={save}>
     <fieldset className="settings-group" disabled={busy || conflict}>
-      <legend>访问权限</legend>
+      <legend>{at("访问权限")}</legend>
       <div className="feature-form-pair">
         {availabilityFields.map(([field, label]) => <SelectField key={field} label={label} options={availabilityOptions}
           value={availability[field] ? 'on' : 'off'} onChange={(value) => {
@@ -69,20 +71,20 @@ function SiteSettingsForm({ ownerId, initial, reload }: AdminProps & { initial: 
       </div>
     </fieldset>
     <fieldset className="settings-group" disabled={busy || conflict}>
-      <legend>排行榜</legend>
+      <legend>{at("排行榜")}</legend>
       <div className="feature-form-pair">
         {reviewFields.map(([field, label]) => <SelectField key={field} label={label} options={availabilityOptions}
           value={availability[field] ? 'on' : 'off'} onChange={(value) => {
             setSavedMessage(''); setAvailability((previous) => ({ ...previous, [field]: value === 'on' }));
           }} />)}
-        <label>展示天数（0 为全部）<input type="number" min={0} max={3650} step={1} required value={thresholds.leaderboardDisplayDays}
+        <label>{at("展示天数（0 为全部）")}<input type="number" min={0} max={3650} step={1} required value={thresholds.leaderboardDisplayDays}
           onChange={(event) => { const { value } = event.target; setSavedMessage(''); setThresholds((previous) => ({ ...previous, leaderboardDisplayDays: value })); }} /></label>
       </div>
     </fieldset>
     <fieldset className="settings-group" disabled={busy || conflict}>
-      <legend>速度复核阈值</legend>
+      <legend>{at("速度复核阈值")}</legend>
       <div className="feature-form-pair">
-        {thresholdFields.map(([field, label]) => <label key={field}>{label}<input type="number" min={1} max={1000}
+        {thresholdFields.map(([field, label]) => <label key={field}>{at(label)}<input type="number" min={1} max={1000}
           step={1} required value={thresholds[field]} onChange={(event) => {
             const { value } = event.target;
             setSavedMessage('');
@@ -93,13 +95,14 @@ function SiteSettingsForm({ ownerId, initial, reload }: AdminProps & { initial: 
     {error && <p className="form-error" role="alert">{error}</p>}
     {savedMessage && <p className="feature-muted" role="status">{savedMessage}</p>}
     <div className="feature-actions">
-      {conflict && <button type="button" className="outline-button" onClick={reload}>重新加载</button>}
-      <button className="primary-button" disabled={busy || !dirty || conflict}>{busy ? '保存中…' : '保存'}</button>
+      {conflict && <button type="button" className="outline-button" onClick={reload}>{at("重新加载")}</button>}
+      <button className="primary-button" disabled={busy || !dirty || conflict}>{busy ? at('保存中…') : at('保存')}</button>
     </div>
   </form>;
 }
 
 export function SiteSettingsPanel({ ownerId }: AdminProps) {
+
   const { data, error, retry } = useAdminResource<SiteSettingsSnapshot>(ownerId, settingsPath);
   return data ? <SiteSettingsForm ownerId={ownerId} initial={data} reload={retry} /> : <LoadState error={error} retry={retry} />;
 }
