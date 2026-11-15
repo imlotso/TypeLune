@@ -1,3 +1,4 @@
+import { plainMailBody } from './mail-plain-body';
 import { createServer, type Socket } from 'node:net';
 import { expect, it } from 'vitest';
 import { createApp } from '../server/app';
@@ -33,10 +34,7 @@ it('verifies a real local SMTP connection without sending, then sends through SM
     const codeResponse = await app.inject({ method: 'POST', url: '/api/auth/code', payload: { email: 'owner@example.test', purpose: 'register' } });
     expect(codeResponse.statusCode).toBe(200);
     expect(messages).toHaveLength(1);
-    const body = messages[0].split('\r\n\r\n').slice(1).join('\r\n\r\n');
-    const encoding = messages[0].match(/^Content-Transfer-Encoding:\s*(\S+)/imu)?.[1].toLowerCase();
-    const decoded = encoding === 'base64' ? Buffer.from(body.replace(/\s/gu, ''), 'base64').toString('utf8') :
-      encoding === 'quoted-printable' ? Buffer.from(body.replace(/=\r\n/gu, '').replace(/=([a-f0-9]{2})/giu, (_match, hex: string) => String.fromCharCode(parseInt(hex, 16))), 'latin1').toString('utf8') : body;
+    const decoded = plainMailBody(messages[0]);
     const code = decoded.match(/\b\d{6}\b/u)?.[0];
     expect(!!code).toBe(true);
     const registration = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'owner', email: 'owner@example.test', password: 'test-password-123', code } });
