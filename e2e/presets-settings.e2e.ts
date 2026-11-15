@@ -10,7 +10,7 @@ async function settings(page: import('@playwright/test').Page) {
 test('applies a named preset and imports settings without losing a parked practice', async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto('/');
-  await page.getByRole('group', { name: '选择语言' }).getByRole('button', { name: 'English' }).click();
+  await page.getByRole('group', { name: '练习语言' }).getByRole('button', { name: 'English', exact: true }).click();
   await page.getByLabel('测试时间（分钟）').fill('7');
   let dialog = await settings(page);
   await dialog.getByRole('checkbox', { name: '严格纠错' }).click();
@@ -21,7 +21,7 @@ test('applies a named preset and imports settings without losing a parked practi
   await presets.getByRole('button', { name: '保存当前预设' }).click();
   await expect(presets.getByRole('button', { name: '应用 英语专注' })).toBeVisible();
   await presets.getByRole('button', { name: '关闭' }).click();
-  await page.getByRole('group', { name: '选择语言' }).getByRole('button', { name: '中文' }).click();
+  await page.getByRole('group', { name: '练习语言' }).getByRole('button', { name: '中文', exact: true }).click();
   await page.getByLabel('测试时间（分钟）').fill('5');
   dialog = await settings(page);
   await dialog.getByRole('checkbox', { name: '严格纠错' }).click();
@@ -36,7 +36,7 @@ test('applies a named preset and imports settings without losing a parked practi
   await dialog.getByRole('button', { name: '练习预设' }).click();
   presets = page.getByRole('dialog', { name: '练习预设' });
   await presets.getByRole('button', { name: '应用 英语专注' }).click();
-  await expect(page.getByRole('group', { name: '选择语言' }).getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('group', { name: '练习语言' }).getByRole('button', { name: 'English', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('测试时间（分钟）')).toHaveValue('7');
   await page.getByRole('button', { name: '更多' }).click();
   await page.getByRole('button', { name: '草稿箱' }).click();

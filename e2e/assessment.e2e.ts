@@ -10,7 +10,13 @@ test('personal baseline and real mistake drill stay unranked',async({page})=>{
  await page.getByRole('button',{name:'Settings',exact:true}).click();
  const settings=page.getByRole('dialog',{name:'Practice settings',exact:true});
  await settings.getByRole('combobox',{name:'Practice mode',exact:true}).selectOption('timed');
- await settings.getByLabel('Strict correction',{exact:true}).check();
+ const strict=settings.getByRole('checkbox',{name:'Strict correction',exact:true});
+ await expect(strict).not.toBeChecked();
+ // The controlled setting updates after its IndexedDB write commits. Click
+ // once, then assert the actual saved UI state instead of check()'s immediate
+ // post-click assumption. Reload persistence is still asserted below.
+ await strict.click();
+ await expect(strict).toBeChecked();
  await settings.getByRole('button',{name:'Close',exact:true}).click();
  await page.getByRole('button',{name:'Open baseline',exact:true}).click();
  const input=page.getByRole('textbox',{name:'Current line input',exact:true});

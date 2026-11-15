@@ -4,7 +4,7 @@ import { articles } from '../src/data/articles';
 
 test('starts on the first keystroke, keeps spaces blank, and preserves punctuation', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'English' }).click();
+  await page.getByRole('group', { name: '练习语言', exact: true }).getByRole('button', { name: 'English', exact: true }).click();
   await page.getByRole('button', { name: '自定义文字' }).click();
   await page.getByRole('textbox', { name: '自定义文章内容' }).fill('Hello world.  Next sentence.');
   await page.getByRole('button', { name: '使用这段文字' }).click();
@@ -82,7 +82,7 @@ test('selects language and difficulty and validates the 1–60 minute limit', as
   await expect(page.getByTestId('remaining-time')).toHaveText('60:00');
   await minutes.fill('1');
   await expect(input).toBeEnabled();
-  await page.getByRole('button', { name: 'English' }).click();
+  await page.getByRole('group', { name: '练习语言', exact: true }).getByRole('button', { name: 'English', exact: true }).click();
   await page.getByRole('button', { name: '挑战' }).click();
   const article = page.getByLabel('选择练习文章');
   await expect(article.locator('option')).toHaveCount(7);
@@ -247,7 +247,7 @@ test('submits an online result, uses an admin account and publishes the reviewed
   expect((await loggedIn).status()).toBe(200);
   await page.reload();
   await expect(page.getByTitle('退出登录')).toContainText('ci_admin');
-  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page).toHaveURL(/\/admin\?tab=overview$/);
   await expect(page.locator('.room')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '管理后台' })).toBeVisible();
   await page.getByRole('button', { name: '站点设置', exact: true }).click();

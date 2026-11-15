@@ -47,7 +47,10 @@ app.get('/__e2e__/email-code', async (request, reply) => {
   return code ? { code } : reply.code(404).send({ error: 'No test email received' });
 });
 
+let closing = false;
 const cleanup = async () => {
+  if (closing) return;
+  closing = true;
   await app.close();
   if (setup && schema) {
     await setup.query('SET search_path TO public');
@@ -59,5 +62,8 @@ const cleanup = async () => {
 };
 process.once('SIGTERM', () => { void cleanup(); });
 process.once('SIGINT', () => { void cleanup(); });
+process.on('message', (message) => {
+  if (message && typeof message === 'object' && 'type' in message && message.type === 'typing-e2e-shutdown') void cleanup();
+});
 const address = await app.listen({ host: '127.0.0.1', port: Number(process.env.E2E_PORT || 4178) });
 if (process.env.TYPING_IME_DISCOVER_PORT === '1') console.log(`TYPING_TEST_URL=${address}`);
