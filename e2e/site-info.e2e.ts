@@ -20,7 +20,7 @@ test('opens help and policy content without losing an active practice', async ({
   await expect(page.getByRole('link', { name: 'admin@imlotso.com' })).toHaveAttribute('href', 'mailto:admin@imlotso.com');
   await page.getByRole('button', { name: '服务条款' }).click();
   await expect(page.getByRole('heading', { name: '服务条款' })).toBeVisible();
-  await page.getByRole('button', { name: 'TypeFlow 首页' }).click();
+  await page.getByRole('button', { name: 'TypeLune 首页' }).click();
   await expect(page.getByTestId('typed-count')).toHaveText('2');
   await expect(page.getByRole('button', { name: '继续练习' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);

@@ -189,3 +189,64 @@ test('preserves an unmarked same-origin forward entry when draft saving fails', 
   await expect(page).toHaveURL(/\/library$/);
   expect(await page.evaluate(() => history.state?.foreign)).toBe('forward');
 });
+
+test('keeps unmarked history entries intact without Navigation API when draft storage fails', async ({ page }) => {
+  await page.addInitScript(() => { Object.defineProperty(window, 'navigation', { value: undefined, configurable: true }); });
+  await page.goto('/library');
+  await page.evaluate(() => { history.replaceState({ foreign: 'preserve' }, '', '/library'); history.pushState(null, '', '/'); location.reload(); });
+  await expect(page).toHaveURL(/\/$/);
+  await page.getByRole('button', { name: '自定义文字' }).click();
+  const editor = page.getByRole('dialog', { name: '自定义练习文字' });
+  await editor.getByRole('textbox', { name: '自定义文章内容' }).fill('山海相望');
+  await editor.getByRole('button', { name: '使用这段文字' }).click();
+  await page.getByRole('textbox', { name: '当前行输入' }).fill('山');
+  await page.evaluate(() => {
+    const context = window as Window & { restoreStorage?: () => void };
+    const setItem = Storage.prototype.setItem; const transaction = IDBDatabase.prototype.transaction;
+    context.restoreStorage = () => { Storage.prototype.setItem = setItem; IDBDatabase.prototype.transaction = transaction; };
+    Storage.prototype.setItem = function (key: string, value: string) { if (key.startsWith('cloudtyping.practice.v2.')) throw new Error('storage blocked'); return setItem.call(this, key, value); };
+    IDBDatabase.prototype.transaction = function () { throw new Error('storage blocked'); };
+  });
+  await page.goBack();
+  await expect(page.getByText('无法保存进度')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: '当前行输入' })).toHaveValue('山');
+  await expect(page).toHaveURL(/\/library$/);
+  expect(await page.evaluate(() => history.state?.foreign)).toBe('preserve');
+  await page.evaluate(() => (window as Window & { restoreStorage?: () => void }).restoreStorage?.());
+  await page.goForward();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/library$/);
+  expect(await page.evaluate(() => history.state?.foreign)).toBe('preserve');
+  await expect(page.getByRole('heading', { name: '文章库' })).toBeVisible();
+});
+
+test('keeps an unmarked forward entry without Navigation API when draft saving fails', async ({ page }) => {
+  await page.addInitScript(() => { Object.defineProperty(window, 'navigation', { value: undefined, configurable: true }); });
+  await page.goto('/');
+  await page.evaluate(() => { history.pushState({ foreign: 'forward' }, '', '/library'); history.back(); });
+  await expect(page).toHaveURL(/\/$/);
+  await page.reload();
+  await page.getByRole('button', { name: '自定义文字' }).click();
+  const editor = page.getByRole('dialog', { name: '自定义练习文字' });
+  await editor.getByRole('textbox', { name: '自定义文章内容' }).fill('山海相望');
+  await editor.getByRole('button', { name: '使用这段文字' }).click();
+  await page.getByRole('textbox', { name: '当前行输入' }).fill('山');
+  await page.evaluate(() => {
+    const context = window as Window & { restoreStorage?: () => void };
+    const setItem = Storage.prototype.setItem; const transaction = IDBDatabase.prototype.transaction;
+    context.restoreStorage = () => { Storage.prototype.setItem = setItem; IDBDatabase.prototype.transaction = transaction; };
+    Storage.prototype.setItem = function (key: string, value: string) { if (key.startsWith('cloudtyping.practice.v2.')) throw new Error('storage blocked'); return setItem.call(this, key, value); };
+    IDBDatabase.prototype.transaction = function () { throw new Error('storage blocked'); };
+  });
+  await page.goForward();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.getByText('无法保存进度')).toBeVisible();
+  expect(await page.evaluate(() => history.state?.foreign)).toBe('forward');
+  await page.evaluate(() => (window as Window & { restoreStorage?: () => void }).restoreStorage?.());
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/library$/);
+  expect(await page.evaluate(() => history.state?.foreign)).toBe('forward');
+});

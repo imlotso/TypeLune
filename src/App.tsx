@@ -683,7 +683,11 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       } else if (targetIndex !== undefined && targetIndex !== currentHistoryIndex.current) {
         restoringHistory.current = true;
         window.history.go(currentHistoryIndex.current - targetIndex);
-      } else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', currentPath.current);
+      } else {
+        // An unmarked history entry has no reliable direction or distance in
+        // older browsers. Leave it intact and keep the current view in memory.
+        setFeedback('无法保存进度');
+      }
     };
     // Browser back first dismisses a dialog, allowing its own unsaved-change
     // confirmation to run before the underlying view can be replaced.
@@ -914,6 +918,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     setAccountBusy(true);
     let blocked = false;
     let workspaceBefore = '';
+    let checkedWorkspace: Awaited<ReturnType<typeof readBlockedWorkspace>> | undefined;
     const fingerprint = (items: Awaited<ReturnType<typeof readBlockedWorkspace>>) => JSON.stringify([...items].sort((a, b) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id)));
     try {
       if (clear) {
@@ -924,6 +929,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
           (dirty > 0 && (!options.riskAcknowledged || (workspace.pendingCount !== null && dirty > workspace.pendingCount)))) {
           throw new Error('本机资料已变化或有新的未同步项目，请重新检查');
         }
+        checkedWorkspace = items;
         workspaceBefore = fingerprint(items);
       }
       await api('/api/auth/logout', { method: 'POST', body: {}, headers: { 'X-Workspace-Owner': id } });
@@ -936,9 +942,14 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
             onSignedOutNotice('已退出；本机资料在清理期间发生变化，未清除。请重新登录后同步或导出。');
             return;
           }
-          await finishLocalCleanup(id);
+          await finishLocalCleanup(id, checkedWorkspace);
           onSignedOutNotice('已退出并清除此设备的账号数据');
-        } catch { onSignedOutNotice('已退出，但本机数据未能完全清理；可重新登录后重试'); }
+        } catch (problem) {
+          if (problem instanceof Error && problem.message === '本机资料已变化') {
+            cancelLocalCleanup(id);
+            onSignedOutNotice('已退出；本机资料在清理期间发生变化，未清除。请重新登录后同步或导出。');
+          } else onSignedOutNotice('已退出，但本机数据未能完全清理；可重新登录后重试');
+        }
       }
     } catch (problem) {
       if (blocked) { try { cancelLocalCleanup(id); } catch { allowLocalAccount(id); } void workspace.sync(); }
@@ -1026,7 +1037,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
 
   return <div className={`app-shell${focused ? ' app-focused' : ''}`} ref={focusRoot}>
     {!focused && <header className="site-header">
-      <button className="brand" onClick={() => navigate('practice')} aria-label="TypeFlow 首页"><BrandLogo /></button>
+      <button className="brand" onClick={() => navigate('practice')} aria-label="TypeLune 首页"><BrandLogo /></button>
       <nav aria-label="主要导航">
         {(['practice', 'library', 'rankings', 'history'] as const).map((item) => <button key={item} className={view === item ? 'nav-active' : ''} aria-current={view === item ? 'page' : undefined} onClick={() => navigate(item)}>{actionNames[item]}</button>)}
         <div className="more-nav" ref={moreMenu}>

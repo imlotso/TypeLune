@@ -1,4 +1,5 @@
 import { clearLocalPractice } from '../hooks/usePractice';
+import type { WorkspaceItem } from './models';
 import { clearSyncTime } from '../hooks/useWorkspace';
 import { allowLocalAccount, blockLocalAccount, clearLocalWorkspace } from './workspace';
 
@@ -19,8 +20,8 @@ export function pendingLocalCleanups() {
       .map((key) => key.slice(pendingPrefix.length)).filter(Boolean);
   } catch { return []; }
 }
-export async function finishLocalCleanup(ownerId: string) {
-  await clearLocalWorkspace(ownerId);
+export async function finishLocalCleanup(ownerId: string, expected?: readonly WorkspaceItem[]) {
+  await clearLocalWorkspace(ownerId, undefined, expected);
   clearLocalPractice(ownerId);
   clearSyncTime(ownerId);
   localStorage.removeItem(pendingPrefix + ownerId);

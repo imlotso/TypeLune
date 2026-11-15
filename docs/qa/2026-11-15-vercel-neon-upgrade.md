@@ -1,5 +1,7 @@
 # typing Vercel／Neon 整合记录
 
+> 历史记录：此前关于隔离 Neon 原始迁移“尚未执行”及最终 CI 待运行的状态已过时。最新范围、证据和未完成事项以 [TypeLune 验收记录](2026-11-15-typelune-acceptance.md) 为准；本记录中的 Preview 邮件仍未验证。
+
 生产站点 `typing.imlotso.com` 对应现有 Vercel `dazi` 项目，当前生产部署基于 `06a9e5139abd8dc43d107649b468f5e992021fea`，使用 Neon PostgreSQL。该域名在 Cloudflare 的 DNS 记录当前未代理，实测响应来自 Vercel；不应清空整个 `imlotso.com` 区域的缓存。
 
 ## 数据与部署边界

@@ -90,7 +90,7 @@ const defaultDelivery: SmtpDelivery = {
   async sendCode(config, source, email, code, purpose) {
     const label = purpose === 'register' ? '注册' : purpose === 'reset' ? '重设密码' : purpose === 'change-email' ? '更换邮箱' : '登录';
     await (await createSmtpTransport(config, source)).sendMail({
-      from: config.from, to: email, subject: `TypeFlow · ${label}验证码`,
+      from: config.from, to: email, subject: `TypeLune · ${label}验证码`,
       text: `你的${label}验证码是 ${code}，10 分钟内有效。请勿将验证码告诉他人。`,
     });
   },

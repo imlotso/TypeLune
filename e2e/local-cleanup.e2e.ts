@@ -274,3 +274,40 @@ test('rechecks a late local workspace change before revoking the session', async
   expect(logoutRequests).toBe(0);
   expect((await (await page.request.get('/api/me')).json()).user.id).toBe(ownerId);
 });
+
+test('keeps a workspace changed between the final check and the deletion transaction', async ({ page }) => {
+  const email = 'cleanup_final_race@example.test'; const username = 'cleanup_final_race'; const password = 'cleanup-password-123';
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  const registration = await page.request.post('/api/auth/register', { data: { username, email, password, code } });
+  const ownerId = (await registration.json()).user.id as string;
+  await page.goto('/');
+  await page.getByRole('button', { name: username, exact: true }).click();
+  await page.getByRole('menuitem', { name: '个人数据' }).click();
+  await page.getByRole('button', { name: '清除此设备数据' }).click();
+  const dialog = page.getByRole('dialog', { name: '退出登录' });
+  await dialog.getByRole('checkbox', { name: '确认清除本机数据' }).check();
+  await page.route('**/api/auth/logout', async (route) => {
+    const response = await route.fetch();
+    await page.evaluate((id) => {
+      const original = IDBDatabase.prototype.transaction;
+      IDBDatabase.prototype.transaction = function (...args: Parameters<typeof original>) {
+        if (args[0] === 'items' && args[1] === 'readwrite') {
+          IDBDatabase.prototype.transaction = original;
+          const late = original.call(this, 'items', 'readwrite');
+          late.objectStore('items').put({ owner: `user:${id}`, kind: 'favorite', id: 'late-final', updatedAt: 42, value: { articleId: 'late-final' } });
+        }
+        return original.apply(this, args);
+      };
+    }, ownerId);
+    await route.fulfill({ response });
+  });
+  await dialog.getByRole('button', { name: '确认退出' }).click();
+  await expect(page.getByText(/本机资料在清理期间发生变化，未清除/)).toBeVisible();
+  const kept = await page.evaluate(async (id) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => { const q = indexedDB.open('cloudtyping-workspace', 1); q.onsuccess = () => resolve(q.result); q.onerror = () => reject(q.error); });
+    const item = await new Promise<unknown>((resolve, reject) => { const q = db.transaction('items').objectStore('items').get([`user:${id}`, 'favorite', 'late-final']); q.onsuccess = () => resolve(q.result); q.onerror = () => reject(q.error); });
+    db.close(); return item;
+  }, ownerId);
+  expect(kept).toMatchObject({ id: 'late-final' });
+});

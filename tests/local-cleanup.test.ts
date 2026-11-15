@@ -54,3 +54,13 @@ it('retains a retry marker until all local cleanup steps succeed', async () => {
   expect(await readWorkspace('alice')).toEqual([]);
   allowLocalAccount('alice');
 });
+
+it('refuses to clear a blocked workspace that changed after its last check', async () => {
+  await putWorkspaceValue('alice', 'favorite', 'old', { articleId: 'old' });
+  const before = await readWorkspace('alice');
+  prepareLocalCleanup('alice');
+  localStorage.setItem('cloudtyping.workspace.v1.user:alice', JSON.stringify([...before, { kind: 'favorite', id: 'late', updatedAt: 2, value: { articleId: 'late' } }]));
+  await expect(clearLocalWorkspace('alice', undefined, before)).rejects.toThrow('本机资料已变化');
+  cancelLocalCleanup('alice');
+  expect((await readWorkspace('alice')).map((item) => item.id)).toEqual(['old', 'late']);
+});

@@ -93,7 +93,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose }: Props) {
         <img alt="背景预览" src={draft?.image ?? `/assets/cloud-room${theme === 'dark' ? '-night' : ''}.png`}
           style={{ objectFit: draft?.fit ?? 'cover', objectPosition: `${draft?.positionX ?? 50}% ${draft?.positionY ?? 50}%`, filter: `blur(${draft?.blur ?? 0}px)` }} />
         <div className="background-shade" style={{ opacity: (draft?.shade ?? 0) / 100 }} />
-        <div className="background-preview-sample" aria-hidden="true"><span>TypeFlow</span><i /><i /></div>
+        <div className="background-preview-sample" aria-hidden="true"><span>TypeLune</span><i /><i /></div>
       </div>
       <div className="background-file-row" onDragOver={(event) => event.preventDefault()} onDrop={drop}>
         <input ref={input} hidden aria-label="背景图片" type="file" accept="image/jpeg,image/png,image/webp" disabled={saving}

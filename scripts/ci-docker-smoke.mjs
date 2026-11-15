@@ -64,7 +64,7 @@ try {
 
   const home = await get(baseURL, '/');
   assert.equal(home.status, 200);
-  assert.match(await home.text(), /TypeFlow/);
+  assert.match(await home.text(), /TypeLune/);
 
   const invalid = await post(baseURL, '/api/tests/start', { articleId: 'zh-beginner-1', duration: 30 });
   assert.equal(invalid.status, 400, 'Out-of-range test duration must be rejected');

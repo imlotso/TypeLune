@@ -440,25 +440,40 @@ function editWorkspace(ownerId: string | null, edit: Edit, local: boolean): Prom
   });
 }
 
-export function clearLocalWorkspace(ownerId: string | null, guestToken?: string): Promise<void> {
+export function workspaceFingerprint(items: readonly WorkspaceItem[]) {
+  return JSON.stringify([...items].sort((a, b) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id)));
+}
+
+export function clearLocalWorkspace(ownerId: string | null, guestToken?: string, expected?: readonly WorkspaceItem[]): Promise<void> {
   const owner = scope(ownerId);
   return serialized(owner, async () => {
     if (guestToken && !ownsGuestWorkspaceBlock(guestToken)) throw new Error('游客资料保护已过期，请重试');
-    localStorage.removeItem(storagePrefix + owner);
     const db = await openDatabase();
-    if (db) await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(itemStore, 'readwrite');
-      const store = transaction.objectStore(itemStore);
-      const request = store.index('owner').openKeyCursor(IDBKeyRange.only(owner));
-      request.onsuccess = () => {
-        if (guestToken && !ownsGuestWorkspaceBlock(guestToken)) { transaction.abort(); return; }
-        const cursor = request.result;
-        if (cursor) { store.delete(cursor.primaryKey); cursor.continue(); }
-      };
-      transaction.oncomplete = () => resolve();
-      transaction.onabort = () => reject(transaction.error ?? new Error('本机资料清理失败'));
-      transaction.onerror = () => reject(transaction.error ?? new Error('本机资料清理失败'));
-    });
+    if (!db) {
+      if (expected && workspaceFingerprint(readFallback(owner)) !== workspaceFingerprint(expected)) throw new Error('本机资料已变化');
+      localStorage.removeItem(storagePrefix + owner);
+    } else {
+      // IndexedDB can be changed by an older tab after the caller's check.
+      // Compare and delete under the same read-write transaction.
+      if (expected && localStorage.getItem(storagePrefix + owner) !== null) throw new Error('本机资料已变化');
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(itemStore, 'readwrite');
+        const store = transaction.objectStore(itemStore);
+        const request = store.index('owner').getAll(owner);
+        let failure: Error | undefined;
+        request.onsuccess = () => {
+          const current = (request.result as StoredItem[]).map(({ owner: _owner, ...item }) => item);
+          if ((guestToken && !ownsGuestWorkspaceBlock(guestToken)) || (expected && workspaceFingerprint(current) !== workspaceFingerprint(expected))) {
+            failure = new Error('本机资料已变化'); transaction.abort(); return;
+          }
+          for (const item of current) store.delete([owner, item.kind, item.id]);
+        };
+        transaction.oncomplete = () => resolve();
+        transaction.onabort = () => reject(failure ?? transaction.error ?? new Error('本机资料清理失败'));
+        transaction.onerror = () => reject(failure ?? transaction.error ?? new Error('本机资料清理失败'));
+      });
+      if (!expected) localStorage.removeItem(storagePrefix + owner);
+    }
     caches.delete(owner); clocks.delete(owner);
     for (const listener of listeners) listener(owner, false, []);
     const broadcaster = broadcastChannel();

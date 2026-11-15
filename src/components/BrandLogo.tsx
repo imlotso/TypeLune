@@ -1,5 +1,5 @@
-import logo from '../assets/typeflow-logo.png';
+import logo from '../assets/typelune-wordmark.jpg';
 
 export function BrandLogo() {
-  return <img className="brand-logo" src={logo} alt="TypeFlow" />;
+  return <img className="brand-logo" src={logo} alt="TypeLune" />;
 }

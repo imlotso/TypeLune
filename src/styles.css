@@ -19,7 +19,7 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #6450bd; outline-offset: 3px; }
 .site-header { min-height: 88px; padding: 0 4.2%; display: flex; align-items: center; gap: 24px; background: #fdfbfb; color: #514a7a; position: relative; z-index: 3; }
 .brand { display: flex; gap: 13px; align-items: center; flex: none; border: 0; background: transparent; color: #514a7a; font-size: 23px; font-weight: 800; white-space: nowrap; }
-.brand-logo { display: block; width: 185px; height: 48px; object-fit: cover; object-position: center; }
+.brand-logo { display: block; width: 185px; height: 48px; object-fit: cover; object-position: center; mix-blend-mode: multiply; }
 .site-header nav { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex: 1; }
 .site-header nav button { border: 0; color: #554e7c; background: transparent; border-radius: 999px; padding: 11px 21px; white-space: nowrap; font-size: 16px; font-weight: 700; transition: background-color .18s ease, color .18s ease; }
 .site-header nav button:hover, .site-header nav button.nav-active { background: #d9eafa; color: #484778; }
@@ -173,7 +173,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 :root[data-theme='dark'] { color-scheme: dark; color: #ece8fa; background: #17192c; }
 [data-theme='dark'] .site-header { background: #1e2037; color: #f0ecff; }
 [data-theme='dark'] .brand, [data-theme='dark'] .site-header nav button { color: #f0ecff; }
-[data-theme='dark'] .brand-logo { filter: invert(1) hue-rotate(180deg) saturate(1.3); }
+[data-theme='dark'] .brand-logo { filter: invert(1); mix-blend-mode: screen; }
 [data-theme='dark'] .site-header nav button:hover, [data-theme='dark'] .site-header nav button.nav-active { color: #fff; background: #39486d; }
 [data-theme='dark'] .site-header nav button.account-button { color: #f2edff; background: #292b45; border-color: #817aa6; }
 [data-theme='dark'] .site-header nav button.account-button:hover { background: #3c3b5b; }
