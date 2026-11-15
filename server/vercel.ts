@@ -29,6 +29,11 @@ export function createVercelHandler(env: NodeJS.ProcessEnv = process.env) {
     return pending;
   }
   const handle = async (request: IncomingMessage, response: ServerResponse) => {
+    if (env.DAZI_MAINTENANCE === 'true') {
+      response.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '120' });
+      response.end(JSON.stringify({ error: '网站正在维护，请稍后重试', code: 'MAINTENANCE_MODE' }));
+      return;
+    }
     try {
       const url = new URL(request.url ?? '/', 'http://localhost');
       const rewritten = url.searchParams.get('__dazi_path');
