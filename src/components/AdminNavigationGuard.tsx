@@ -2,8 +2,8 @@ import { useI18n } from '../lib/i18n';
 import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 
 type State = { dirty: boolean; busy: boolean };
-type Guard = { register: (id: symbol, state?: State) => void; leave: (action: () => void) => void };
-const fallback: Guard = { register: () => {}, leave: (action) => action() };
+type Guard = { register: (id: symbol, state?: State) => void; leave: (action: () => void) => boolean };
+const fallback: Guard = { register: () => {}, leave: (action) => { action(); return true; } };
 const Context = createContext<Guard>(fallback);
 export function AdminNavigationGuard({ children }: { children: ReactNode }) {
   const { t } = useI18n();
@@ -12,9 +12,9 @@ export function AdminNavigationGuard({ children }: { children: ReactNode }) {
     register: (id, state) => { if (state) entries.current.set(id, state); else entries.current.delete(id); },
     leave: (action) => {
       const states = [...entries.current.values()];
-      if (states.some((state) => state.busy)) return;
-      if (states.some((state) => state.dirty) && !window.confirm('未保存的修改将丢失。继续？')) return;
-      action();
+      if (states.some((state) => state.busy)) return false;
+      if (states.some((state) => state.dirty) && !window.confirm(t('未保存的修改将丢失。继续？', 'Unsaved changes will be lost. Continue?'))) return false;
+      action(); return true;
     },
   }), [t]);
   useEffect(() => {

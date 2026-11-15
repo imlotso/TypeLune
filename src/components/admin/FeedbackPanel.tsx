@@ -36,7 +36,7 @@ function FeedbackEditor({ ownerId, id, onBack, onChange, onArticle }: AdminProps
   };
   return <>
     <FeedbackThread feedback={feedback} />
-    {feedback.article && <button className="outline-button feature-action-button" onClick={() => leave(() => onArticle(feedback.article!.id))}>{at("查看关联文章")}</button>}
+    {feedback.article && <button className="outline-button feature-action-button" onClick={() => onArticle(feedback.article!.id)}>{at("查看关联文章")}</button>}
     <form className="feature-form" onSubmit={submit}>
       <SelectField label={at("处理状态")} options={Object.entries(feedbackStatuses)} value={status} onChange={(value) => setStatusEdit({ revision: feedback.revision, value })} disabled={busy} />
       <label>{at("公开回复")}<textarea value={reply} maxLength={5000} disabled={busy} onChange={(event) => setReply(event.target.value)} /></label>

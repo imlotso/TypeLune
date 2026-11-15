@@ -136,7 +136,7 @@ export function App() {
     setFeedbackResume(handoff);
     pendingFeedback.current = undefined;
     setPreviewOwner(undefined);
-    const path = next?.isAdmin ? '/admin' : !next ? '/' : handoff ? (feedbackIdFromPath(window.location.pathname) ? window.location.pathname : '/feedback') : mainRoute(window.location.pathname) === 'notfound' ? '/' : window.location.pathname;
+    const path = next?.isAdmin ? (/^\/admin\/?$/.test(window.location.pathname) ? `/admin${window.location.search}` : '/admin') : !next ? '/' : handoff ? (feedbackIdFromPath(window.location.pathname) ? window.location.pathname : '/feedback') : mainRoute(window.location.pathname) === 'notfound' ? '/' : window.location.pathname;
     window.history.replaceState(null, '', path);
     setUser(next);
     setAuthReady(true);
@@ -223,6 +223,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
   const [catalogRevision, setCatalogRevision] = useState(0);
   const refreshCatalog = useCallback(() => setCatalogRevision((revision) => revision + 1), []);
   const [guestTheme, setGuestTheme] = useState(initialTheme);
+  const authCompleted = useRef(false);
   const [directAdmin] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
   const [view, setView] = useState<View>(() => feedbackResume ? 'feedback' : directAdmin ? 'practice' : mainRoute(window.location.pathname));
   const [routeArticleId, setRouteArticleId] = useState(() => articleIdFromPath(window.location.pathname));
@@ -1163,7 +1164,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       <div className="result-actions"><span className="custom-count">{splitCharacters(customDraft).length}  {t("/ 20000 字符", "/ 20000 characters")}</span><button className="primary-button" onClick={useCustomText}>{t("使用这段文字", "Use this text")}</button></div>
     </Dialog>}
     {showSpecialTraining && <SpecialTrainingDialog language={language} onClose={() => setShowSpecialTraining(false)} onSelect={(article) => { setShowSpecialTraining(false); selectArticle(article); }} />}
-    {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) { window.history.replaceState(null, '', '/'); currentPath.current = '/'; } }} onLogin={onUser} registrationEnabled={site.features?.registrationEnabled} />}
+    {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin && !authCompleted.current) { window.history.replaceState(null, '', '/'); currentPath.current = '/'; } }} onLogin={(next) => { authCompleted.current = true; onUser(next); }} registrationEnabled={site.features?.registrationEnabled} />}
     {view === 'account' && user && <AccountDialog user={user} onClose={() => navigate(accountReturn.current)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} onGuardChange={setAccountGuard} />}
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} drafts={workspace.drafts} records={workspace.records} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
     {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={(backgroundTheme = theme) => { setShowSettings(false); setShowBackground(backgroundTheme); }} onPresets={() => { setShowSettings(false); setShowPresets(true); }} onSettingsTransfer={() => { setShowSettings(false); setShowSettingsTransfer(true); }} onCommands={() => { setShowSettings(false); setShowCommands(true); }} />}
