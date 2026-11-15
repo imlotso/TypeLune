@@ -5,26 +5,29 @@ import { api } from '../../lib/api';
 export type Page<T> = { entries: T[]; page: number; pageSize: number; total: number };
 export type Audit = {
   id: number; actorId: string; actorName: string; action: string;
-  targetType: 'user' | 'article' | 'score' | 'setting'; targetId: string; targetLabel: string; reason: string | null; createdAt: number;
+  targetType: 'user' | 'article' | 'score' | 'setting' | 'feedback'; targetId: string; targetLabel: string; reason: string | null; createdAt: number;
 };
 export type AdminProps = { ownerId: string };
 export type Option = readonly [string, string];
 
 export const languages: Record<Language, string> = { zh: '中文', en: 'English' };
 export const difficulties: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
-export const targets = { user: '用户', article: '文章', score: '成绩', setting: '设置' };
+export const targets = { user: '用户', article: '文章', score: '成绩', setting: '设置', feedback: '反馈' };
 export const reasonLabels: Record<string, string> = {
   paste_or_drop: '粘贴或拖放', unusual_progress: '输入进度异常', missing_activity: '进度记录不足',
   stale_activity: '结束前缺少进度记录', high_speed: '速度较高', paused_session: '曾暂停或恢复',
   timing_discrepancy: '计时差异较大', recovered_session: '恢复中断练习',
+  guest_policy: '游客成绩默认审核', user_policy: '注册用户成绩默认审核',
 };
 const actionLabels: Record<string, string> = {
   'user.bootstrap': '初始化管理员', 'user.disable': '停用账号', 'user.enable': '启用账号', 'user.promote': '设为管理员', 'user.demote': '撤销管理员', 'user.revoke_sessions': '退出所有会话',
   'article.create': '新建文章', 'article.update': '编辑文章', 'article.publish': '发布文章',
   'article.archive': '归档文章', 'article.delete': '删除文章',
   'score.approve': '通过成绩', 'score.reject': '拒绝成绩', 'score.remove': '下架成绩',
+  'score.bulk_remove': '按日期清理成绩',
   'smtp.update': '保存', 'smtp.reset': '恢复默认', 'smtp.verify': '测试连接',
   'settings.site.update': '保存',
+  'feedback.handle': '处理反馈',
 };
 const dateFormat = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -75,6 +78,7 @@ export function useAdminList<T>(ownerId: string, path: string, defaults: Record<
   return {
     ...resource, filters, page, setPage, identity: `${query}:${revision}`,
     filter: (key: string, value: string) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1); },
+    filterMany: (values: Record<string, string>) => { setFilters((current) => ({ ...current, ...values })); setPage(1); },
     refresh: () => setRevision((current) => current + 1),
   };
 }
@@ -91,10 +95,10 @@ export function QueryField({ label, onSearch, maxLength = 100 }: { label: string
   </form>;
 }
 
-export function SelectField({ label, options, value, onChange, all = false }: {
-  label: string; options: readonly Option[]; value: string; onChange: (value: string) => void; all?: boolean;
+export function SelectField({ label, options, value, onChange, all = false, disabled = false }: {
+  label: string; options: readonly Option[]; value: string; onChange: (value: string) => void; all?: boolean; disabled?: boolean;
 }) {
-  return <label>{label}<select value={value} onChange={(event) => onChange(event.target.value)}>
+  return <label>{label}<select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
     {all && <option value="">全部</option>}
     {options.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
   </select></label>;
@@ -135,14 +139,15 @@ export function AuditRows({ entries, label }: { entries: Audit[]; label: string 
 }
 
 export type Confirmation = {
-  title: string; action: string; target: string; requireReason?: boolean; note?: string;
-  submit: (reason: string) => Promise<unknown>;
+  title: string; action: string; target: string; requireReason?: boolean; note?: string; allowPublicMessage?: boolean;
+  submit: (reason: string, publicMessage?: string) => Promise<unknown>;
 };
 
 export function ConfirmationForm({ confirmation, busy, setBusy, onCancel, onSuccess }: {
   confirmation: Confirmation; busy: boolean; setBusy: (busy: boolean) => void; onCancel: () => void; onSuccess: () => void;
 }) {
   const [reason, setReason] = useState('');
+  const [publicMessage, setPublicMessage] = useState('');
   const [error, setError] = useState('');
   const first = useRef<HTMLInputElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
@@ -158,7 +163,7 @@ export function ConfirmationForm({ confirmation, busy, setBusy, onCancel, onSucc
     setBusy(true);
     setError('');
     try {
-      await confirmation.submit(reason.trim());
+      await confirmation.submit(reason.trim(), confirmation.allowPublicMessage ? publicMessage.trim() : undefined);
       onSuccess();
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : '操作未完成');
@@ -172,6 +177,7 @@ export function ConfirmationForm({ confirmation, busy, setBusy, onCancel, onSucc
     {confirmation.note && <p className="feature-muted">{confirmation.note}</p>}
     {needsReason && <label>原因<input maxLength={300} required value={reason} ref={first}
       disabled={busy} onChange={(event) => setReason(event.target.value)} /></label>}
+    {confirmation.allowPublicMessage && <label>用户可见说明<input maxLength={500} value={publicMessage} disabled={busy} onChange={(event) => setPublicMessage(event.target.value)} /></label>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="feature-actions">
       <button type="button" className="outline-button" ref={cancel} disabled={busy} onClick={onCancel}>取消</button>

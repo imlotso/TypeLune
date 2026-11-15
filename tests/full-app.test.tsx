@@ -10,6 +10,7 @@ import { defaultSettings } from '../src/lib/models';
 const response = (value: unknown) => ({ ok: true, json: async () => value }) as Response;
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '/');
   localStorage.clear();
   sessionStorage.clear();
   Element.prototype.scrollIntoView = vi.fn();
@@ -73,6 +74,21 @@ it('parks active text across navigation and resumes its exact draft', async () =
   await screen.findByRole('button', { name: '继续练习' });
   expect(screen.getByTestId('typed-count').textContent).toBe('2');
   expect((screen.getByRole('textbox', { name: '当前行输入' }) as HTMLTextAreaElement).value).toBe('甲乙');
+});
+
+it('can park a practice in the workspace when the legacy draft storage is unavailable', async () => {
+  render(<App />);
+  await startCustom('甲乙丙丁');
+  fireEvent.change(screen.getByRole('textbox', { name: '当前行输入' }), { target: { value: '甲乙' } });
+  const original = Storage.prototype.setItem;
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+    if (key.startsWith('cloudtyping.practice.v2.')) throw new Error('legacy storage unavailable');
+    return original.call(this, key, value);
+  });
+  more('设置');
+  await screen.findByRole('dialog', { name: '练习设置' });
+  const drafts = (await readWorkspace(null)).filter((item) => item.kind === 'draft' && !item.deleted);
+  expect(drafts.some((item) => (item.value as { typed?: string }).typed === '甲乙')).toBe(true);
 });
 
 it('uses reader settings and exits focus mode with Escape', async () => {
@@ -145,17 +161,18 @@ it('keeps the local practice snapshot and uses the authoritative moderation stat
   await putWorkspaceValue('account', 'record', record.recordId, record);
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url === '/api/me') return response({ user: { id: 'account', username: '本账号' } });
-    if (url === '/api/history') return response({ entries: [{ ...record, status: 'rejected', article: undefined, typed: undefined, mistakes: undefined, localOnly: undefined }] });
+    if (url === '/api/history?limit=100') return response({ entries: [{ ...record, speed: 20, status: 'rejected', scoreStatus: { state: 'rejected', eligible: false, message: '管理员复核未通过。' }, article: undefined, typed: undefined, mistakes: undefined, localOnly: undefined }], nextCursor: null });
     return response({ items: [], serverTime: Date.now() });
   }));
   render(<App />);
   await screen.findByRole('button', { name: /本账号/ });
   fireEvent.click(screen.getByRole('button', { name: '我的记录' }));
-  await screen.findByText('复核未通过');
+  await screen.findByText('审核未通过。');
+  expect(screen.getByText('20 字/分')).toBeTruthy();
   expect(screen.queryByText('个人练习')).toBeNull();
   fireEvent.click(await screen.findByRole('button', { name: '《留存的信》详情' }));
   const details = screen.getByRole('dialog', { name: '练习详情' });
-  expect(within(details).getByText('复核未通过')).toBeTruthy();
+  expect(within(details).getByText('审核未通过。')).toBeTruthy();
   expect(within(details).getByText('第 2 字符')).toBeTruthy();
 });
 
@@ -190,7 +207,7 @@ it('does not revive a locally cached draft deleted on another device', async () 
   }));
   const fetch = vi.fn(async (url: string) => {
     if (url === '/api/me') return response({ user: { id: ownerId, username: '同步账号' } });
-    return response({ items: [{ kind: 'draft', id: 'draft-old', updatedAt: Date.now(), deleted: true }], serverTime: Date.now() });
+    return response({ items: [{ kind: 'draft', id: 'draft-old', updatedAt: Date.now(), deleted: true, serverRevision: 1 }], serverTime: Date.now(), protocol: 2, generation: 1 });
   });
   vi.stubGlobal('fetch', fetch);
   render(<App />);
@@ -259,7 +276,9 @@ it('logs out after parking an unfinished round and keeps it with its account', a
   fireEvent.change(screen.getByRole('textbox', { name: '当前行输入' }), { target: { value: '甲乙' } });
   fireEvent.click(screen.getByRole('button', { name: '文章库' }));
   await screen.findByRole('heading', { name: '文章库' });
-  fireEvent.click(screen.getByTitle('退出登录'));
+  fireEvent.click(screen.getByRole('button', { name: '草稿账号' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '退出登录' }));
+  fireEvent.click(within(await screen.findByRole('dialog', { name: '退出登录' })).getByRole('button', { name: '确认退出' }));
   await screen.findByRole('button', { name: '登录' });
   expect(fetch.mock.calls.some(([url]) => url === '/api/auth/logout')).toBe(true);
   expect(readDraft(owner.id)?.typed).toBe('甲乙');

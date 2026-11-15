@@ -189,7 +189,7 @@ describe('typing API', () => {
     const finish = await submit(20_000);
     expect(finish.statusCode).toBe(200);
     expect(finish.json()).toMatchObject({ elapsedMs: 20_000, status: 'review', score: { cpm: chars.length * 3 } });
-    const publish = await app.inject({ method: 'POST', url: '/api/leaderboard', headers: { cookie }, payload: { attemptId: challenge.id, nickname: '计时测试' } });
+    const publish = await app.inject({ method: 'POST', url: '/api/leaderboard', headers: { cookie }, payload: { attemptId: challenge.id, nickname: 'visitor-计时测试' } });
     expect(publish.json()).toEqual({ status: 'review' });
     const review = await app.inject({ method: 'GET', url: '/api/admin/review', headers: { cookie: adminCookie } });
     expect(review.json().entries[0].reasons).toContain('timing_discrepancy');
@@ -349,6 +349,12 @@ describe('typing API', () => {
   });
 
   it('rejects finishing a timed challenge early and ranks an accepted guest score', async () => {
+    await app.close();
+    app = await createApp({ databasePath: ':memory:', now: () => now, secureCookies: false, adminEmail: 'admin@example.com',
+      mailer: { sendCode: async (email, code, purpose) => { sent.push({ email, code, purpose }); } } });
+    await app.inject({ method: 'POST', url: '/api/auth/code', payload: { email: 'admin@example.com', purpose: 'register' } });
+    const admin = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'admin', email: 'admin@example.com', password: 'a-long-password', code: sent[0].code } });
+    const adminCookie = admin.headers['set-cookie'] as string;
     const start = await app.inject({ method: 'POST', url: '/api/tests/start', payload: { articleId: 'zh-beginner-1', duration: 60 } });
     expect(start.statusCode).toBe(200);
     const cookie = start.headers['set-cookie'] as string;
@@ -363,13 +369,14 @@ describe('typing API', () => {
     const finish = await app.inject({ method: 'POST', url: `/api/tests/${challenge.id}/finish`, headers: { cookie }, payload });
     expect(finish.statusCode).toBe(200);
     expect(finish.json().score.correct).toBe(10);
-    expect((await app.inject({ method: 'POST', url: '/api/leaderboard', headers: { cookie }, payload: { attemptId: challenge.id, nickname: '小云' } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/api/leaderboard', headers: { cookie }, payload: { attemptId: challenge.id, nickname: 'visitor-小云' } })).json()).toEqual({ status: 'review' });
+    expect((await app.inject({ method: 'POST', url: '/api/admin/scores/moderate', headers: { cookie: adminCookie }, payload: { ids: [challenge.id], action: 'approve', reason: '核对完成' } })).statusCode).toBe(200);
     const rankings = await app.inject({ method: 'GET', url: '/api/leaderboard?language=zh&difficulty=beginner&duration=60' });
-    expect(rankings.json().entries[0]).toMatchObject({ nickname: '小云', speed: 10 });
+    expect(rankings.json().entries[0]).toMatchObject({ nickname: 'visitor-小云', speed: 10 });
     const duplicate = await app.inject({ method: 'POST', url: `/api/tests/${challenge.id}/finish`, headers: { cookie }, payload: { typed: '' } });
     expect(duplicate.statusCode).toBe(200);
     expect(duplicate.json()).toEqual(finish.json());
-    const duplicatePublish = await app.inject({ method: 'POST', url: '/api/leaderboard', headers: { cookie }, payload: { attemptId: challenge.id, nickname: '另一个昵称' } });
+    const duplicatePublish = await app.inject({ method: 'POST', url: '/api/leaderboard', headers: { cookie }, payload: { attemptId: challenge.id, nickname: 'visitor-另一个昵称' } });
     expect(duplicatePublish.statusCode).toBe(409);
   });
 
@@ -380,7 +387,7 @@ describe('typing API', () => {
     now += 60_000;
     const finish = await app.inject({ method: 'POST', url: `/api/tests/${challenge.id}/finish`, headers: { cookie }, payload: { typed: challenge.target.slice(0, 600) } });
     expect(finish.json().status).toBe('review');
-    const submission = await app.inject({ method: 'POST', url: '/api/leaderboard', headers: { cookie }, payload: { attemptId: challenge.id, nickname: 'Tester' } });
+    const submission = await app.inject({ method: 'POST', url: '/api/leaderboard', headers: { cookie }, payload: { attemptId: challenge.id, nickname: 'visitor-Tester' } });
     expect(submission.json().status).toBe('review');
     const ranking = await app.inject({ method: 'GET', url: '/api/leaderboard?language=en&difficulty=beginner&duration=60' });
     expect(ranking.json().entries).toEqual([]);
@@ -457,8 +464,10 @@ describe('typing API', () => {
     now += 5_000;
     await app.inject({ method: 'POST', url: `/api/tests/${challenge.id}/finish`, headers: { cookie }, payload: { typed: challenge.target.slice(0, 10) } });
     const db = new Database(databasePath);
+    db.prepare('INSERT INTO site_settings(id,settings,revision) VALUES (1,?,1)').run(JSON.stringify({ registrationEnabled: true, guestPracticeEnabled: true,
+      guestLeaderboardEnabled: true, guestReviewRequired: false, reviewThresholdZh: 220, reviewThresholdEn: 180 }));
     db.exec("CREATE TRIGGER fail_score BEFORE INSERT ON scores BEGIN SELECT RAISE(ABORT, 'test failure'); END");
-    const payload = { attemptId: challenge.id, nickname: '小云' };
+    const payload = { attemptId: challenge.id, nickname: 'visitor-小云' };
     const first = await app.inject({ method: 'POST', url: '/api/leaderboard', headers: { cookie }, payload });
     expect(first.statusCode).toBe(500);
     db.exec('DROP TRIGGER fail_score');

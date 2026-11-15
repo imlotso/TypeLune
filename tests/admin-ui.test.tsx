@@ -168,3 +168,24 @@ it('revokes another user’s sessions after confirmation and refreshes their acc
     method: 'POST', headers: { 'X-Workspace-Owner': 'manager' }, body: { reason: '账号安全核查' },
   });
 });
+
+it('sends a separate user-visible explanation when rejecting a score', async () => {
+  const score = { id: 'attempt', nickname: '云朵', language: 'zh', difficulty: 'beginner', articleId: 'spring', articleTitle: '春雨',
+    status: 'pending', duration: 300, mode: 'timed', strict: false, speed: 56, accuracy: 100, checkpoints: 2, reasons: ['paused_session'], finishedAt: 1000 };
+  call.mockImplementation(async (url) => {
+    if (url === '/api/admin/overview') return overview;
+    if (url.startsWith('/api/admin/scores?')) return page([score]);
+    if (url === '/api/admin/scores/moderate') return { ok: true, count: 1 };
+    throw new Error('unexpected request');
+  });
+  render(<AdminConsole ownerId="manager" onCatalogChange={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: '成绩' }));
+  await screen.findByText('云朵');
+  fireEvent.click(screen.getByRole('button', { name: /^拒绝$/ }));
+  const dialog = screen.getByRole('dialog', { name: '拒绝成绩' });
+  fireEvent.change(within(dialog).getByLabelText('原因'), { target: { value: '内部审核记录' } });
+  fireEvent.change(within(dialog).getByLabelText('用户可见说明'), { target: { value: '请重新练习后提交' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '确认拒绝' }));
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: '拒绝成绩' })).toBeNull());
+  expect(request('/api/admin/scores/moderate')?.body).toEqual({ ids: ['attempt'], action: 'reject', reason: '内部审核记录', publicMessage: '请重新练习后提交' });
+});

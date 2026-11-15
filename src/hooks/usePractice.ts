@@ -1,29 +1,37 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CompositionEvent, type KeyboardEvent } from 'react';
 import type { Difficulty, Language } from '../data/articles';
 import { api, ApiError } from '../lib/api';
-import { catalogSnapshotKey, compareDraftProgress, sameDraftSnapshot, snapshotKey, type ArticleSnapshot, type MistakeSample, type PracticeMode, type PracticeRecord, type SavedPractice } from '../lib/models';
+import { catalogSnapshotKey, compareDraftProgress, sameCompletedDraftProgress, sameDraftSnapshot, snapshotKey, type ArticleSnapshot, type MistakeSample, type PracticeMode, type PracticeRecord, type SavedPractice } from '../lib/models';
 import { scoreTyping, splitCharacters, type Score } from '../lib/scoring';
+import { legacyConflictId, legacyRecordProof, stableRecordId } from '../lib/records';
+import { resultRecoveryAvailability } from '../lib/result-recovery';
+import { isLocalAccountBlocked, readWorkspaceGeneration } from '../lib/workspace';
+import { appendProcessSample, initialProcessTrace, isProcessTrace, type ProcessTrace } from '../lib/process-trace';
 
 export type PracticePhase = 'ready' | 'starting' | 'running' | 'pausing' | 'paused' | 'resuming' | 'restoring' | 'finishing' | 'finished';
 type RoundConfig = { articleId: string; title: string; text: string; language: Language; difficulty: Difficulty; duration: number; custom: boolean; ownerId: string | null; article?: ArticleSnapshot; mode?: PracticeMode; strict?: boolean };
 export type PracticeConfig = RoundConfig & {
+  guestOnlineAllowed?: boolean;
+  paceTarget?: number;
   guardCatalog?: boolean;
   onCatalogStale?: () => void;
   autoPause?: boolean;
   onRecord?: (record: PracticeRecord) => void;
   onDraft?: (draft: SavedPractice) => void;
+  onParkDraft?: (draft: SavedPractice) => Promise<boolean>;
+  isWorkspaceFallback?: (id: string, ownerId: string | null) => boolean;
   onRemoveDraft?: (id: string, ownerId: string | null) => void;
   onReplaceRecord?: (id: string, ownerId: string | null) => void;
   isDraftDeleted?: (id: string, ownerId: string | null) => boolean;
 };
-export type PracticeResult = { score: Score; attemptId?: string; status?: string; eligible?: boolean; submitted?: boolean; offline: boolean; language: Language; elapsedMs: number; backspaces: number; errors: number; articleTotal: number; custom: boolean; continuation?: SavedPractice };
+export type PracticeResult = { score: Score; recordId?: string; record?: PracticeRecord; attemptId?: string; status?: string; eligible?: boolean; submitted?: boolean; offline: boolean; language: Language; elapsedMs: number; backspaces: number; errors: number; articleTotal: number; custom: boolean; continuation?: SavedPractice };
 type Attempt = RoundConfig & {
   id?: string; recordId: string; revision: number; legacy?: boolean; target: string;
   offline: boolean; elapsedMs: number; startedAt: number | null; suspicious: boolean;
-  backspaces: number; nextCheckpointMs: number; offset?: number; mistakes?: MistakeSample[]; pendingStart?: boolean;
+  backspaces: number; nextCheckpointMs: number; offset?: number; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; paceTarget?: number; pendingStart?: boolean; processTrace?: ProcessTrace; processErrorEvents?: number;
   recoveryId?: string; recoveryKey?: string; claimId?: string; claimVersion?: number; recoveryRequestId?: string; recoveryMarker?: string; progressVersion?: number; recoveryBaseVersion?: number; progressFingerprint?: string; personalOnly?: boolean;
 };
-export type PracticeDraft = Omit<Attempt, 'startedAt' | 'nextCheckpointMs'> & { version: 1; typed: string; completed?: boolean; early?: boolean; savedAt?: number; leaseOwner?: string | null; leaseAt?: number };
+export type PracticeDraft = Omit<Attempt, 'startedAt' | 'nextCheckpointMs'> & { version: 1; typed: string; completed?: boolean; early?: boolean; savedAt?: number; leaseOwner?: string | null; leaseAt?: number; localSyncGeneration?: number };
 export type History = PracticeRecord;
 type ServerResult = { attemptId: string; score: Score; status: string; eligible: boolean; elapsedMs: number; submitted?: boolean };
 type RecoveryState = { id: string; status: string; elapsedMs?: number; remainingMs?: number; claimVersion?: number; result?: ServerResult; typed?: string; backspaces?: number };
@@ -55,6 +63,7 @@ function clientRecoveryKey() {
 const leaseTaken = (draft: PracticeDraft, owner: string) => !!draft.leaseOwner && draft.leaseOwner !== owner && typeof draft.leaseAt === 'number' && Date.now() - draft.leaseAt < 15_000;
 export const draftAwaitingStart = (draft: PracticeDraft) => !!draft.pendingStart && leaseTaken(draft, '');
 const validDuration = (seconds: number) => Number.isInteger(seconds) && seconds >= 60 && seconds <= 3600 && seconds % 60 === 0;
+const validPaceTarget = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 18_000_000;
 const durationLimit = (round: Pick<RoundConfig, 'mode' | 'duration'>) => round.mode === 'article' ? articleLimitMs : round.duration * 1000;
 const validAttemptId = (id: string) => /^[\w-]{1,80}$/.test(id);
 const guestPracticeDisabledMessage = '游客在线练习已关闭，已转为本地练习。';
@@ -105,22 +114,93 @@ function storedDraft(recordId: string): PracticeDraft | null {
   try { return JSON.parse(localStorage.getItem(draftPrefix + recordId) || 'null') as PracticeDraft | null; } catch { return null; }
 }
 
+function readRawHistory(): unknown[] {
+  const value: unknown = JSON.parse(localStorage.getItem(historyKey) || '[]');
+  if (!Array.isArray(value)) throw new Error('本机旧版记录无法读取');
+  return value;
+}
+function validLocalHistory(value: unknown): value is History {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if (!['zh', 'en'].includes(record.language as string) || !['beginner', 'intermediate', 'advanced'].includes(record.difficulty as string) ||
+    typeof record.duration !== 'number' || !Number.isFinite(record.duration) || record.duration <= 0 ||
+    typeof record.speed !== 'number' || !Number.isFinite(record.speed) || record.speed < 0 ||
+    typeof record.accuracy !== 'number' || !Number.isFinite(record.accuracy) || record.accuracy < 0 || record.accuracy > 100 ||
+    typeof record.finishedAt !== 'number' || !Number.isFinite(new Date(record.finishedAt).getTime()) ||
+    (record.ownerId != null && typeof record.ownerId !== 'string') || (record.recordId !== undefined && typeof record.recordId !== 'string') ||
+    (record.typed !== undefined && typeof record.typed !== 'string')) return false;
+  return true;
+}
+function completeLegacySnapshot(record: History) {
+  const article = record.article as unknown;
+  if (article === undefined) return true;
+  if (!article || typeof article !== 'object' || Array.isArray(article)) return false;
+  const item = article as Record<string, unknown>;
+  return typeof item.id === 'string' && typeof item.title === 'string' && typeof item.text === 'string' &&
+    ['zh', 'en'].includes(item.language as string) && ['beginner', 'intermediate', 'advanced'].includes(item.difficulty as string) && typeof item.custom === 'boolean';
+}
+function normalizeLegacyRecord(stored: History): History {
+  const { legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, legacyDeletionBlocked: _blocked, legacyConflictBase: _base, legacyProof: _proof, ...record } = stored;
+  const recordId = record.recordId || stableRecordId(record);
+  const proof = legacyRecordProof(record);
+  const legacy = record.recordId ? {} : { legacyLocalIds: [recordId], ...(proof && { legacyProof: proof }) };
+  if (completeLegacySnapshot(record)) return record.recordId ? record : { ...record, recordId, ...legacy };
+  const { article, ...summary } = record;
+  if (!article || typeof article !== 'object' || Array.isArray(article) || typeof article.id !== 'string' || typeof article.title !== 'string' || typeof article.text !== 'string') {
+    return { ...summary, recordId, ...legacy };
+  }
+  // Missing provenance cannot be upgraded to a verified public article.
+  return { ...summary, recordId, ...legacy, article: { ...article, language: record.language, difficulty: record.difficulty, custom: true } };
+}
 export function localHistory(): History[] {
-  try { const value = JSON.parse(localStorage.getItem(historyKey) || '[]'); return Array.isArray(value) ? value.slice(0, 50) : []; } catch { return []; }
+  try { return readRawHistory().filter(validLocalHistory).map(normalizeLegacyRecord); } catch { return []; }
+}
+export function deleteLocalHistory(ownerId: string | null, ids: string[], localConflictIds: string[] = [], localConflictBases: Readonly<Record<string, string>> = {}) {
+  const raw = localStorage.getItem(historyKey);
+  if (!raw) return false;
+  const entries: unknown = JSON.parse(raw);
+  if (!Array.isArray(entries)) throw new Error('本机历史无法读取');
+  const selected = new Set(ids);
+  const conflictIds = new Set(localConflictIds.filter((id) => selected.has(id)).map((id) => localConflictBases[id] ?? id));
+  const remaining = entries.filter((entry) => !entry || typeof entry !== 'object' || Array.isArray(entry) ||
+    ((entry as PracticeRecord).ownerId ?? null) !== ownerId || (!selected.has(stableRecordId(entry as PracticeRecord)) &&
+      !(conflictIds.size && !(entry as PracticeRecord).recordId && validLocalHistory(entry) && conflictIds.has(legacyConflictId(normalizeLegacyRecord(entry))))));
+  if (remaining.length === entries.length) return false;
+  localStorage.setItem(historyKey, JSON.stringify(remaining));
+  return true;
+}
+export function hasUnloadedLocalHistory() {
+  try { return readRawHistory().some((value) => !validLocalHistory(value) || !completeLegacySnapshot(value)); }
+  catch { return true; }
 }
 function rememberHistory(entry: History, previousId?: string) {
-  try { localStorage.setItem(historyKey, JSON.stringify([entry, ...localHistory().filter((item) => item.ownerId !== entry.ownerId || !item.recordId || (item.recordId !== entry.recordId && item.recordId !== previousId))].slice(0, 50))); } catch { /* Practice still works without storage. */ }
+  if (isLocalAccountBlocked(entry.ownerId ?? null)) return;
+  try {
+    const generation = entry.ownerId ? readWorkspaceGeneration(entry.ownerId) : null;
+    const saved = generation ? { ...entry, localSyncGeneration: generation } : entry;
+    const previous = readRawHistory().filter((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return true;
+      const record = item as Partial<PracticeRecord>;
+      const id = record.recordId || (validLocalHistory(item) ? stableRecordId(item) : undefined);
+      return (record.ownerId ?? null) !== (entry.ownerId ?? null) || !id || (id !== entry.recordId && id !== previousId);
+    });
+    localStorage.setItem(historyKey, JSON.stringify([saved, ...previous]));
+  } catch { /* Practice still works without storage. */ }
 }
 export function readDrafts(ownerId?: string | null): PracticeDraft[] {
+  if (ownerId && isLocalAccountBlocked(ownerId)) return [];
   try {
     const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key): key is string => !!key && key.startsWith(draftPrefix));
     const candidates = keys.map((key) => { try { return JSON.parse(localStorage.getItem(key) || 'null') as PracticeDraft | null; } catch { return null; } }).filter((item): item is PracticeDraft => !!item);
     let legacy: PracticeDraft | null = null;
     try { legacy = JSON.parse(localStorage.getItem(legacyDraftKey) || 'null') as PracticeDraft | null; } catch { /* Other saved attempts can still be recovered. */ }
     if (legacy) candidates.push({ ...legacy, legacy: true });
-    const valid = candidates.filter((data) => (ownerId === undefined || (data.ownerId ?? null) === ownerId) && data.version === 1 && ['zh', 'en'].includes(data.language) && ['beginner', 'intermediate', 'advanced'].includes(data.difficulty) && validDuration(data.duration) && typeof data.target === 'string' && !!data.target && data.target.length <= 30000 && typeof data.typed === 'string' && splitCharacters(data.typed).length <= splitCharacters(data.target).length && typeof data.articleId === 'string' && typeof data.title === 'string' && Number.isFinite(data.elapsedMs) && data.elapsedMs >= 0 && data.elapsedMs <= durationLimit(data) && Number.isInteger(data.backspaces) && data.backspaces >= 0 && (data.id === undefined || (typeof data.id === 'string' && validAttemptId(data.id))));
+    const valid = candidates.filter((data) => (ownerId === undefined || (data.ownerId ?? null) === ownerId) && data.version === 1 && ['zh', 'en'].includes(data.language) && ['beginner', 'intermediate', 'advanced'].includes(data.difficulty) && validDuration(data.duration) && typeof data.target === 'string' && !!data.target && data.target.length <= 30000 && typeof data.typed === 'string' && splitCharacters(data.typed).length <= splitCharacters(data.target).length && typeof data.articleId === 'string' && typeof data.title === 'string' && Number.isFinite(data.elapsedMs) && data.elapsedMs >= 0 && data.elapsedMs <= durationLimit(data) && Number.isInteger(data.backspaces) && data.backspaces >= 0 && (data.paceTarget === undefined || validPaceTarget(data.paceTarget)) && (data.id === undefined || (typeof data.id === 'string' && validAttemptId(data.id))));
     return valid.sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0)).map((data) => {
       data.recordId = legacyRecordId(data);
+      if (!isProcessTrace(data.processTrace)) data.processTrace = undefined;
+      if (!Number.isSafeInteger(data.processErrorEvents) || data.processErrorEvents! < 0 || data.processErrorEvents! > 10_000_000) data.processErrorEvents = data.processTrace?.samples.at(-1)?.errors;
+      if (data.processTrace) data.processErrorEvents = Math.max(data.processErrorEvents ?? 0, data.processTrace.samples.at(-1)!.errors);
       if (!Number.isSafeInteger(data.revision) || data.revision < 0) data.revision = 0;
       if (typeof data.ownerId !== 'string') data.ownerId = null;
       data.typed = boundedPrefix(splitCharacters(data.typed), splitCharacters(data.target).length).join('');
@@ -128,6 +208,28 @@ export function readDrafts(ownerId?: string | null): PracticeDraft[] {
       return data;
     });
   } catch { return []; }
+}
+
+export function clearLocalPractice(ownerId: string | null) {
+  const historyRaw = localStorage.getItem(historyKey);
+  const history: unknown = historyRaw ? JSON.parse(historyRaw) : [];
+  if (!Array.isArray(history)) throw new Error('本机历史无法读取');
+  const removals: string[] = [];
+  const removedIds = new Set<string>();
+  const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key): key is string => !!key && (key.startsWith(draftPrefix) || key === legacyDraftKey));
+  for (const key of keys) {
+    const raw = localStorage.getItem(key);
+    if (!raw) continue;
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('本机草稿无法读取');
+    const candidate = value as { ownerId?: string | null; recordId?: string };
+    if ((candidate.ownerId ?? null) === ownerId) { removals.push(key); if (candidate.recordId) removedIds.add(candidate.recordId); }
+  }
+  const remaining = history.filter((item) => !item || typeof item !== 'object' || ((item as { ownerId?: string | null }).ownerId ?? null) !== ownerId);
+  if (historyRaw) localStorage.setItem(historyKey, JSON.stringify(remaining));
+  for (const key of removals) localStorage.removeItem(key);
+  const current = sessionStorage.getItem(currentDraftKey);
+  if (current && removedIds.has(current)) sessionStorage.removeItem(currentDraftKey);
 }
 export function readDraft(ownerId?: string | null): PracticeDraft | null {
   const drafts = readDrafts(ownerId);
@@ -166,16 +268,29 @@ export function discardSavedDraft(saved: SavedPractice): boolean {
 function elapsedTime(attempt: Attempt) {
   return Math.min(durationLimit(attempt), attempt.elapsedMs + (attempt.startedAt === null ? 0 : Math.max(0, performance.now() - attempt.startedAt)));
 }
-function progressFingerprint(attempt: Pick<Attempt, 'backspaces' | 'offset' | 'suspicious' | 'mistakes'>, typed: string, elapsed: number) {
-  return JSON.stringify([typed, elapsed, attempt.backspaces, attempt.offset ?? 0, !!attempt.suspicious, attempt.mistakes ?? []]);
+function processPoint(attempt: Attempt, typed: string, elapsed: number) {
+  const offset = attempt.offset ?? 0;
+  const input = splitCharacters(typed).slice(offset);
+  const expected = splitCharacters(attempt.target).slice(offset);
+  return { time: Math.round(elapsed), progress: input.length, correct: input.reduce((count, character, index) => count + Number(character === expected[index]), 0), errors: attempt.processErrorEvents ?? 0 };
+}
+function sampleProcess(attempt: Attempt, typed: string, elapsed: number, force: boolean) {
+  const trace = attempt.processTrace;
+  if (!trace || (!force && elapsed - trace.samples.at(-1)!.time < trace.intervalMs)) return;
+  attempt.processTrace = appendProcessSample(trace, processPoint(attempt, typed, elapsed), force);
+}
+function progressFingerprint(attempt: Pick<Attempt, 'backspaces' | 'offset' | 'suspicious' | 'mistakes' | 'mistakesTruncated' | 'paceTarget' | 'processTrace' | 'processErrorEvents'>, typed: string, elapsed: number) {
+  return JSON.stringify([typed, elapsed, attempt.backspaces, attempt.offset ?? 0, !!attempt.suspicious, attempt.mistakes ?? [], !!attempt.mistakesTruncated, attempt.paceTarget, attempt.processTrace, attempt.processErrorEvents]);
 }
 function saveDraft(attempt: Attempt, typed: string, owner: string, completed = false, early = false) {
+  if (isLocalAccountBlocked(attempt.ownerId)) return false;
   const { startedAt: _startedAt, nextCheckpointMs: _nextCheckpointMs, progressFingerprint: _fingerprint, ...rest } = attempt;
   const elapsed = elapsedTime(attempt);
   const fingerprint = progressFingerprint(attempt, typed, elapsed);
   const version = (attempt.progressVersion ?? 0) + Number(attempt.progressFingerprint !== fingerprint);
-  const data: PracticeDraft = { ...rest, revision: attempt.revision + 1, progressVersion: version, version: 1, elapsedMs: elapsed, typed, completed, early, savedAt: Date.now(), leaseOwner: owner, leaseAt: Date.now() };
   try {
+    const generation = attempt.ownerId ? readWorkspaceGeneration(attempt.ownerId) : null;
+    const data: PracticeDraft = { ...rest, revision: attempt.revision + 1, progressVersion: version, version: 1, elapsedMs: elapsed, typed, completed, early, savedAt: Date.now(), leaseOwner: owner, leaseAt: Date.now(), ...(generation && { localSyncGeneration: generation }) };
     localStorage.setItem(draftPrefix + attempt.recordId, JSON.stringify(data));
     attempt.revision = data.revision;
     attempt.progressVersion = data.progressVersion;
@@ -186,6 +301,7 @@ function saveDraft(attempt: Attempt, typed: string, owner: string, completed = f
   } catch { return false; }
 }
 function releaseLease(attempt: Attempt, owner: string) {
+  if (isLocalAccountBlocked(attempt.ownerId)) return;
   try {
     const draft = storedDraft(attempt.recordId);
     if (draft?.leaseOwner === owner) localStorage.setItem(draftPrefix + attempt.recordId, JSON.stringify({ ...draft, leaseOwner: null, leaseAt: 0 }));
@@ -195,7 +311,8 @@ function localResult(attempt: Attempt, used: number, typed: string): PracticeRes
   const expected = splitCharacters(attempt.target);
   const offset = attempt.offset ?? 0;
   const score = scoreTyping(offset ? expected.slice(offset).join('') : attempt.target, offset ? splitCharacters(typed).slice(offset).join('') : typed, Math.max(used / 1000, 0.1));
-  return { score, offline: attempt.offline, language: attempt.language, elapsedMs: used, backspaces: attempt.backspaces, errors: score.total - score.correct, articleTotal: expected.length, custom: attempt.custom };
+  const result: PracticeResult = { score, recordId: attempt.recordId, offline: attempt.offline, language: attempt.language, elapsedMs: used, backspaces: attempt.backspaces, errors: score.total - score.correct, articleTotal: expected.length, custom: attempt.custom };
+  return { ...result, record: recordResult(attempt, result, typed) };
 }
 function withServerResult(local: PracticeResult, saved: ServerResult): PracticeResult {
   if (!saved.score || typeof saved.score.correct !== 'number' || typeof saved.score.total !== 'number' || typeof saved.score.accuracy !== 'number' || typeof saved.score.cpm !== 'number' || typeof saved.score.wpm !== 'number') throw new Error('成绩数据无效');
@@ -207,7 +324,7 @@ function recordResult(attempt: Attempt, result: PracticeResult, typed: string): 
     accuracy: result.score.accuracy, finishedAt: Date.now(), status: result.status, elapsedMs: Math.round(result.elapsedMs), backspaces: result.backspaces, errors: result.errors,
     recordId: result.attemptId ?? attempt.recordId, ownerId: attempt.ownerId, localOnly: result.offline, article: articleSnapshot(attempt, attempt.target), typed,
     offset: attempt.offset ?? 0, total: result.score.total, correct: result.score.correct, articleTotal: result.articleTotal,
-    mode: attempt.mode ?? 'timed', strict: !!attempt.strict, mistakes: [...(attempt.mistakes ?? [])],
+    mode: attempt.mode ?? 'timed', strict: !!attempt.strict, mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }), ...(validPaceTarget(attempt.paceTarget) && { paceTarget: attempt.paceTarget }), ...(attempt.processTrace && { processTrace: attempt.processTrace }),
   };
 }
 
@@ -220,7 +337,8 @@ function workspaceDraft(attempt: Attempt, typed: string): SavedPractice {
     claimVersion: attempt.claimVersion, recoveryMarker: attempt.recoveryMarker,
     recoveryBaseVersion: attempt.recoveryRequestId ? attempt.recoveryBaseVersion : undefined,
     progressVersion: attempt.progressVersion, personalOnly: attempt.personalOnly, offline: attempt.offline,
-    ownerId: attempt.ownerId, savedAt: Date.now(), mistakes: [...(attempt.mistakes ?? [])], suspicious: attempt.suspicious,
+    ownerId: attempt.ownerId, savedAt: Date.now(), mistakes: [...(attempt.mistakes ?? [])], ...(attempt.mistakesTruncated && { mistakesTruncated: true }), ...(validPaceTarget(attempt.paceTarget) && { paceTarget: attempt.paceTarget }), suspicious: attempt.suspicious,
+    ...(attempt.processTrace && { processTrace: attempt.processTrace, processErrorEvents: attempt.processErrorEvents ?? 0 }),
   };
 }
 export function savedPracticeFromLegacy(draft: PracticeDraft): SavedPractice {
@@ -241,15 +359,22 @@ function attemptFromSaved(saved: SavedPractice, typed: string, revision = 0): At
     id: custom || saved.offset > 0 || saved.personalOnly ? undefined : saved.attemptId, recoveryId: saved.recoveryId, recoveryKey: saved.recoveryKey,
     claimVersion: saved.claimVersion, progressVersion: saved.progressVersion, recoveryBaseVersion: saved.progressVersion, personalOnly: saved.personalOnly, recordId: saved.recordId, revision, offline,
     elapsedMs: Math.min(durationLimit(saved), Math.max(0, saved.elapsedMs)), startedAt: null, nextCheckpointMs: saved.elapsedMs + 5000,
-    backspaces: saved.backspaces, suspicious: !!saved.suspicious, offset: Math.min(saved.offset, splitCharacters(typed).length), mistakes: [...(saved.mistakes ?? []).slice(0, mistakeLimit)],
+    backspaces: saved.backspaces, suspicious: !!saved.suspicious, offset: Math.min(saved.offset, splitCharacters(typed).length), mistakes: [...(saved.mistakes ?? []).slice(0, mistakeLimit)], mistakesTruncated: saved.mistakesTruncated || (saved.mistakes?.length ?? 0) > mistakeLimit, paceTarget: validPaceTarget(saved.paceTarget) ? saved.paceTarget : undefined,
+    processTrace: isProcessTrace(saved.processTrace) ? saved.processTrace : undefined,
+    processErrorEvents: Math.max(Number.isSafeInteger(saved.processErrorEvents) && saved.processErrorEvents! >= 0 && saved.processErrorEvents! <= 10_000_000 ? saved.processErrorEvents! : 0, isProcessTrace(saved.processTrace) ? saved.processTrace.samples.at(-1)!.errors : 0),
   };
+}
+
+export function recoveryDraftFromSaved(saved: SavedPractice): PracticeDraft {
+  const { startedAt: _startedAt, nextCheckpointMs: _nextCheckpointMs, ...attempt } = attemptFromSaved(saved, saved.typed);
+  return { ...attempt, version: 1, typed: saved.typed, completed: true, early: true };
 }
 
 export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft | null) {
   const ownerToken = useRef(uniqueId());
   const [draft] = useState<PracticeDraft | null>(() => initialDraft && leaseTaken(initialDraft, ownerToken.current) && !initialDraft.completed ? { ...initialDraft, id: undefined, recoveryId: undefined, recoveryKey: undefined, claimId: undefined, claimVersion: undefined, recoveryRequestId: undefined, recoveryMarker: undefined, progressVersion: 0, recoveryBaseVersion: undefined, personalOnly: true, recordId: uniqueId(), revision: 0, offline: true, legacy: false, leaseOwner: null, leaseAt: 0 } : initialDraft);
   const wasForked = !!draft && !!initialDraft && draft.recordId !== initialDraft.recordId;
-  const restoredAttempt: Attempt | null = draft ? { ...draft, recoveryBaseVersion: draft.recoveryBaseVersion ?? draft.progressVersion, progressFingerprint: progressFingerprint(draft, draft.typed, draft.elapsedMs), startedAt: null, nextCheckpointMs: draft.elapsedMs + 5000 } : null;
+  const restoredAttempt: Attempt | null = draft ? { ...draft, processTrace: isProcessTrace(draft.processTrace) ? draft.processTrace : undefined, recoveryBaseVersion: draft.recoveryBaseVersion ?? draft.progressVersion, progressFingerprint: progressFingerprint(draft, draft.typed, draft.elapsedMs), startedAt: null, nextCheckpointMs: draft.elapsedMs + 5000 } : null;
   const initialPhase: PracticePhase = draft ? (draft.completed || (draft.id && !draft.offline) ? 'restoring' : 'paused') : 'ready';
   const [phase, setPhase] = useState<PracticePhase>(initialPhase);
   const phaseRef = useRef<PracticePhase>(initialPhase);
@@ -277,6 +402,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   liveConfig.current = config;
   const startRequest = useRef(0);
   const parked = useRef(false);
+  const unsavedProgress = useRef(false);
   const lastWorkspaceSave = useRef(-Infinity);
   const recorded = useRef(new Set<string>());
   const continuationRef = useRef<Attempt | null>(null);
@@ -313,9 +439,31 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   };
   const persist = useCallback((attempt: Attempt, force = false) => {
     const forked = ensureOwnership(attempt);
-    if (!saveDraft(attempt, typedRef.current, ownerToken.current)) setFeedback('进度保存失败。');
+    const saved = saveDraft(attempt, typedRef.current, ownerToken.current);
+    unsavedProgress.current = !saved;
+    if (!saved) setFeedback('进度保存失败。');
     emitDraft(attempt, typedRef.current, force || forked);
+    return saved;
   }, []);
+
+  async function persistForPark(attempt: Attempt) {
+    if (persist(attempt, true)) return true;
+    if (!liveConfig.current.onParkDraft) return false;
+    try {
+      const fingerprint = progressFingerprint(attempt, typedRef.current, elapsedTime(attempt));
+      if (attempt.progressFingerprint !== fingerprint) {
+        attempt.progressVersion = (attempt.progressVersion ?? 0) + 1;
+        attempt.progressFingerprint = fingerprint;
+      }
+      const saved = await liveConfig.current.onParkDraft(workspaceDraft(attempt, typedRef.current));
+      if (saved && attemptRef.current === attempt && phaseRef.current === 'paused') {
+        unsavedProgress.current = false;
+        setFeedback('草稿已保存在本机工作区。');
+        return true;
+      }
+    } catch { /* Keep the active attempt available for retry. */ }
+    return false;
+  }
 
   function detachFromOnline(attempt: Attempt, message: string) {
     if (storedDraft(attempt.recordId)?.completed) clearDraft(attempt, ownerToken.current);
@@ -339,7 +487,10 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   }
 
   const settle = (attempt: Attempt, final: PracticeResult, typed: string) => {
+    final = { ...final, recordId: final.attemptId ?? attempt.recordId };
+    sampleProcess(attempt, typed, final.elapsedMs, true);
     const entry = recordResult(attempt, final, typed);
+    final = { ...final, record: entry };
     const recordId = final.attemptId ?? attempt.recordId;
     const previous = localHistory().find((item) => (item.recordId === recordId || item.recordId === attempt.recordId) && item.ownerId === attempt.ownerId);
     const alreadyRecorded = recorded.current.has(recordId) || !!previous;
@@ -357,7 +508,8 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       const next: Attempt = {
         ...attempt, id: undefined, recoveryId: undefined, recoveryKey: undefined, claimId: undefined, claimVersion: undefined, recoveryRequestId: undefined, recoveryMarker: undefined, progressVersion: 0, recoveryBaseVersion: undefined, progressFingerprint: undefined, personalOnly: true, recordId: nextRecordId(recordId), revision: 0, legacy: false,
         offline: true, elapsedMs: 0, startedAt: null, nextCheckpointMs: 5000,
-        suspicious: false, backspaces: 0, offset: nextOffset, mistakes: [],
+        suspicious: false, backspaces: 0, offset: nextOffset, mistakes: [], mistakesTruncated: false,
+        processTrace: initialProcessTrace({ time: 0, progress: 0, correct: 0, errors: 0 }), processErrorEvents: 0,
       };
       if (!isDeleted(next)) {
         const existing = storedDraft(next.recordId);
@@ -583,11 +735,13 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
 
   async function loadLegacy(saved: PracticeDraft) {
     if ((saved.ownerId ?? null) !== liveConfig.current.ownerId || !mounted.current) return;
-    if (draftAwaitingStart(saved) && saved.leaseOwner !== ownerToken.current) return;
+    // A completed round may still be settling in another tab after its start
+    // request finishes. Do not restore its provisional result a second time.
+    if ((saved.pendingStart || saved.completed) && leaseTaken(storedDraft(saved.recordId) ?? saved, ownerToken.current)) return;
     const previous = attemptRef.current;
     if (previous && phaseRef.current === 'running' && !await park()) return;
     if (previous !== attemptRef.current || !mounted.current || (saved.ownerId ?? null) !== liveConfig.current.ownerId) return;
-    const attempt: Attempt = { ...saved, pendingStart: false, recoveryBaseVersion: saved.recoveryBaseVersion ?? saved.progressVersion, startedAt: null, nextCheckpointMs: saved.elapsedMs + 5000 };
+    const attempt: Attempt = { ...saved, processTrace: isProcessTrace(saved.processTrace) ? saved.processTrace : undefined, pendingStart: false, recoveryBaseVersion: saved.recoveryBaseVersion ?? saved.progressVersion, startedAt: null, nextCheckpointMs: saved.elapsedMs + 5000 };
     bindAttempt(attempt, saved.typed);
     if (isDeleted(attempt)) {
       if (saved.completed) { attempt.offline = true; attempt.personalOnly = true; setResult(localResult(attempt, attempt.elapsedMs, saved.typed)); setCurrentPhase('finished'); }
@@ -619,6 +773,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       if (phaseRef.current === 'running') {
         ++startRequest.current;
         const used = elapsedTime(attempt);
+        sampleProcess(attempt, typedRef.current, used, true);
         composing.current = false; setRaw(typedRef.current);
         attempt.elapsedMs = used; attempt.startedAt = null; clearTimer(); setElapsedMs(used); setCurrentPhase('paused');
         persist(attempt, true);
@@ -668,9 +823,15 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       if (phaseRef.current === 'running' && isDeleted(attempt)) { persist(attempt, true); return; }
       const saved = storedDraft(attempt.recordId);
       if (saved && !saved.completed && saved.revision === attempt.revision && !leaseTaken(saved, ownerToken.current)) {
-        try { localStorage.setItem(draftPrefix + attempt.recordId, JSON.stringify({ ...saved, leaseOwner: ownerToken.current, leaseAt: Date.now() })); } catch { /* Progress remains usable in memory. */ }
+        try { if (!isLocalAccountBlocked(attempt.ownerId)) localStorage.setItem(draftPrefix + attempt.recordId, JSON.stringify({ ...saved, leaseOwner: ownerToken.current, leaseAt: Date.now() })); } catch { /* Progress remains usable in memory. */ }
       }
     }, 5000);
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!unsavedProgress.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
     window.addEventListener('pagehide', onPageHide);
     window.addEventListener('pageshow', onPageShow);
     window.addEventListener('online', retryPaused);
@@ -678,13 +839,14 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       if (liveConfig.current.autoPause && document.visibilityState === 'hidden' && phaseRef.current === 'running') void pause();
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => { mounted.current = false; window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', onPageShow); window.removeEventListener('online', retryPaused); document.removeEventListener('visibilitychange', onVisibilityChange); clearInterval(heartbeat); clearTimer(); if (attemptRef.current) releaseLease(attemptRef.current, ownerToken.current); };
+    return () => { mounted.current = false; window.removeEventListener('beforeunload', onBeforeUnload); window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', onPageShow); window.removeEventListener('online', retryPaused); document.removeEventListener('visibilitychange', onVisibilityChange); clearInterval(heartbeat); clearTimer(); if (attemptRef.current) releaseLease(attemptRef.current, ownerToken.current); };
   }, []);
 
   const finish = useCallback(async (early = false) => {
     const attempt = attemptRef.current;
     if (!attempt || !['running', 'paused'].includes(phaseRef.current)) return;
     const used = elapsedTime(attempt);
+    sampleProcess(attempt, typedRef.current, used, true);
     attempt.elapsedMs = used; attempt.startedAt = null;
     clearTimer(); setCurrentPhase('finishing'); setElapsedMs(used);
     const value = typedRef.current;
@@ -715,6 +877,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       if (!attempt || phaseRef.current !== 'running') return;
       const used = elapsedTime(attempt);
       setElapsedMs(used);
+      sampleProcess(attempt, typedRef.current, used, false);
       if (used >= durationLimit(attempt)) { void finish(false); return; }
       if (attempt.id && !attempt.offline && used >= attempt.nextCheckpointMs) {
         attempt.nextCheckpointMs = used + 5000;
@@ -733,14 +896,16 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     if (phaseRef.current !== 'ready' || !validDuration(settings.duration) || !settings.text) return;
     const request = ++startRequest.current;
     const { articleId, title, language, difficulty, duration, custom, ownerId, article, mode = 'timed', strict = false } = settings;
-    const clientId = custom ? undefined : clientChallengeId();
+    const guestBlocked = !custom && !ownerId && settings.guestOnlineAllowed === false;
+    const clientId = custom || guestBlocked ? undefined : clientChallengeId();
     const recoveryKey = clientId ? clientRecoveryKey() : undefined;
     const claimId = clientId ? clientChallengeId() : undefined;
     const attempt: Attempt = {
       articleId, title, language, difficulty, duration, custom, ownerId, article, mode, strict,
-      text: settings.text, recordId: clientId ?? uniqueId(), recoveryId: clientId, recoveryKey, claimId, claimVersion: claimId ? 1 : undefined, revision: 0, target: settings.text, offline: true, pendingStart: !!clientId && !!claimId,
+      text: settings.text, recordId: clientId ?? uniqueId(), recoveryId: clientId, recoveryKey, claimId, claimVersion: claimId ? 1 : undefined, revision: 0, target: settings.text, offline: true, personalOnly: guestBlocked || undefined, pendingStart: !!clientId && !!claimId,
       elapsedMs: 0, startedAt: performance.now(), suspicious: pendingSuspicious.current,
-      backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [],
+      backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [], paceTarget: validPaceTarget(settings.paceTarget) ? settings.paceTarget : undefined,
+      processTrace: initialProcessTrace({ time: 0, progress: 0, correct: 0, errors: 0 }), processErrorEvents: 0,
     };
     const originalRecordId = attempt.recordId;
     pendingSuspicious.current = false;
@@ -776,7 +941,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       })();
       pendingStart.current = { attempt, promise };
       void promise.finally(() => { if (pendingStart.current?.promise === promise) pendingStart.current = null; });
-    } else if (!custom) setFeedback('在线练习不可用，已转为个人练习。');
+    } else if (!custom) setFeedback(guestBlocked ? guestPracticeDisabledMessage : '在线练习不可用，已转为个人练习。');
     queueMicrotask(() => { if (isCurrent(attempt, 'running') && liveConfig.current.autoPause && document.visibilityState === 'hidden') void pause(); });
   }
 
@@ -789,9 +954,10 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     targetCharacters.current = null; committedCharacters.current = null;
     let testTarget = config.text;
     let id: string | undefined;
-    let offline = custom;
-    let personalOnly = false;
-    if (!custom) {
+    const guestBlocked = !custom && !ownerId && config.guestOnlineAllowed === false;
+    let offline = custom || guestBlocked;
+    let personalOnly = guestBlocked;
+    if (!custom && !guestBlocked) {
       try {
         const challenge = await api<{ id: string; target: string }>('/api/tests/start', {
           method: 'POST', headers: { 'X-Workspace-Owner': ownerId ?? 'guest' }, body: {
@@ -812,7 +978,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       return;
     }
     if (offline && !custom) setFeedback(personalOnly ? guestPracticeDisabledMessage : '在线练习不可用，已转为个人练习。');
-    const attempt: Attempt = { articleId, title, language, difficulty, duration, custom, ownerId, article, mode, strict, text: testTarget, id, recordId: id || uniqueId(), revision: 0, target: testTarget, offline, personalOnly, elapsedMs: 0, startedAt: performance.now(), suspicious: false, backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [] };
+    const attempt: Attempt = { articleId, title, language, difficulty, duration, custom, ownerId, article, mode, strict, text: testTarget, id, recordId: id || uniqueId(), revision: 0, target: testTarget, offline, personalOnly, elapsedMs: 0, startedAt: performance.now(), suspicious: false, backspaces: 0, nextCheckpointMs: 5000, offset: 0, mistakes: [], paceTarget: validPaceTarget(config.paceTarget) ? config.paceTarget : undefined, processTrace: initialProcessTrace({ time: 0, progress: 0, correct: 0, errors: 0 }), processErrorEvents: 0 };
     parked.current = false; lastBackspaceKey.current = -Infinity;
     attemptRef.current = attempt; setTarget(testTarget); setCurrentPhase('running'); persist(attempt, true); beginClock();
     if (liveConfig.current.autoPause && document.visibilityState === 'hidden') void pause();
@@ -824,6 +990,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     if (!attempt || phaseRef.current !== 'running') return false;
     const used = elapsedTime(attempt);
     if (used >= durationLimit(attempt)) { void finish(false); return false; }
+    sampleProcess(attempt, typedRef.current, used, true);
     composing.current = false; setRaw(typedRef.current);
     attempt.elapsedMs = used; attempt.startedAt = null; setElapsedMs(used); clearTimer(); setCurrentPhase('pausing'); persist(attempt, true);
     if (pendingStart.current?.attempt === attempt) await pendingStart.current.promise;
@@ -872,22 +1039,32 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     }
     if (!isCurrent(attempt, 'resuming')) return;
     lastBackspaceKey.current = -Infinity;
+    if (!attempt.processTrace) attempt.processTrace = initialProcessTrace(processPoint(attempt, typedRef.current, attempt.elapsedMs), true);
     attempt.startedAt = performance.now(); attempt.nextCheckpointMs = attempt.elapsedMs + 5000;
     setCurrentPhase('running'); setRestored(false); persist(attempt, true); beginClock();
     if (liveConfig.current.autoPause && document.visibilityState === 'hidden') void pause();
     window.setTimeout(() => { if (isCurrent(attempt, 'running')) textareaRef.current?.focus(); }, 0);
   }
 
-  async function park() {
+  async function park(holdLease = false) {
     const attempt = attemptRef.current;
-    if (!attempt || phaseRef.current === 'finished' || parked.current) return true;
+    if (!attempt || phaseRef.current === 'finished') return true;
+    if (parked.current) {
+      if (!await persistForPark(attempt)) return false;
+      if (!holdLease) releaseLease(attempt, ownerToken.current);
+      return true;
+    }
     const running = phaseRef.current === 'running';
     if (running && !await pause()) return false;
     if (!isCurrent(attempt, 'paused')) return false;
-    if (!running) persist(attempt, true);
+    if (!await persistForPark(attempt)) return false;
     parked.current = true;
-    releaseLease(attempt, ownerToken.current);
+    if (!holdLease) releaseLease(attempt, ownerToken.current);
     return true;
+  }
+
+  function releaseParkedLease() {
+    if (parked.current && attemptRef.current) releaseLease(attemptRef.current, ownerToken.current);
   }
 
   async function retryOnline() {
@@ -911,6 +1088,22 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   function markRankSubmitted(attemptId: string) {
     const attempt = attemptRef.current;
     if (attempt && attempt.id === attemptId && phaseRef.current === 'finished' && clearDraft(attempt, ownerToken.current) && !isDeleted(attempt)) removeWorkspaceDraft(attempt);
+  }
+
+  async function loadCompletedSaved(saved: SavedPractice) {
+    if (saved.ownerId !== liveConfig.current.ownerId || !validDuration(saved.duration) || !saved.article.text || saved.article.text.length > maxTextLength) return;
+    const previous = attemptRef.current;
+    if (previous && phaseRef.current === 'running' && !await park()) return;
+    if (previous !== attemptRef.current || !mounted.current || saved.ownerId !== liveConfig.current.ownerId) return;
+    const local = storedDraft(saved.recordId);
+    if (local && leaseTaken(local, ownerToken.current)) { setFeedback('进度正在其他页面使用'); return; }
+    if (local && !sameCompletedDraftProgress(savedPracticeFromLegacy(local), saved)) { setFeedback('本机恢复资料已变化，请重新查看'); return; }
+    const candidate = recoveryDraftFromSaved(saved);
+    const available = resultRecoveryAvailability(candidate, liveConfig.current.ownerId, ownerToken.current);
+    if (!available.available) { setFeedback(available.reason); return; }
+    const attempt = attemptFromSaved(saved, saved.typed, local?.revision ?? 0);
+    bindAttempt(attempt, saved.typed); setCurrentPhase('restoring');
+    await restoreAttempt(attempt, { ...candidate, revision: attempt.revision });
   }
 
   async function loadSaved(saved: SavedPractice, options?: { newRound?: boolean }) {
@@ -938,12 +1131,22 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       await restoreAttempt(synced, { ...synced, version: 1, typed });
       return;
     }
+    if (!local && !options?.newRound && saved.offline && liveConfig.current.isWorkspaceFallback?.(saved.id, saved.ownerId)) {
+      const fallback = attemptFromSaved({ ...saved, attemptId: undefined, recoveryId: undefined, recoveryKey: undefined, claimId: undefined,
+        claimVersion: undefined, recoveryRequestId: undefined, recoveryMarker: undefined, recoveryBaseVersion: undefined,
+        personalOnly: true, recordId: uniqueId(), offline: true }, typed);
+      bindAttempt(fallback, typed);
+      setFeedback('原进度已另存为个人练习。');
+      setCurrentPhase('paused');
+      persist(fallback, true);
+      return;
+    }
     const fresh = options?.newRound && !stored && saved.offline && !saved.attemptId && validAttemptId(saved.recordId) &&
       saved.id === practiceDraftId(saved.recordId) && saved.elapsedMs === 0 && saved.backspaces === 0;
     const offset = continuationOffset(saved.strict, Math.min(saved.offset, characters.length), characters, expected);
     const attempt = attemptFromSaved({
       ...saved, attemptId: undefined, recoveryId: undefined, recoveryKey: undefined, claimId: undefined, claimVersion: undefined, recoveryRequestId: undefined, recoveryMarker: undefined, progressVersion: 0, personalOnly: true, recordId: fresh ? saved.recordId : uniqueId(), offline: true, offset: fresh ? saved.offset : offset, elapsedMs: 0,
-      backspaces: 0, mistakes: [], suspicious: false,
+      backspaces: 0, mistakes: [], suspicious: false, processTrace: initialProcessTrace({ time: 0, progress: 0, correct: 0, errors: 0 }), processErrorEvents: 0,
     }, typed);
     bindAttempt(attempt, typed);
     if (!fresh) setFeedback(local ? '原进度正在其他标签页使用，已另存。' : '已从云端草稿新建个人练习。');
@@ -990,8 +1193,11 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     for (let index = offset; index < next.length; index++) {
       const actual = next[index];
       if (actual === expected[index]) continue;
-      if (!deleting && actual !== previous[index] && mistakes.length < mistakeLimit && actual.length <= 200 && expected[index].length <= 200) {
-        mistakes.push({ position: index, expected: expected[index], actual });
+      if (!deleting && actual !== previous[index]) {
+        if ((attempt.processErrorEvents ?? 0) < 10_000_000) attempt.processErrorEvents = (attempt.processErrorEvents ?? 0) + 1;
+        else if (attempt.processTrace) attempt.processTrace = { ...attempt.processTrace, missing: true };
+        if (mistakes.length < mistakeLimit && actual.length <= 200 && expected[index].length <= 200) mistakes.push({ position: index, expected: expected[index], actual });
+        else attempt.mistakesTruncated = true;
       }
       if (attempt.strict) {
         next.length = index + 1;
@@ -1047,5 +1253,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   const draftId = attempt ? practiceDraftId(attempt.recordId) : undefined;
   const canRetryOnline = !!(result?.offline && result.elapsedMs >= 1000 && attempt && recoverableId(attempt));
   const getClaimHeaders = () => attemptRef.current ? practiceClaim(attemptRef.current) : undefined;
-  return { phase, target, raw, typed, elapsedMs, backspaces, feedback, result, restored, mode, strict, duration, offset, draftId, textareaRef, start, pause, resume, retryOnline, recoverForRanking, markRankSubmitted, getClaimHeaders, canRetryOnline, reset, finish, park, loadSaved, loadLegacy, updateTyped, deletePreviousCharacter, onChange, onKeyDown, onCompositionStart, onCompositionEnd, markSuspicious };
+  const describeResultRecovery = (draft: PracticeDraft) => resultRecoveryAvailability(draft, liveConfig.current.ownerId, ownerToken.current);
+  const isStoredDraftLeased = (id: string) => { const local = storedDraft(id); return !!local && leaseTaken(local, ownerToken.current); };
+  return { phase, target, raw, typed, elapsedMs, backspaces, feedback, result, restored, mode, strict, duration, offset, describeResultRecovery, isStoredDraftLeased, paceTarget: attempt?.paceTarget, draftId, textareaRef, start, pause, resume, retryOnline, recoverForRanking, markRankSubmitted, getClaimHeaders, canRetryOnline, reset, finish, park, releaseParkedLease, loadSaved, loadCompletedSaved, loadLegacy, updateTyped, deletePreviousCharacter, onChange, onKeyDown, onCompositionStart, onCompositionEnd, markSuspicious };
 }

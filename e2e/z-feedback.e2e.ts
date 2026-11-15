@@ -1,0 +1,62 @@
+import sharp from 'sharp';
+import { ensureAdmin, expect, test } from './fixtures';
+import type { APIRequestContext } from '@playwright/test';
+
+async function register(request: APIRequestContext, username: string) {
+  const email = `${username}@example.test`;
+  const password = 'feedback-password-123';
+  expect((await request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  expect((await request.post('/api/auth/register', { data: { username, email, password, code } })).ok()).toBe(true);
+  return { username, password };
+}
+
+test('a guest keeps a screenshot draft through login and sees an admin reply without internal notes', async ({ page, browser, clientIp }) => {
+  const options = { baseURL: test.info().project.use.baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } };
+  const userContext = await browser.newContext(options);
+  const adminContext = await browser.newContext(options);
+  const user = await register(userContext.request, 'feedback_user');
+  await ensureAdmin(adminContext.request);
+  const admin = await adminContext.newPage();
+  await page.goto('/');
+  await page.getByRole('button', { name: '功能反馈' }).click();
+  await page.getByLabel('标题', { exact: true }).fill('输入反馈');
+  await page.getByLabel('详细描述').fill('测试输入和截图');
+  const png = await sharp({ create: { width: 24, height: 16, channels: 3, background: '#aabbcc' } }).png().toBuffer();
+  await page.locator('input[type=file]').setInputFiles({ name: 'screen.png', mimeType: 'image/png', buffer: png });
+  await page.getByRole('button', { name: '登录后提交' }).click();
+  const login = page.getByRole('dialog', { name: '登录' });
+  await login.getByLabel('用户名或邮箱').fill(user.username);
+  await login.getByLabel('密码', { exact: true }).fill(user.password);
+  await login.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page.getByLabel('标题', { exact: true })).toHaveValue('输入反馈');
+  await expect(page.getByText('screen.png')).toBeVisible();
+  await page.getByRole('button', { name: '提交反馈' }).click();
+  await expect(page.getByText(/编号：/)).toBeVisible();
+  await expect(page.getByRole('img', { name: 'screen.png' })).toBeVisible();
+  const feedbackId = (await (await page.request.get('/api/feedback')).json()).entries[0].id as string;
+  await page.reload();
+  await page.getByRole('button', { name: 'feedback_user', exact: true }).click();
+  await page.getByRole('menuitem', { name: '我的反馈' }).click();
+  await page.getByRole('button', { name: '详情' }).click();
+  await expect(page.getByRole('img', { name: 'screen.png' })).toBeVisible();
+  await admin.goto('/');
+  await admin.getByRole('button', { name: '反馈', exact: true }).click();
+  await admin.getByRole('button', { name: '查看反馈 输入反馈' }).click();
+  await expect(admin.getByText(feedbackId, { exact: false })).toBeVisible();
+  await admin.getByLabel('处理状态').selectOption('resolved');
+  await admin.getByLabel('公开回复').fill('已经处理');
+  await admin.getByLabel('内部备注').fill('内部排查');
+  await admin.getByRole('button', { name: '保存处理' }).click();
+  await expect(admin.getByText('已保存')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'feedback_user', exact: true }).click();
+  await page.getByRole('menuitem', { name: '我的反馈' }).click();
+  await page.getByRole('button', { name: '详情' }).click();
+  await expect(page.getByText('已经处理')).toBeVisible();
+  await expect(page.getByText('内部排查')).toHaveCount(0);
+  await page.getByLabel('补充信息').fill('还有一个细节');
+  await page.getByRole('button', { name: '提交补充' }).click();
+  await expect(page.getByText('还有一个细节')).toBeVisible();
+  await adminContext.close(); await userContext.close();
+});

@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import argon2 from 'argon2';
 import Database from 'better-sqlite3';
+import { AsyncSqlite } from '../server/database/sqlite';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../server/app';
@@ -12,6 +13,9 @@ const defaults = {
   registrationEnabled: true,
   guestPracticeEnabled: true,
   guestLeaderboardEnabled: true,
+  guestReviewRequired: true,
+  userReviewRequired: false,
+  leaderboardDisplayDays: 0,
   reviewThresholdZh: 220,
   reviewThresholdEn: 180,
 };
@@ -19,17 +23,19 @@ const defaults = {
 describe('site settings', () => {
   let db: Database.Database;
   let app: ReturnType<typeof Fastify>;
-  let store: ReturnType<typeof createSiteSettings>;
+  let adapter: AsyncSqlite;
+  let store: Awaited<ReturnType<typeof createSiteSettings>>;
   let audit: Parameters<typeof createSiteSettings>[1];
 
   beforeEach(async () => {
     db = new Database(':memory:');
     db.exec('CREATE TABLE audit (actor_id TEXT, action TEXT, target_type TEXT, reason TEXT)');
-    audit = (actor, action, targetType, _targetId, _targetLabel, reason) => {
+    audit = async (actor, action, targetType, _targetId, _targetLabel, reason) => {
       if (actor.authVersion < 0) throw Object.assign(new Error('管理权限已变更'), { statusCode: 403 });
       db.prepare('INSERT INTO audit VALUES (?,?,?,?)').run(actor.id, action, targetType, reason);
     };
-    store = createSiteSettings(db, audit);
+    adapter = new AsyncSqlite(db);
+    store = await createSiteSettings(adapter, audit);
     app = Fastify();
     await app.register(async (routes: FastifyInstance) => {
       routes.decorateRequest('admin');
@@ -44,7 +50,7 @@ describe('site settings', () => {
 
   afterEach(async () => {
     await app.close();
-    db.close();
+    await adapter.close();
   });
 
   const read = () => app.inject({ method: 'GET', url, headers: { authorization: 'admin' } });
@@ -56,7 +62,7 @@ describe('site settings', () => {
     expect((await read()).json()).toEqual({ settings: defaults, revision: 0 });
     const next = { ...defaults, registrationEnabled: false, guestPracticeEnabled: false, guestLeaderboardEnabled: false, reviewThresholdZh: 200 };
     expect((await write(next)).json()).toEqual({ settings: next, revision: 1 });
-    expect(createSiteSettings(db, audit).read()).toEqual({ settings: next, revision: 1 });
+    expect(await (await createSiteSettings(adapter, audit)).read()).toEqual({ settings: next, revision: 1 });
     expect((await write(next, 1)).json()).toEqual({ settings: next, revision: 1 });
     expect(db.prepare('SELECT * FROM audit').all()).toEqual([{
       actor_id: 'admin', action: 'settings.site.update', target_type: 'setting',
@@ -71,15 +77,27 @@ describe('site settings', () => {
     expect((await write({ ...defaults, reviewThresholdEn: 1001 })).statusCode).toBe(400);
     expect((await write({ ...defaults, reviewThresholdEn: 75.5 })).statusCode).toBe(400);
     expect((await write({ ...defaults, reviewThresholdZh: '220' })).statusCode).toBe(400);
+    expect((await write({ ...defaults, guestReviewRequired: 'false' })).statusCode).toBe(400);
+    expect((await write({ ...defaults, leaderboardDisplayDays: -1 })).statusCode).toBe(400);
+    expect((await write({ ...defaults, leaderboardDisplayDays: 3651 })).statusCode).toBe(400);
     expect((await write({ ...defaults, extra: false })).statusCode).toBe(400);
     expect((await write(defaults, 99)).statusCode).toBe(409);
     expect(db.prepare('SELECT * FROM audit').all()).toEqual([]);
-    expect(store.read()).toEqual({ settings: defaults, revision: 0 });
+    expect(await store.read()).toEqual({ settings: defaults, revision: 0 });
+  });
+
+  it('migrates older settings and preserves new fields when an old admin page saves', async () => {
+    const { guestReviewRequired: _guest, userReviewRequired: _user, leaderboardDisplayDays: _days, ...legacy } = defaults;
+    db.prepare('INSERT INTO site_settings (id,settings,revision) VALUES (1,?,1)').run(JSON.stringify(legacy));
+    expect((await read()).json()).toEqual({ settings: defaults, revision: 1 });
+    const configured = { ...defaults, guestReviewRequired: false, userReviewRequired: true, leaderboardDisplayDays: 45 };
+    expect((await write(configured, 1)).json()).toEqual({ settings: configured, revision: 2 });
+    expect((await write({ ...legacy, registrationEnabled: false }, 2)).json()).toEqual({ settings: { ...configured, registrationEnabled: false }, revision: 3 });
   });
 
   it('rolls back settings if the audit recheck finds revoked administrator access', async () => {
     expect((await write({ ...defaults, guestPracticeEnabled: false }, 0, 'stale-admin')).statusCode).toBe(403);
-    expect(store.read()).toEqual({ settings: defaults, revision: 0 });
+    expect(await store.read()).toEqual({ settings: defaults, revision: 0 });
     expect(db.prepare('SELECT * FROM audit').all()).toEqual([]);
   });
 });
@@ -133,6 +151,15 @@ describe('site settings on the production API', () => {
     expect(finished.json()).toMatchObject({ eligible: true, score: { cpm: 120, wpm: 24 } });
   }
 
+  it('exposes only public availability switches and reflects administrator changes', async () => {
+    const first = await app.inject('/api/site/features');
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['cache-control']).toBe('no-store');
+    expect(first.json()).toEqual({ registrationEnabled: true, guestPracticeEnabled: true, guestLeaderboardEnabled: true });
+    await changeSettings({ registrationEnabled: false, guestPracticeEnabled: false, guestLeaderboardEnabled: false, reviewThresholdZh: 111 });
+    expect((await app.inject('/api/site/features')).json()).toEqual({ registrationEnabled: false, guestPracticeEnabled: false, guestLeaderboardEnabled: false });
+  });
+
   it('enforces closed registration with an already-issued code and keeps existing account login working', async () => {
     const newEmail = 'reader@example.test';
     expect((await requestCode(newEmail)).statusCode).toBe(200);
@@ -181,7 +208,7 @@ describe('site settings on the production API', () => {
     const finished = await post(`/api/tests/${clientId}/finish`, { typed: splitCharacters(target)[0] }, guest);
     expect(finished.statusCode).toBe(200);
     await changeSettings({ guestPracticeEnabled: false, guestLeaderboardEnabled: false }, 1);
-    expect((await post('/api/leaderboard', { attemptId: clientId, nickname: '云朵' }, guest)).statusCode).toBe(403);
+    expect((await post('/api/leaderboard', { attemptId: clientId, nickname: 'visitor-云朵' }, guest)).statusCode).toBe(403);
     expect((await app.inject('/api/leaderboard?language=zh&difficulty=beginner&duration=60')).statusCode).toBe(200);
     const member = await start('zh', admin);
     expect(member.statusCode).toBe(200);
@@ -189,7 +216,7 @@ describe('site settings on the production API', () => {
     await finishPaused(memberId, memberTarget, admin);
     expect((await post('/api/leaderboard', { attemptId: memberId }, admin)).json()).toEqual({ status: 'review' });
     await changeSettings({ guestPracticeEnabled: false }, 2);
-    expect((await post('/api/leaderboard', { attemptId: clientId, nickname: '云朵' }, guest)).json()).toEqual({ status: 'review' });
+    expect((await post('/api/leaderboard', { attemptId: clientId, nickname: 'visitor-云朵' }, guest)).json()).toEqual({ status: 'review' });
   });
 
   it('applies separate Chinese CPM and English WPM thresholds and audits them', async () => {
@@ -203,11 +230,11 @@ describe('site settings on the production API', () => {
     const en = english.json();
     await finishPaused(en.id, en.target);
     for (const id of [zh.id, en.id]) {
-      expect((await post('/api/leaderboard', { attemptId: id, nickname: '云朵' }, guest)).json()).toEqual({ status: 'review' });
+      expect((await post('/api/leaderboard', { attemptId: id, nickname: 'visitor-云朵' }, guest)).json()).toEqual({ status: 'review' });
     }
     const review = (await app.inject({ url: '/api/admin/review', headers: admin })).json().entries;
-    expect(review.find((entry: { id: string }) => entry.id === zh.id).reasons).toEqual(['high_speed', 'paused_session']);
-    expect(review.find((entry: { id: string }) => entry.id === en.id).reasons).toEqual(['paused_session']);
+    expect(review.find((entry: { id: string }) => entry.id === zh.id).reasons).toEqual(['high_speed', 'paused_session', 'guest_policy']);
+    expect(review.find((entry: { id: string }) => entry.id === en.id).reasons).toEqual(['paused_session', 'guest_policy']);
     const audit = await app.inject({ url: '/api/admin/audit?targetType=setting', headers: admin });
     expect(audit.json().entries).toMatchObject([{ action: 'settings.site.update', targetId: 'site' }]);
   });

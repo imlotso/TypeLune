@@ -20,8 +20,9 @@ export function Dialog({ title, onClose, children, className = '', dismissible =
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); return; }
       if (event.key !== 'Tab' || !element) return;
-      const items = [...element.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]')]
-        .filter((item) => !item.matches(':disabled, [hidden], input[type="hidden"]'));
+      const items = [...element.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], summary')]
+        .filter((item) => !item.matches(':disabled, [hidden], input[type="hidden"]') && !item.closest('[hidden]') &&
+          (item.tagName === 'SUMMARY' || !item.closest('details:not([open])')));
       if (!items.length) {
         event.preventDefault();
         element.focus();

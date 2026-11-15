@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../server/app';
 import { catalogSnapshotKey, type ArticleSnapshot } from '../src/lib/models';
+import { syncWorkspace } from './workspace-sync-helper';
 
 type OwnerHeaders = Record<string, string>;
 
@@ -33,7 +34,7 @@ describe('practice recovery API', () => {
     duration: 60, mode: 'timed', strict: false, elapsedMs: 9000,
   });
   const post = (url: string, headers: OwnerHeaders, payload: Record<string, unknown> = {}) =>
-    app.inject({ method: 'POST', url, headers, payload });
+    url === '/api/workspace/sync' ? syncWorkspace(app, headers, payload.items as unknown[]) : app.inject({ method: 'POST', url, headers, payload });
   const recover = (headers: OwnerHeaders, payload: Record<string, unknown>) =>
     post('/api/tests/recover', headers, { draftId: `draft-${payload.clientId}`, ...payload });
   const guest = () => ({ 'x-workspace-owner': 'guest', cookie: 'guest=' + randomBytes(32).toString('base64url') });
@@ -158,7 +159,8 @@ describe('practice recovery API', () => {
     const otherMarker = randomUUID();
     const staleDraft = { ...value, recoveryMarker: otherMarker, recoveryBaseVersion: 4, progressVersion: 6, typed: '我与' };
     expect((await sync({ ...staleDraft, recoveryBaseVersion: -1 }, now + 1)).statusCode).toBe(400);
-    expect((await sync(staleDraft, now + 2)).json().items[0].value).toMatchObject({ recoveryMarker, progressVersion: 5, typed: '我' });
+    expect((await sync(staleDraft, now + 2)).statusCode).toBe(409);
+    expect((await app.inject({ url: '/api/workspace', headers: owner })).json().items[0].value).toMatchObject({ recoveryMarker, progressVersion: 5, typed: '我' });
     const moreInput = { ...value, recoveryBaseVersion: 4, progressVersion: 6, typed: '我与父' };
     expect((await sync(moreInput, now + 3)).json().items[0].value).toMatchObject({
       recoveryMarker, recoveryBaseVersion: 4, progressVersion: 6, typed: '我与父',
@@ -236,7 +238,7 @@ describe('practice recovery API', () => {
     expect((await recover(headers, { ...attempt, elapsedMs: 45_000 })).json()).toEqual({
       id: attempt.clientId, status: 'review', result: finish.json(),
     });
-    const publish = await post('/api/leaderboard', headers, { attemptId: attempt.clientId, nickname: '云朵' });
+    const publish = await post('/api/leaderboard', headers, { attemptId: attempt.clientId, nickname: 'visitor-云朵' });
     expect(publish.json()).toEqual({ status: 'review' });
     expect((await recover(guest(), attempt)).json()).toMatchObject({ code: 'SCORE_FINALIZED' });
     const pending = await app.inject({ url: '/api/admin/review', headers: admin });
@@ -262,7 +264,7 @@ describe('practice recovery API', () => {
     expect(recovered.statusCode).toBe(200);
     expect(recovered.json()).toEqual({ id: attempt.clientId, status: 'review', result: finish.json() });
     expect((await app.inject({ url: path, headers: original })).statusCode).toBe(404);
-    expect((await post('/api/leaderboard', replacement, { attemptId: attempt.clientId, nickname: '云朵' })).json()).toEqual({ status: 'review' });
+    expect((await post('/api/leaderboard', replacement, { attemptId: attempt.clientId, nickname: 'visitor-云朵' })).json()).toEqual({ status: 'review' });
     expect((await recover(original, attempt)).json()).toMatchObject({ code: 'SCORE_FINALIZED' });
   });
 
@@ -390,19 +392,19 @@ describe('practice recovery API', () => {
     expect(finish.json()).toMatchObject({ status: 'review' });
     const publish = (requestHeaders: OwnerHeaders, nickname: string) =>
       post('/api/leaderboard', requestHeaders, { attemptId: attempt.clientId, nickname });
-    expect((await publish(claim, '云朵')).json()).toEqual({ status: 'review' });
-    expect((await publish(claim, '更名')).json()).toEqual({ status: 'review' });
+    expect((await publish(claim, 'visitor-云朵')).json()).toEqual({ status: 'review' });
+    expect((await publish(claim, 'visitor-更名')).json()).toEqual({ status: 'review' });
     const pending = await app.inject({ url: '/api/admin/review', headers: admin });
-    expect(pending.json().entries).toEqual([expect.objectContaining({ id: attempt.clientId, nickname: '云朵' })]);
+    expect(pending.json().entries).toEqual([expect.objectContaining({ id: attempt.clientId, nickname: 'visitor-云朵' })]);
     const next = recoveryClaim(1);
     const recovered = await recover(headers, { ...attempt, ...next });
     expect(recovered.json()).toMatchObject({ claimVersion: 2, result: { ...finish.json(), submitted: true } });
     const current = claimHeaders(headers, next.claimId, 2);
-    expect((await publish(claim, '更名')).json()).toMatchObject({ code: 'PRACTICE_TAKEN' });
+    expect((await publish(claim, 'visitor-更名')).json()).toMatchObject({ code: 'PRACTICE_TAKEN' });
     expect((await post(`/api/admin/review/${attempt.clientId}`, admin, { action: 'approve', reason: '通过审核' })).statusCode).toBe(200);
-    expect((await publish(current, '再更名')).json()).toEqual({ status: 'ranked' });
+    expect((await publish(current, 'visitor-再更名')).json()).toEqual({ status: 'ranked' });
     const ranking = await app.inject('/api/leaderboard?language=zh&difficulty=beginner&duration=60');
-    expect(ranking.json().entries).toEqual([expect.objectContaining({ attemptId: attempt.clientId, nickname: '云朵' })]);
+    expect(ranking.json().entries).toEqual([expect.objectContaining({ attemptId: attempt.clientId, nickname: 'visitor-云朵' })]);
   });
 
   it('does not recreate an attempt after administrators reject or remove its score', async () => {
@@ -470,29 +472,29 @@ describe('practice recovery API', () => {
       id: `draft-${attempt.clientId}`, recordId: attempt.clientId, article, typed: '', elapsedMs: 9000, backspaces: 0, duration: 60,
       mode: 'timed', strict: false, offset: 0, offline: false, savedAt: now,
     };
-    const sync = async (age: number, value: Record<string, unknown> | null) => {
+    const sync = async (age: number, value: Record<string, unknown> | null, conflict = false) => {
       const response = await post('/api/workspace/sync', owner, { items: [{
         kind: 'draft', id: draft.id, updatedAt: now + age, ...value ? { value: { ...draft, ...value } } : { deleted: true },
       }] });
-      expect(response.statusCode).toBe(200);
-      return response.json().items[0];
+      expect(response.statusCode).toBe(conflict ? 409 : 200);
+      return conflict ? (await app.inject({ url: '/api/workspace', headers: owner })).json().items[0] : response.json().items[0];
     };
     await sync(100, { claimVersion: 1, progressVersion: 10, typed: '我' });
     expect((await sync(50, { claimVersion: 2, progressVersion: 1, typed: '我与' })).value.typed).toBe('我与');
-    expect((await sync(200, { claimVersion: 1, progressVersion: 20, typed: '我' })).value.typed).toBe('我与');
+    expect((await sync(200, { claimVersion: 1, progressVersion: 20, typed: '我' }, true)).value.typed).toBe('我与');
     expect((await sync(25, { claimVersion: 2, progressVersion: 4, typed: '我与父' })).value.typed).toBe('我与父');
-    expect((await sync(250, { claimVersion: 2, progressVersion: 3, typed: '我' })).value.typed).toBe('我与父');
+    expect((await sync(250, { claimVersion: 2, progressVersion: 3, typed: '我' }, true)).value.typed).toBe('我与父');
     expect((await sync(300, { claimVersion: 2, progressVersion: 4, typed: '我与父亲' })).value.typed).toBe('我与父亲');
     const storedMarker = randomUUID();
     const otherMarker = randomUUID();
     expect((await sync(301, { claimVersion: 3, progressVersion: 15, recoveryMarker: storedMarker, recoveryBaseVersion: 11, typed: '旧' })).value.typed).toBe('旧');
     // Both markers are based on progress older than the competing snapshot.
-    expect((await sync(302, { claimVersion: 3, progressVersion: 16, recoveryMarker: otherMarker, recoveryBaseVersion: 10, typed: '争' })).value.typed).toBe('旧');
+    expect((await sync(302, { claimVersion: 3, progressVersion: 16, recoveryMarker: otherMarker, recoveryBaseVersion: 10, typed: '争' }, true)).value.typed).toBe('旧');
     // An unmarked snapshot supersedes speculative input based on older progress.
     expect((await sync(200, { claimVersion: 3, progressVersion: 12, typed: '实' })).value.typed).toBe('实');
-    expect((await sync(303, { claimVersion: 3, progressVersion: 15, recoveryMarker: storedMarker, recoveryBaseVersion: 11, typed: '旧' })).value.typed).toBe('实');
+    expect((await sync(303, { claimVersion: 3, progressVersion: 15, recoveryMarker: storedMarker, recoveryBaseVersion: 11, typed: '旧' }, true)).value.typed).toBe('实');
     expect(await sync(1, null)).toMatchObject({ deleted: true });
-    expect(await sync(400, { claimVersion: 3, progressVersion: 30, typed: '我' })).toMatchObject({ deleted: true });
+    expect(await sync(400, { claimVersion: 3, progressVersion: 30, typed: '我' }, true)).toMatchObject({ deleted: true });
   });
 
   it('reports an ineligible score without an expiration code', async () => {
@@ -502,7 +504,7 @@ describe('practice recovery API', () => {
     await recover(headers, attempt);
     await post(path + '/finish', headers, { typed: '', elapsedMs: 9000 });
     now += 20 * 60_000;
-    const published = await post('/api/leaderboard', headers, { attemptId: attempt.clientId, nickname: '云朵' });
+    const published = await post('/api/leaderboard', headers, { attemptId: attempt.clientId, nickname: 'visitor-云朵' });
     expect(published.statusCode).toBe(400);
     expect(published.json()).not.toHaveProperty('code');
   });

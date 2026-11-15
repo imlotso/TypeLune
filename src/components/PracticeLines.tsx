@@ -49,7 +49,7 @@ const PracticeRow = memo(function PracticeRow({ line, index, active, phase, type
           return <span key={offset} className={state} title={character === '\n' ? '换行' : character === ' ' ? '空格' : character === '\t' ? '制表符' : undefined}>{character === '\n' ? '↵' : character}</span>;
         })}
       </div>
-      <textarea
+      <textarea data-practice-input="true"
         ref={active ? controller.current.textareaRef : undefined}
         id={active ? 'typing-input' : undefined}
         aria-label={active ? '当前行输入' : `第 ${index + 1} 行输入`}

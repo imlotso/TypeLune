@@ -133,6 +133,8 @@ test('syncs the image and reset across independent accounts/devices without shar
     await page.reload(); await expect(page.getByTestId('custom-background-image')).toHaveCount(0);
     await editor(page); await upload(page); await save(page);
     await page.getByRole('button', { name: username, exact: true }).click();
+    await page.getByRole('menuitem', { name: '退出登录' }).click();
+    await page.getByRole('dialog', { name: '退出登录' }).getByRole('button', { name: '确认退出' }).click();
     await expect(page.getByRole('button', { name: '登录', exact: true })).toBeVisible();
     await expect(page.getByTestId('custom-background-image')).toHaveCount(0);
     await register(page, username + 'b');

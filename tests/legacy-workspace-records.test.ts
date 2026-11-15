@@ -1,0 +1,78 @@
+// @vitest-environment jsdom
+import { afterEach, expect, it } from 'vitest';
+import { localHistory } from '../src/hooks/usePractice';
+import { legacyConflictId, mergePracticeRecords, normalizeWorkspaceRecord, stableRecordId } from '../src/lib/records';
+import type { PracticeRecord, WorkspaceItem } from '../src/lib/models';
+
+const legacy = { ownerId: 'alice', language: 'zh' as const, difficulty: 'beginner' as const, duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山',
+  article: { id: 'article', title: '山海', text: '山海', language: 'zh' as const, difficulty: 'beginner' as const, custom: true } };
+const item = (id: string): WorkspaceItem => ({ kind: 'record', id, updatedAt: 1000, serverRevision: 1, value: legacy });
+afterEach(() => localStorage.clear());
+
+it('matches one id-less local copy to its distinct workspace item without asserting online verification', () => {
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));
+  const [local] = localHistory(); const alias = stableRecordId(legacy);
+  const cloud = normalizeWorkspaceRecord(item('old-cloud-id'))!;
+  const records = mergePracticeRecords([local], [], [cloud]);
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({ recordId: 'old-cloud-id', localOnly: true, legacyLocalIds: [alias] });
+  expect(records[0].article?.text).toBe('山海');
+  expect(normalizeWorkspaceRecord(item('123e4567-e89b-42d3-a456-426614174000'))).toMatchObject({ localOnly: true });
+});
+
+it('does not silently merge ambiguous local copies or an alias used by a different cloud record', () => {
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));
+  const [local] = localHistory();
+  const cloud = normalizeWorkspaceRecord(item('old-cloud-id'))!;
+  const duplicate = { ...local, recordId: 'another-local', legacyLocalIds: ['another-local'] };
+  expect(mergePracticeRecords([local, duplicate], [], [cloud])).toHaveLength(3);
+  const collision: PracticeRecord = { ...legacy, recordId: local.recordId, typed: '海' };
+  const collided = mergePracticeRecords([local], [], [cloud, collision]);
+  expect(collided).toHaveLength(3);
+  expect(collided.find((item) => item.legacyIdConflict)).toMatchObject({ recordId: legacyConflictId(local), legacyIdConflict: true });
+});
+
+it('uses a content-specific conflict ID stable across volatile legacy metadata', () => {
+  expect(legacyConflictId({ ...legacy, status: 'review', localOnly: true })).toBe(legacyConflictId({ ...legacy, status: 'finished', localOnly: false }));
+  expect(legacyConflictId(legacy)).not.toBe(legacyConflictId({ ...legacy, typed: '海' }));
+  expect(legacyConflictId(legacy)).not.toBe(legacyConflictId({ ...legacy, ownerId: 'bobby' }));
+  expect(legacyConflictId(legacy)).toMatch(/^legacy-conflict-[a-f0-9]{64}$/u);
+});
+
+it('does not trust persisted compatibility metadata as an instruction to delete other IDs', () => {
+  const forged = { ...legacy, recordId: 'actual', legacyLocalIds: ['unrelated'], legacyWorkspaceId: true, legacyIdConflict: true, legacyDeletionBlocked: true, legacyConflictBase: 'forged', legacyProof: { status: 'review' } };
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([forged]));
+  expect(localHistory()[0]).not.toHaveProperty('legacyLocalIds');
+  expect(localHistory()[0]).not.toHaveProperty('legacyIdConflict');
+  expect(localHistory()[0]).not.toHaveProperty('legacyProof');
+  expect(localHistory()[0]).not.toHaveProperty('legacyDeletionBlocked');
+  expect(localHistory()[0]).not.toHaveProperty('legacyConflictBase');
+  const cloud = normalizeWorkspaceRecord({ kind: 'record', id: 'actual', updatedAt: 1000, value: forged })!;
+  expect(cloud).not.toHaveProperty('legacyLocalIds');
+  expect(cloud).not.toHaveProperty('legacyWorkspaceId');
+  expect(cloud).not.toHaveProperty('legacyProof');
+  expect(cloud).not.toHaveProperty('legacyConflictBase');
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([{ ...legacy, status: 'unexpected-secret-value' }]));
+  expect(localHistory()[0].legacyProof).toBeUndefined();
+});
+
+it('uses another marker if even the content-specific ID is already used by a different record', () => {
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));
+  const [local] = localHistory();
+  const collision: PracticeRecord = { ...legacy, recordId: local.recordId, typed: '海' };
+  const second: PracticeRecord = { ...legacy, recordId: legacyConflictId(local), typed: '风' };
+  const merged = mergePracticeRecords([local], [], [collision, second]);
+  const candidate = merged.find((item) => item.legacyIdConflict)!;
+  expect(candidate).toMatchObject({ legacyConflictBase: legacyConflictId(local) });
+  expect(candidate.recordId).toMatch(/^legacy-conflict-[a-f0-9]{64}$/u);
+  expect(candidate.recordId).not.toBe(legacyConflictId(local));
+  expect(candidate.legacyDeletionBlocked).not.toBe(true);
+});
+
+it('retains bounded local metadata for server-side alias verification', () => {
+  const local = { ...legacy, status: 'review', localOnly: true, localSyncGeneration: 1 };
+  const cloud = { ...legacy, status: 'finished', localOnly: false };
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([local]));
+  const [merged] = mergePracticeRecords(localHistory(), [], [normalizeWorkspaceRecord({ ...item('old-cloud-id'), value: cloud })!]);
+  expect(merged).toMatchObject({ recordId: 'old-cloud-id', legacyLocalIds: [stableRecordId(local)], legacyProof: { status: 'review', localOnly: true, localSyncGeneration: 1 } });
+});

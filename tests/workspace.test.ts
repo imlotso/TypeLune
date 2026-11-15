@@ -3,15 +3,18 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useWorkspace } from '../src/hooks/useWorkspace';
 import {
-  chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceDraftDeleted, mergeWorkspaceItems, newerWorkspaceItems, putWorkspaceValue, readWorkspace,
+  chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, markWorkspaceDraftFallback, mergeRemoteWorkspace, mergeWorkspaceItems, newerWorkspaceItems, putWorkspaceValue, readWorkspace, saveWorkspaceGeneration,
 } from '../src/lib/workspace';
-import type { SavedPractice, WorkspaceItem } from '../src/lib/models';
+import { defaultSettings, type SavedPractice, type WorkspaceItem } from '../src/lib/models';
 import { defaultBackground } from '../src/lib/background';
 
 const favorite = (id: string, updatedAt = Date.now()): WorkspaceItem =>
   ({ kind: 'favorite', id, updatedAt, value: { articleId: id } });
+const asServer = (items: WorkspaceItem[]) => items.map(({ baseRevision, baseUpdatedAt: _baseTime, ...item }) => ({
+  ...item, serverRevision: item.serverRevision ?? (baseRevision ?? 0) + 1,
+}));
 const response = (items: WorkspaceItem[]) =>
-  new Response(JSON.stringify({ items, serverTime: Date.now() }), { headers: { 'Content-Type': 'application/json' } });
+  new Response(JSON.stringify({ items: asServer(items), protocol: 2, generation: 1, serverTime: Date.now() }), { headers: { 'Content-Type': 'application/json' } });
 const draft: SavedPractice = {
   id: 'draft-1', article: { id: 'private-1', title: '练习', text: '你好', language: 'zh', difficulty: 'beginner', custom: true },
   typed: '你', elapsedMs: 3000, backspaces: 0, duration: 60, mode: 'timed', strict: false, offset: 0,
@@ -30,7 +33,7 @@ it('reuses unchanged cloud images without downloading or uploading them on ordin
   const fetcher = vi.fn(async (_url: string, options: RequestInit) => {
     if (options.method === 'POST') remote = mergeWorkspaceItems(remote, JSON.parse(options.body as string).items);
     const cached = new Headers(options.headers).get('X-Workspace-Backgrounds') === version;
-    return new Response(JSON.stringify({ items: cached ? remote.filter((item) => item.kind !== 'background') : remote, backgroundsVersion: version, backgroundsUnchanged: cached, serverTime: Date.now() }));
+    return new Response(JSON.stringify({ items: asServer(cached ? remote.filter((item) => item.kind !== 'background') : remote), protocol: 2, generation: 1, backgroundsVersion: version, backgroundsUnchanged: cached, serverTime: Date.now() }));
   });
   vi.stubGlobal('fetch', fetcher);
   const { result } = renderHook(() => useWorkspace('background-cache'));
@@ -43,6 +46,22 @@ it('reuses unchanged cloud images without downloading or uploading them on ordin
   const writes = fetcher.mock.calls.filter(([, options]) => options.method === 'POST');
   expect(writes.length).toBeGreaterThan(0);
   expect(writes.flatMap(([, options]) => JSON.parse(options.body as string).items).some((item: WorkspaceItem) => item.kind === 'background')).toBe(false);
+});
+
+it('keeps a local fallback marker through synchronization without sending it to the server', async () => {
+  const localDraft = { ...draft, ownerId: 'fallback-owner' };
+  await putWorkspaceValue('fallback-owner', 'draft', localDraft.id, localDraft);
+  await markWorkspaceDraftFallback('fallback-owner', localDraft);
+  const writes: WorkspaceItem[] = [];
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (_url, options) => {
+    if (options?.body) { const items = JSON.parse(String(options.body)).items as WorkspaceItem[]; writes.push(...items); return response(items); }
+    return response([]);
+  }));
+  const { result } = renderHook(() => useWorkspace('fallback-owner'));
+  await waitFor(() => expect(result.current.syncState).toBe('synced'));
+  expect(writes).toHaveLength(1);
+  expect(writes[0]).not.toHaveProperty('localFallback');
+  expect(isWorkspaceFallbackDraft('fallback-owner', localDraft.id)).toBe(true);
 });
 
 describe('local workspace', () => {
@@ -138,8 +157,8 @@ describe('workspace sync', () => {
       .mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }))
       .mockImplementation(async (_url, options) => response(JSON.parse(String(options?.body)).items));
     vi.stubGlobal('fetch', fetcher);
-    const initial = favorite('same');
     await putWorkspaceValue('alice', 'favorite', 'same', { articleId: 'same' });
+    const initial = (await readWorkspace('alice'))[0];
     const { result } = renderHook(() => useWorkspace('alice'));
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
     await act(() => result.current.remove('favorite', 'same'));
@@ -236,13 +255,93 @@ describe('workspace sync', () => {
     const { result } = renderHook(() => useWorkspace('alice'));
     await waitFor(() => expect(result.current.syncState).toBe('error'));
     expect(result.current.favorites.sort()).toEqual(['rejected', 'saved']);
+    expect(result.current.pendingCount).toBe(1);
+    expect(result.current.cloudCount).toBe(1);
+    expect(result.current.lastSyncedAt).toBeNull();
+    expect(result.current.error).toContain('1 项资料无法同步');
+    expect(result.current.error).toContain('校验');
     expect(result.current.cloudLoaded).toBe(true);
     expect(serverItems.map((item) => item.id)).toEqual(['saved']);
     expect(posts.map((items) => items.length)).toEqual([2, 1, 1]);
     acceptsRejected = true;
     await act(() => result.current.sync());
     expect(result.current.syncState).toBe('synced');
+    expect(result.current.pendingCount).toBe(0);
+    expect(result.current.lastSyncedAt).toBeTypeOf('number');
     expect(serverItems.map((item) => item.id)).toEqual(['saved', 'rejected']);
+  });
+
+  it('does not report a complete sync while a new local item is still waiting to upload', async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const firstStarted = new Promise<void>((resolve) => { started = resolve; });
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let serverItems: WorkspaceItem[] = [];
+    let first = true;
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (_url, options) => {
+      if (!options?.body) return response(serverItems);
+      const { items } = JSON.parse(String(options.body)) as { items: WorkspaceItem[] };
+      if (first) { first = false; started(); await held; }
+      serverItems = mergeWorkspaceItems(serverItems, items);
+      return response(serverItems);
+    }));
+    await putWorkspaceValue('alice', 'favorite', 'first', { articleId: 'first' });
+    const { result } = renderHook(() => useWorkspace('alice'));
+    try {
+      await firstStarted;
+      await act(() => result.current.toggleFavorite('second'));
+      await act(async () => { release(); });
+      await waitFor(() => expect(result.current.pendingCount).toBe(1));
+      expect(result.current.syncState).toBe('syncing');
+      expect(result.current.lastSyncedAt).toBeNull();
+      await waitFor(() => expect(result.current.syncState).toBe('synced'), { timeout: 4000 });
+      expect(serverItems.map((item) => item.id).sort()).toEqual(['first', 'second']);
+      expect(result.current.pendingCount).toBe(0);
+    } finally { release(); }
+  });
+
+  it('rebases a newer edit on the acknowledged revision when the same item changes during an upload', async () => {
+    let release!: () => void; let started!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const firstStarted = new Promise<void>((resolve) => { started = resolve; });
+    let remote: WorkspaceItem = { kind: 'settings', id: 'preferences', updatedAt: Date.now() - 10_000, serverRevision: 1, value: { ...defaultSettings } };
+    const bases: number[] = [];
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (_url, options) => {
+      if (!options?.body) return response([remote]);
+      const item = (JSON.parse(String(options.body)) as { items: WorkspaceItem[] }).items[0];
+      bases.push(item.baseRevision!);
+      if (bases.length === 1) { started(); await held; }
+      const { baseRevision, ...rest } = item;
+      remote = { ...rest, serverRevision: baseRevision! + 1 };
+      return response([remote]);
+    }));
+    const { result } = renderHook(() => useWorkspace('same-item'));
+    try {
+      await waitFor(() => expect(result.current.syncState).toBe('synced'));
+      await act(() => result.current.updateSettings({ minutes: 10 }));
+      const syncing = act(() => result.current.sync());
+      await firstStarted;
+      await act(() => result.current.updateSettings({ minutes: 15 }));
+      release(); await syncing;
+      await waitFor(() => expect(result.current.syncState).toBe('synced'), { timeout: 5000 });
+      expect(bases).toEqual([1, 2]);
+      expect(remote.value).toMatchObject({ minutes: 15 });
+    } finally { release(); }
+  });
+
+  it('retains the last successful sync time per account when the next attempt is offline', async () => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async () => response([])));
+    const first = renderHook(() => useWorkspace('alice'));
+    await waitFor(() => expect(first.result.current.syncState).toBe('synced'));
+    const last = first.result.current.lastSyncedAt;
+    expect(last).toBeTypeOf('number');
+    first.unmount();
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockRejectedValue(new Error('offline')));
+    const alice = renderHook(() => useWorkspace('alice'));
+    const bob = renderHook(() => useWorkspace('bob'));
+    await waitFor(() => expect(alice.result.current.syncState).toBe('error'));
+    expect(alice.result.current.lastSyncedAt).toBe(last);
+    expect(bob.result.current.lastSyncedAt).toBeNull();
   });
 
   it('does not quarantine or subdivide a batch after a temporary HTTP failure', async () => {
@@ -278,4 +377,37 @@ describe('workspace sync', () => {
     expect(result.current.records).toHaveLength(1);
     expect(JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body)).items).toEqual([expect.objectContaining({ id: 'saved' })]);
   });
+});
+
+it('preserves local data when a workspace page fails and merges only after a complete retry', async () => {
+  const owner = 'page-interruption';
+  const synced = { ...favorite('deleted-remotely', 1), serverRevision: 1 };
+  saveWorkspaceGeneration(owner, 1);
+  await mergeRemoteWorkspace(owner, [synced], Date.now(), new AbortController().signal, true, [], 1);
+  await putWorkspaceValue(owner, 'favorite', 'keep-local', { articleId: 'keep-local' });
+  const local = await readWorkspace(owner);
+  const deleted: WorkspaceItem = { kind: 'favorite', id: 'deleted-remotely', updatedAt: 2, deleted: true, serverRevision: 2 };
+  let fail = true;
+  let remote: WorkspaceItem[] = [deleted];
+  const fetcher = vi.fn(async (_url: string, options: RequestInit) => {
+    if (options.method === 'POST') {
+      remote = mergeWorkspaceItems(remote, asServer(JSON.parse(String(options.body)).items));
+      return new Response(JSON.stringify({ acknowledged: true, protocol: 2, generation: 1, serverTime: Date.now() }));
+    }
+    const cursor = new Headers(options.headers).get('X-Workspace-Cursor');
+    if (cursor && fail) return new Response('{}', { status: 503 });
+    if (cursor) return new Response(JSON.stringify({ items: [], protocol: 2, generation: 1, serverTime: Date.now(), nextCursor: null }));
+    return new Response(JSON.stringify({ items: remote, protocol: 2, generation: 1, serverTime: Date.now(), nextCursor: 'page-two' }));
+  });
+  vi.stubGlobal('fetch', fetcher);
+  const { result } = renderHook(() => useWorkspace(owner));
+  await waitFor(() => expect(result.current.syncState).toBe('error'));
+  expect(await readWorkspace(owner)).toEqual(local);
+  expect(result.current.cloudLoaded).toBe(false);
+  fail = false;
+  await act(async () => { await result.current.sync(); });
+  expect(result.current.syncState).toBe('synced');
+  expect(result.current.favorites).toContain('keep-local');
+  expect(result.current.favorites).not.toContain('deleted-remotely');
+  expect((await readWorkspace(owner)).find((item) => item.id === 'deleted-remotely')).toMatchObject({ deleted: true });
 });

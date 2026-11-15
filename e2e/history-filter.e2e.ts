@@ -1,0 +1,30 @@
+import { expect, test } from './fixtures';
+
+test('filters a real saved practice by article, language, mode and date', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '文章库' }).click();
+  await page.getByRole('button', { name: '新建文章' }).click();
+  const editor = page.getByRole('dialog', { name: '新建文章' });
+  await editor.getByLabel('标题').fill('Cloud Garden');
+  await editor.getByLabel('语言').selectOption('en');
+  await editor.getByLabel('正文').fill('cloud');
+  await editor.getByRole('button', { name: '保存' }).click();
+  await page.getByRole('button', { name: '练习《Cloud Garden》' }).click();
+  await page.getByRole('textbox', { name: '当前行输入' }).fill('cloud');
+  await page.getByRole('dialog', { name: '练习成绩' }).getByRole('button', { name: '关闭' }).click();
+  await page.getByRole('button', { name: '我的记录' }).click();
+  await page.getByText('筛选', { exact: true }).click();
+  await page.getByLabel('文章', { exact: true }).fill('garden');
+  await page.getByRole('combobox', { name: '模式', exact: true }).selectOption('timed');
+  await page.getByLabel('时长（分钟）').fill('5');
+  await page.getByRole('combobox', { name: '严格纠错', exact: true }).selectOption('no');
+  const today = await page.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+  await page.getByLabel('开始日期').fill(today);
+  await page.getByLabel('结束日期').fill(today);
+  await expect(page.getByRole('button', { name: '《Cloud Garden》详情' })).toBeVisible();
+  await page.getByRole('group', { name: '记录语言' }).getByRole('button', { name: '中文' }).click();
+  await expect(page.getByText('没有匹配的记录')).toBeVisible();
+  await page.getByRole('group', { name: '记录语言' }).getByRole('button', { name: 'English' }).click();
+  await page.getByRole('button', { name: '《Cloud Garden》详情' }).click();
+  await expect(page.getByRole('dialog', { name: '练习详情' }).getByText('文章原文')).toBeVisible();
+});

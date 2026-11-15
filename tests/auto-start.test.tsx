@@ -6,6 +6,7 @@ import { localHistory, readDraft, readDrafts } from '../src/hooks/usePractice';
 
 const response = (data: unknown) => ({ ok: true, json: async () => data }) as Response;
 beforeEach(() => {
+  window.history.replaceState(null, '', '/');
   localStorage.clear(); sessionStorage.clear();
   Element.prototype.scrollIntoView = vi.fn();
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url === '/api/me' ? { user: null } : {})));
@@ -247,4 +248,38 @@ it('releases a pending start on pagehide so the next page can restore and sync',
   await screen.findByRole('button', { name: '继续练习' });
   await waitFor(async () => expect((await readWorkspace(null)).some((item) => item.kind === 'draft' && !item.deleted && (item.value as { typed?: string })?.typed === '我与')).toBe(true));
   await act(async () => resolveStart(response({ id: 'late', target: 'ignored' })));
+});
+
+it('does not reopen a completed draft while another tab is still finalizing it', async () => {
+  let time = 0; vi.spyOn(performance, 'now').mockImplementation(() => time);
+  const source = await import('../src/data/articles');
+  const { content: _content, ...article } = source.articles[0];
+  let id = ''; let finishCalls = 0; let finishStarted!: () => void; let resolveFinish!: (value: Response) => void;
+  const started = new Promise<void>((resolve) => { finishStarted = resolve; });
+  const finished = new Promise<Response>((resolve) => { resolveFinish = resolve; });
+  vi.stubGlobal('fetch', vi.fn((url: string, options?: RequestInit) => {
+    if (url === '/api/me') return Promise.resolve(response({ user: null }));
+    if (url === '/api/articles') return Promise.resolve(response({ articles: [{ ...article, text: '甲乙丙丁', custom: false }] }));
+    if (url === '/api/tests/start') { id = JSON.parse(String(options?.body)).clientId; return Promise.resolve(response({ id, target: '甲乙丙丁' })); }
+    if (url.endsWith('/finish')) { finishCalls++; finishStarted(); return finished; }
+    return Promise.resolve(response({}));
+  }));
+  const first = render(<App />);
+  const input = first.getByRole('textbox', { name: '当前行输入' });
+  await waitFor(() => expect(first.getByTestId('article-count').textContent).toBe('4'));
+  await waitFor(() => expect((input as HTMLTextAreaElement).disabled).toBe(false));
+  fireEvent.change(input, { target: { value: '甲' } });
+  await waitFor(() => expect(readDraft()?.id).toBe(id));
+  time = 3000; fireEvent.change(input, { target: { value: '甲乙丙丁' } });
+  await started;
+  expect(readDraft()).toMatchObject({ completed: true, pendingStart: false });
+  const second = render(<App />);
+  await waitFor(() => expect((within(second.container).getByRole('textbox', { name: '当前行输入' }) as HTMLTextAreaElement).disabled).toBe(false));
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+  expect(finishCalls).toBe(1);
+  expect(screen.queryByRole('dialog', { name: '练习成绩' })).toBeNull();
+  await act(async () => resolveFinish(response({ attemptId: id, score: { correct: 4, total: 4, accuracy: 100, cpm: 80, wpm: 16 }, elapsedMs: 3000, status: 'review', eligible: true })));
+  await screen.findByRole('dialog', { name: '练习成绩' });
+  expect(screen.getAllByRole('dialog', { name: '练习成绩' })).toHaveLength(1);
+  expect(localHistory()).toHaveLength(1);
 });

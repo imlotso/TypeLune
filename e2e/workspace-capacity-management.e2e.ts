@@ -1,0 +1,51 @@
+import { expect, test } from './fixtures';
+
+test('opens type-specific cleanup and propagates changes to another device', async ({ page, browser, baseURL, clientIp }, testInfo) => {
+  const username = 'capacity_member'; const email = `${username}@example.test`; const password = 'capacity-password-123';
+  expect((await page.request.post('/api/auth/code', { data: { email, purpose: 'register' } })).ok()).toBe(true);
+  const code = (await (await page.request.get(`/__e2e__/email-code?email=${email}&purpose=register`)).json()).code;
+  expect((await page.request.post('/api/auth/register', { data: { username, email, password, code } })).ok()).toBe(true);
+  await page.goto('/');
+  await page.getByRole('spinbutton', { name: '测试时间（分钟）' }).fill('7');
+  await page.getByRole('button', { name: '文章库' }).click();
+  await page.getByRole('button', { name: '收藏《背影》' }).click();
+  await expect.poll(async () => {
+    const items = (await (await page.request.get('/api/workspace')).json()).items;
+    return items.some((item: { kind: string; deleted?: boolean; value?: { minutes?: number } }) => item.kind === 'settings' && !item.deleted && item.value?.minutes === 7) &&
+      items.some((item: { id: string; deleted?: boolean }) => item.id === 'zh-beginner-1' && !item.deleted);
+  }).toBe(true);
+  const device = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
+  expect((await device.request.post('/api/auth/login', { data: { identifier: username, password } })).ok()).toBe(true);
+  const other = await device.newPage(); await other.goto('/');
+  await expect(other.getByRole('spinbutton', { name: '测试时间（分钟）' })).toHaveValue('7');
+  await page.getByRole('button', { name: username, exact: true }).click();
+  await page.getByRole('menuitem', { name: '个人数据' }).click();
+  await expect(page.getByRole('button', { name: '管理收藏' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('capacity-types-desktop.png') });
+  await page.getByRole('button', { name: '切换至夜间模式' }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('heading', { name: '云工作区容量' }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath('capacity-types-mobile.png') });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.getByRole('button', { name: '管理收藏' }).click();
+  await expect(page.getByRole('group', { name: '文章分类' }).getByRole('button', { name: '收藏' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '收藏《背影》' }).click();
+  await expect.poll(async () => (await (await page.request.get('/api/workspace')).json()).items.some((item: { id: string; deleted?: boolean }) => item.id === 'zh-beginner-1' && item.deleted)).toBe(true);
+  await page.getByRole('button', { name: username, exact: true }).click();
+  await page.getByRole('menuitem', { name: '个人数据' }).click();
+  await page.getByRole('button', { name: '清除设置' }).click();
+  await expect(page.getByText(/预设、错字状态和统计目标将被清除/)).toBeVisible();
+  await page.getByRole('button', { name: '确认清除设置' }).click();
+  await expect(page.getByText('设置已在本机清除，等待同步')).toBeVisible();
+  await expect.poll(async () => (await (await page.request.get('/api/workspace')).json()).items.some((item: { kind: string; deleted?: boolean }) => item.kind === 'settings' && item.deleted)).toBe(true);
+  await other.getByRole('button', { name: '更多' }).click();
+  await other.getByRole('button', { name: '设置', exact: true }).click();
+  const settings = other.getByRole('dialog', { name: '练习设置' });
+  await settings.getByRole('button', { name: '立即同步' }).click();
+  await expect(settings.getByText('已同步')).toBeVisible();
+  await settings.getByRole('button', { name: '关闭' }).click();
+  await expect(other.getByRole('spinbutton', { name: '测试时间（分钟）' })).toHaveValue('5');
+  await other.getByRole('button', { name: '文章库' }).click();
+  await expect(other.getByRole('button', { name: '收藏《背影》' })).toHaveAttribute('aria-pressed', 'false');
+  await device.close();
+});

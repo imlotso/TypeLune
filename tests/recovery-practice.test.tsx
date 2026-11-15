@@ -11,6 +11,74 @@ let now: number;
 beforeEach(() => { localStorage.clear(); sessionStorage.clear(); now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
+it('starts a guest practice locally without requesting an online challenge when the public switch is closed', async () => {
+  const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+  const session = renderHook(() => usePractice({ ...config, guestOnlineAllowed: false }, null));
+  act(() => session.result.current.updateTyped('甲'));
+  expect(session.result.current.phase).toBe('running');
+  expect(session.result.current.feedback).toBe('游客在线练习已关闭，已转为本地练习。');
+  expect(fetcher).not.toHaveBeenCalled();
+  now = 2000;
+  await act(() => session.result.current.pause());
+  expect(readDraft()).toMatchObject({ typed: '甲', personalOnly: true, offline: true });
+});
+
+it('persists and restores the fact that a round exceeded the mistake sample limit', async () => {
+  const custom = { ...article, id: 'private-truncation', text: '甲甲', custom: true };
+  const first = renderHook(() => usePractice({ ...config, ...custom, article: custom, articleId: custom.id }, null));
+  act(() => { for (let index = 0; index < 501; index++) { first.result.current.updateTyped('乙'); first.result.current.updateTyped(''); } });
+  now = 2000;
+  await act(() => first.result.current.pause());
+  const saved = readDraft()!;
+  expect(saved.mistakes).toHaveLength(500);
+  expect(saved.mistakesTruncated).toBe(true);
+  first.unmount();
+  const resumed = renderHook(() => usePractice({ ...config, ...custom, article: custom, articleId: custom.id }, saved));
+  await act(() => resumed.result.current.finish(true));
+  expect(resumed.result.current.result?.record).toMatchObject({ mistakesTruncated: true });
+  expect(resumed.result.current.result?.record?.mistakes).toHaveLength(500);
+});
+
+it('does not park and switch away when the current draft cannot be saved', async () => {
+  const custom = { ...article, id: 'private-save-error', text: '甲乙', custom: true };
+  const session = renderHook(() => usePractice({ ...config, ...custom, article: custom, articleId: custom.id }, null));
+  act(() => session.result.current.updateTyped('甲'));
+  const original = Storage.prototype.setItem;
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+    if (key.startsWith('cloudtyping.practice.v2.')) throw new Error('storage full');
+    return original.call(this, key, value);
+  });
+  let parked = true;
+  await act(async () => { parked = await session.result.current.park(); });
+  expect(parked).toBe(false);
+  expect(session.result.current.typed).toBe('甲');
+  expect(session.result.current.feedback).toContain('保存失败');
+});
+
+it('rechecks a parked draft before switching if another page removed its local copy', async () => {
+  const custom = { ...article, id: 'private-parked', text: '甲乙', custom: true };
+  const session = renderHook(() => usePractice({ ...config, ...custom, article: custom, articleId: custom.id }, null));
+  act(() => session.result.current.updateTyped('甲'));
+  await act(async () => { expect(await session.result.current.park()).toBe(true); });
+  const previous = readDraft()!;
+  localStorage.removeItem(`cloudtyping.practice.v2.${previous.recordId}`);
+  await act(async () => { expect(await session.result.current.park()).toBe(true); });
+  expect(readDraft()).toMatchObject({ typed: '甲' });
+  expect(readDraft()?.recordId).not.toBe(previous.recordId);
+});
+
+it('holds the local draft lease during a settings switch and releases it afterward', async () => {
+  const custom = { ...article, id: 'private-lease', text: '甲乙', custom: true };
+  const session = renderHook(() => usePractice({ ...config, ...custom, article: custom, articleId: custom.id }, null));
+  act(() => session.result.current.updateTyped('甲'));
+  await act(async () => { expect(await session.result.current.park()).toBe(true); });
+  expect(readDraft()?.leaseOwner).toBeNull();
+  await act(async () => { expect(await session.result.current.park(true)).toBe(true); });
+  expect(readDraft()?.leaseOwner).toBeTruthy();
+  act(() => session.result.current.releaseParkedLease());
+  expect(readDraft()?.leaseOwner).toBeNull();
+});
+
 it('keeps a guest practice local after the server disables new online practices', async () => {
   const fetch = vi.fn(async () => response({ error: '游客在线练习已关闭', code: 'GUEST_ONLINE_PRACTICE_DISABLED' }, false, 403));
   vi.stubGlobal('fetch', fetch);

@@ -5,6 +5,7 @@ import { ScoresPanel } from './admin/ScoresPanel';
 import { UsersPanel } from './admin/UsersPanel';
 import { SmtpPanel } from './admin/SmtpPanel';
 import { SiteSettingsPanel } from './admin/SiteSettingsPanel';
+import { FeedbackPanel } from './admin/FeedbackPanel';
 import {
   AuditRows, LoadState, Metrics, Pagination, QueryField, SelectField, targets, useAdminList, useAdminResource,
   type AdminProps, type Audit,
@@ -12,7 +13,7 @@ import {
 import '../admin.css';
 
 const tabs = [
-  ['overview', '概览'], ['users', '用户'], ['articles', '文章'], ['scores', '成绩'], ['settings', '站点设置'], ['mail', '邮件'], ['audit', '操作日志'],
+  ['overview', '概览'], ['users', '用户'], ['articles', '文章'], ['scores', '成绩'], ['feedback', '反馈'], ['settings', '站点设置'], ['mail', '邮件'], ['audit', '操作日志'],
 ] as const;
 type Tab = typeof tabs[number][0];
 const labels = {
@@ -47,6 +48,7 @@ function AuditPanel({ ownerId }: AdminProps) {
 
 export function AdminConsole({ ownerId, onCatalogChange }: AdminProps & { onCatalogChange: () => void }) {
   const [tab, setTab] = useState<Tab>('overview');
+  const [articleFromFeedback, setArticleFromFeedback] = useState<string>();
   return <section className="content-panel feature-panel admin-console">
     <div className="content-heading"><h1><ShieldCheck size={25} aria-hidden="true" />管理后台</h1></div>
     <nav className="admin-navigation" aria-label="后台栏目">
@@ -55,8 +57,9 @@ export function AdminConsole({ ownerId, onCatalogChange }: AdminProps & { onCata
     <div className="admin-panel" key={ownerId}>
       {tab === 'overview' && <OverviewPanel ownerId={ownerId} />}
       {tab === 'users' && <UsersPanel ownerId={ownerId} />}
-      {tab === 'articles' && <ArticlesPanel ownerId={ownerId} onCatalogChange={onCatalogChange} />}
+      {tab === 'articles' && <ArticlesPanel ownerId={ownerId} onCatalogChange={onCatalogChange} initialArticleId={articleFromFeedback} onInitialClose={() => setArticleFromFeedback(undefined)} />}
       {tab === 'scores' && <ScoresPanel ownerId={ownerId} />}
+      {tab === 'feedback' && <FeedbackPanel ownerId={ownerId} onArticle={(id) => { setArticleFromFeedback(id); setTab('articles'); }} />}
       {tab === 'settings' && <SiteSettingsPanel ownerId={ownerId} />}
       {tab === 'mail' && <SmtpPanel ownerId={ownerId} />}
       {tab === 'audit' && <AuditPanel ownerId={ownerId} />}

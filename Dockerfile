@@ -4,6 +4,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
 COPY package*.json ./
 RUN npm ci
 COPY . .
+ARG VITE_SITE_OPERATOR=""
+ARG VITE_SITE_CONTACT_EMAIL=""
+ARG VITE_PRIVACY_VERSION=""
+ARG VITE_PRIVACY_EFFECTIVE_DATE=""
+ARG VITE_TERMS_VERSION=""
+ARG VITE_TERMS_EFFECTIVE_DATE=""
 RUN npm run build && npm prune --omit=dev
 
 FROM node:26-bookworm-slim

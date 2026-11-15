@@ -141,10 +141,10 @@ function LoadedEditor({ ownerId, id, onClose, onChange }: AdminProps & { id: str
   return <ArticleEditor ownerId={ownerId} article={data.article} onClose={onClose} onChange={onChange} />;
 }
 
-export function ArticlesPanel({ ownerId, onCatalogChange }: AdminProps & { onCatalogChange: () => void }) {
+export function ArticlesPanel({ ownerId, onCatalogChange, initialArticleId, onInitialClose }: AdminProps & { onCatalogChange: () => void; initialArticleId?: string; onInitialClose?: () => void }) {
   const list = useAdminList<ArticleRow>(ownerId, '/articles');
-  const [selected, setSelected] = useState<{ id?: string }>();
-  const onClose = () => setSelected(undefined);
+  const [selected, setSelected] = useState<{ id?: string } | undefined>(() => initialArticleId ? { id: initialArticleId } : undefined);
+  const onClose = () => { setSelected(undefined); onInitialClose?.(); };
   const onChange = () => { list.refresh(); onCatalogChange(); };
 
   return <>
