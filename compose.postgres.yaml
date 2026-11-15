@@ -1,0 +1,75 @@
+# Self-hosted PostgreSQL route. Existing compose.yaml retains SQLite compatibility.
+# Run with: docker compose --env-file .env.postgres -f compose.postgres.yaml ...
+x-app-build: &app-build
+  context: .
+  args:
+    VITE_SITE_OPERATOR: ${VITE_SITE_OPERATOR:-}
+    VITE_SITE_CONTACT_EMAIL: ${VITE_SITE_CONTACT_EMAIL:-}
+    VITE_PRIVACY_VERSION: ${VITE_PRIVACY_VERSION:-}
+    VITE_PRIVACY_EFFECTIVE_DATE: ${VITE_PRIVACY_EFFECTIVE_DATE:-}
+    VITE_TERMS_VERSION: ${VITE_TERMS_VERSION:-}
+    VITE_TERMS_EFFECTIVE_DATE: ${VITE_TERMS_EFFECTIVE_DATE:-}
+x-app-environment: &app-environment
+  DATABASE_URL: ${DATABASE_URL:?Set PostgreSQL URL using service hostname postgres}
+  DAZI_DATABASE_SCHEMA: public
+  CODE_SECRET: ${CODE_SECRET:?Set a stable random secret of at least 32 characters}
+  TRUST_PROXY: "true"
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-}
+services:
+  postgres:
+    image: postgres:18.7
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: typelune
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a random PostgreSQL password}
+      POSTGRES_DB: typelune
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U typelune -d typelune"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    # No database port is exposed to the host or Internet.
+  db-init:
+    build: *app-build
+    profiles: [setup]
+    environment:
+      <<: *app-environment
+      DAZI_DATABASE_HOST: postgres
+      DAZI_DATABASE_NAME: typelune
+      DAZI_CONFIRM_TARGET: postgres/typelune/public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "node scripts/postgres-database.mjs migrate && node scripts/postgres-database.mjs support && node scripts/postgres-database.mjs seed"]
+    restart: "no"
+  app:
+    build: *app-build
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose: ["3001"]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?Set the site domain}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

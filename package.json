@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "test:docker": "node scripts/ci-docker-smoke.mjs",
     "db:postgres": "tsx scripts/postgres-database.ts",
-    "test:vercel-esm": "node scripts/verify-vercel-esm.mjs"
+    "test:vercel-esm": "node scripts/verify-vercel-esm.mjs",
+    "test:docker:postgres": "node scripts/ci-docker-postgres-smoke.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
