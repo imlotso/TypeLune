@@ -27,9 +27,11 @@ Use `pg_dump`/`pg_restore` for PostgreSQL backup/restore so the optional QR tabl
 
 ## Verification and honest limits
 - Official EDB portable PostgreSQL 18.7 on Windows, loopback-only disposable cluster, no production data.
+- Final complete suite with real PostgreSQL enabled: 130 files / 634 tests passed, no skips (84.08 seconds, maxWorkers=2). Type check and application build passed. A temporary uncommitted operator bundle initially matched test discovery; after renaming it, the clean final run passed.
 - Actual PostgreSQL suite: 11 files / 41 tests passed, including Vercel handler rewrites and HTTP login, Node HTTP endpoints, schema upgrades, target guards, SQLite/PG transfers, rate limits, SMTP configuration, and support upload/public read/restart persistence/QR decoding.
 - Vercel-specific Node 22.23.5 + PostgreSQL 18.7 rerun: 3 files / 14 tests passed; emitted Vercel Function imported successfully. No shared native dependencies were rebuilt.
 - Bundled `support` operator ran twice against a unique disposable PostgreSQL schema and created exactly one table; the test schema was removed afterward.
+- Import target safety also rejects an older SQLite source when the PostgreSQL target already holds optional support settings; the regression was observed failing before the guard fix and passes afterward.
 - New support test proves absent extension fails closed, installation is repeatable, legacy schema verification remains valid, unauthorized writes fail, revision conflicts fail, and metadata does not leak publicly.
 - `scripts/ci-docker-postgres-smoke.mjs` prepares isolated official PG18 + app containers, explicit schema/setup, bootstrap, login, QR upload, unauthorized denial and database/app restart persistence. Run with `DAZI_TEST_IMAGE` pointing to the built image and `npm run test:docker:postgres`.
 - Docker execution has NOT been verified on this host: Soul has no Docker executable/service, and the Dot cloud worker also has no Docker CLI. Node+PG success is not a container pass. Compose and container build/run must be checked on a Docker-enabled isolated host before claiming Docker acceptance.
