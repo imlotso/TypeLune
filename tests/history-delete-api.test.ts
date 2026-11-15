@@ -224,4 +224,27 @@ describe('history deletion and score withdrawal', () => {
     expect((await post('/api/history/delete', request, alice.headers)).statusCode).toBe(200);
     expect((await post('/api/history/delete', request, alice.headers)).statusCode).toBe(200);
   });
+
+  it('propagates alternate markers and rejects clients that cannot interpret them', async () => {
+    const alice = await register('alice'); const bob = await register('bobby');
+    const base = `legacy-conflict-${'a'.repeat(64)}`; const marker = `legacy-conflict-${'b'.repeat(64)}`;
+    const request = { ids: [marker], localConflicts: [marker], localConflictBases: [{ id: marker, base }], expectedRevisions: [{ id: marker, revision: 0 }] };
+    expect((await post('/api/history/delete', request, { ...alice.headers, 'x-workspace-capabilities': 'local-conflict-v1' })).statusCode).toBe(426);
+    const current = { ...alice.headers, 'x-workspace-capabilities': 'local-conflict-v2' };
+    const removed = await post('/api/history/delete', request, current);
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().items).toEqual([expect.objectContaining({ id: marker, deleted: true, localConflict: true, localConflictBase: base })]);
+    const old = { ...alice.headers, 'x-workspace-capabilities': 'local-conflict-v1' };
+    expect((await app.inject({ url: '/api/workspace', headers: old })).statusCode).toBe(426);
+    expect((await app.inject({ url: '/api/workspace?paged=1', headers: old })).statusCode).toBe(426);
+    expect((await app.inject({ url: '/api/workspace?paged=1', headers: current })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/workspace', headers: bob.headers })).json().items).toEqual([]);
+    const item = { kind: 'favorite', id: 'new', updatedAt: now, baseRevision: 0, value: { articleId: 'new' } };
+    expect((await post('/api/workspace/sync', { generation: 1, items: [item] }, { ...alice.headers, 'x-workspace-capabilities': 'local-conflict-v1' })).statusCode).toBe(426);
+    expect((await post('/api/workspace/sync', { generation: 1, items: [item] }, current)).statusCode).toBe(200);
+    expect((await post('/api/workspace/compact', { generation: 1 }, alice.headers)).statusCode).toBe(426);
+    expect((await post('/api/workspace/compact', { generation: 1 }, current)).json()).toMatchObject({ generation: 2, removed: 1 });
+    expect((await app.inject({ url: '/api/workspace', headers: old })).statusCode).toBe(426);
+    expect((await post('/api/workspace/sync', { generation: 2, items: [] }, { ...alice.headers, 'x-workspace-capabilities': 'local-conflict-v1' })).statusCode).toBe(426);
+  });
 });

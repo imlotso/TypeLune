@@ -1,8 +1,8 @@
-import type { ArticleSource, Difficulty, Language } from '../data/articles';
-import type { BackgroundConfig } from './background';
-import type { ServerScoreStatus } from './score-status';
-import type { ProcessTrace } from './process-trace';
-import type { LegacyRecordProof } from './records';
+import type { ArticleSource, Difficulty, Language } from '../data/articles.js';
+import type { BackgroundConfig } from './background.js';
+import type { ServerScoreStatus } from './score-status.js';
+import type { ProcessTrace } from './process-trace.js';
+import type { LegacyRecordProof } from './records.js';
 
 export type PracticeMode = 'timed' | 'article';
 export type MistakeStatus = 'mastered' | 'ignored';
@@ -39,7 +39,7 @@ export type PracticeRecord = {
   article?: ArticleSnapshot; typed?: string; offset?: number; total?: number; correct?: number; articleTotal?: number;
   mode?: PracticeMode; strict?: boolean; mistakes?: MistakeSample[]; mistakesTruncated?: boolean; paceTarget?: number; processTrace?: ProcessTrace;
   // Read-time compatibility metadata; never treated as a verified score.
-  legacyLocalIds?: string[]; legacyWorkspaceId?: boolean; legacyIdConflict?: boolean; legacyDeletionBlocked?: boolean; legacyProof?: LegacyRecordProof;
+  legacyLocalIds?: string[]; legacyWorkspaceId?: boolean; legacyIdConflict?: boolean; legacyDeletionBlocked?: boolean; legacyConflictBase?: string; legacyProof?: LegacyRecordProof;
 };
 export type SavedPractice = {
   id: string; article: ArticleSnapshot; typed: string; elapsedMs: number; backspaces: number;
@@ -91,7 +91,7 @@ export type WorkspaceValues = {
 };
 export type WorkspaceKind = keyof WorkspaceValues;
 export type WorkspaceItem = { kind: WorkspaceKind; id: string; updatedAt: number; deleted?: boolean; value?: unknown;
-  serverRevision?: number; baseRevision?: number; baseUpdatedAt?: number; clientGeneration?: number; localFallback?: boolean; localConflict?: boolean };
+  serverRevision?: number; baseRevision?: number; baseUpdatedAt?: number; clientGeneration?: number; localFallback?: boolean; localConflict?: boolean; localConflictBase?: string };
 export type SyncState = 'guest' | 'loading' | 'syncing' | 'synced' | 'error';
 export type MistakeEntry = { id: string; language: Language; expected: string; actual: string[]; count: number; lastSeen: number; contexts: string[] };
 export type RankingEntry = { nickname: string; speed: number; accuracy: number; guest: number; createdAt: number; attemptId: string; rank?: number; mine?: boolean; articleId?: string; mode?: PracticeMode; strict?: boolean };

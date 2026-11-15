@@ -1,14 +1,14 @@
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
-import { difficulties } from '../src/data/articles';
-import type { PaceSettings, PracticePreset, WorkspaceItem, WorkspaceKind } from '../src/lib/models';
-import { isBackgroundConfig, type BackgroundConfig } from '../src/lib/background';
-import { isPresetList } from '../src/lib/practice-settings';
-import { isPaceSettings } from '../src/lib/pace';
-import { isStatisticsTimeZone } from '../src/lib/long-term-stats';
-import { isProcessTrace, type ProcessTrace } from '../src/lib/process-trace';
-import { stableRecordId, type LegacyRecordProof } from '../src/lib/records';
-import type { PracticeRecord } from '../src/lib/models';
+import { difficulties } from '../src/data/articles.js';
+import type { PaceSettings, PracticePreset, WorkspaceItem, WorkspaceKind } from '../src/lib/models.js';
+import { isBackgroundConfig, type BackgroundConfig } from '../src/lib/background.js';
+import { isPresetList } from '../src/lib/practice-settings.js';
+import { isPaceSettings } from '../src/lib/pace.js';
+import { isStatisticsTimeZone } from '../src/lib/long-term-stats.js';
+import { isProcessTrace, type ProcessTrace } from '../src/lib/process-trace.js';
+import { stableRecordId, type LegacyRecordProof } from '../src/lib/records.js';
+import type { PracticeRecord } from '../src/lib/models.js';
 
 export const syncBodyLimit = 4 * 1024 * 1024;
 export const recoveryIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -141,6 +141,10 @@ export function createWorkspaceStore(db: Database.Database) {
     );
     CREATE TABLE IF NOT EXISTS workspace_legacy_record_aliases (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, alias_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY(user_id,alias_id)
+    );
+    CREATE TABLE IF NOT EXISTS workspace_local_conflict_bases (
+      user_id TEXT NOT NULL, marker_id TEXT NOT NULL, base_id TEXT NOT NULL, PRIMARY KEY(user_id,marker_id),
+      FOREIGN KEY(user_id,marker_id) REFERENCES workspace_legacy_record_aliases(user_id,alias_id) ON DELETE CASCADE
     );
   `);
   db.transaction(() => {
@@ -313,3 +317,7 @@ export class WorkspaceLimitError extends Error {}
 export class WorkspaceGenerationError extends Error {}
 export class WorkspaceConflictError extends Error {}
 export class WorkspaceClientUpdateRequiredError extends Error {}
+export class WorkspaceChangedError extends Error {}
+export class WorkspaceCursorError extends Error {}
+export class WorkspacePageSizeError extends Error {}
+export class WorkspacePaginationRequiredError extends Error {}

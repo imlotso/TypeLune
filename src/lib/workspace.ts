@@ -1,10 +1,11 @@
-import { defaultPace, defaultSettings, sameDraftSnapshot, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models';
-import { themeStorageKey } from './theme';
-import { isBackgroundConfig } from './background';
-import { isPresetList } from './practice-settings';
-import { isPaceSettings } from './pace';
-import { isStatisticsTimeZone } from './long-term-stats';
-import { isProcessTrace } from './process-trace';
+import { defaultPace, defaultSettings, sameDraftSnapshot, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models.js';
+import { themeStorageKey } from './theme.js';
+import { isBackgroundConfig } from './background.js';
+import { isPresetList } from './practice-settings.js';
+import { isPaceSettings } from './pace.js';
+import { isStatisticsTimeZone } from './long-term-stats.js';
+import { isProcessTrace } from './process-trace.js';
+import { legacyConflictId, normalizeWorkspaceRecord } from './records.js';
 
 const databaseName = 'cloudtyping-workspace';
 const itemStore = 'items';
@@ -82,7 +83,7 @@ const isArticle = (value: unknown) => isObject(value) && typeof value.id === 'st
 
 export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
   if (!isObject(value)) return false;
-  const { kind, id, updatedAt, deleted, value: payload, serverRevision, baseRevision, baseUpdatedAt, clientGeneration, localFallback, localConflict } = value;
+  const { kind, id, updatedAt, deleted, value: payload, serverRevision, baseRevision, baseUpdatedAt, clientGeneration, localFallback, localConflict, localConflictBase } = value;
   if (!['favorite', 'article', 'draft', 'record', 'settings', 'background'].includes(kind as string) ||
     typeof id !== 'string' || !id || typeof updatedAt !== 'number' || !Number.isSafeInteger(updatedAt) || updatedAt < 0 ||
     (deleted !== undefined && typeof deleted !== 'boolean') ||
@@ -91,7 +92,8 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
     (baseUpdatedAt !== undefined && (!Number.isSafeInteger(baseUpdatedAt) || (baseUpdatedAt as number) < 0)) ||
     (clientGeneration !== undefined && (!Number.isSafeInteger(clientGeneration) || (clientGeneration as number) < 1)) ||
     (localFallback !== undefined && typeof localFallback !== 'boolean') ||
-    (localConflict !== undefined && (typeof localConflict !== 'boolean' || (localConflict && (kind !== 'record' || deleted !== true))))) return false;
+    (localConflict !== undefined && (typeof localConflict !== 'boolean' || (localConflict && (kind !== 'record' || deleted !== true)))) ||
+    (localConflictBase !== undefined && (localConflict !== true || typeof localConflictBase !== 'string' || !/^legacy-conflict-[a-f0-9]{64}$/u.test(localConflictBase)))) return false;
   if (kind === 'background' && !isTheme(id)) return false;
   if (deleted) return true;
   if (!isObject(payload)) return false;
@@ -524,7 +526,7 @@ export function mergeRemoteWorkspace(ownerId: string, items: WorkspaceItem[], se
     const previous = new Map(current.map((item) => [keyOf(item), item]));
     const next = merged.map((item) => {
       const stored = previous.get(keyOf(item));
-      return stored && stored.updatedAt === item.updatedAt && stored.serverRevision === item.serverRevision && stored.baseUpdatedAt === item.baseUpdatedAt && stored.clientGeneration === item.clientGeneration && stored.localFallback === item.localFallback && stored.localConflict === item.localConflict &&
+      return stored && stored.updatedAt === item.updatedAt && stored.serverRevision === item.serverRevision && stored.baseUpdatedAt === item.baseUpdatedAt && stored.clientGeneration === item.clientGeneration && stored.localFallback === item.localFallback && stored.localConflict === item.localConflict && stored.localConflictBase === item.localConflictBase &&
         !!stored.deleted === !!item.deleted && JSON.stringify(stored.value) === JSON.stringify(item.value) ? stored : item;
     });
     return next.length === current.length && next.every((item, index) => item === current[index]) ? current : next;
@@ -592,14 +594,27 @@ export function deleteWorkspaceValue(ownerId: string | null, kind: WorkspaceKind
   return mutateWorkspaceValue(ownerId, kind, id, () => undefined);
 }
 
-// Guest conflicts are local-only. Check and write the marker in one protected
-// workspace transaction so a newly occupied ID cannot delete another record.
-export function deleteGuestConflict(id: string): Promise<void> {
+// Validate all selected identities before changing any of them. A second tab
+// can otherwise occupy an alias or marker between reading and deleting it.
+export function deleteGuestHistory(ids: string[], conflicts: string[], bases: Record<string, string>, expectedRecords: Record<string, string>): Promise<void> {
   return editWorkspace(null, (items) => {
-    const old = items.find((item) => item.kind === 'record' && item.id === id);
-    if (old?.deleted && old.localConflict) return items;
-    if (old) throw new Error('记录标识已被占用，请刷新后重试');
-    return mergeWorkspaceItems(items, [{ kind: 'record', id, updatedAt: estimatedServerTime(null), deleted: true, localConflict: true }]);
+    const byId = new Map(items.filter((item) => item.kind === 'record').map((item) => [item.id, item]));
+    for (const id of ids) {
+      const old = byId.get(id);
+      if (conflicts.includes(id)) {
+        if (old && !(old.deleted && old.localConflict && old.localConflictBase === bases[id])) throw new Error('记录标识已被占用，请刷新后重试');
+      } else if (old && !old.deleted && expectedRecords[id]) {
+        const current = normalizeWorkspaceRecord(old);
+        if (!current || legacyConflictId(current) !== expectedRecords[id]) throw new Error('记录已更新，请重新选择后删除');
+      }
+    }
+    const tombstones: WorkspaceItem[] = ids.flatMap((id) => {
+      const old = byId.get(id);
+      if (old?.deleted) return [];
+      const updatedAt = Math.max(estimatedServerTime(null), (old?.updatedAt ?? -1) + 1);
+      return [{ kind: 'record', id, updatedAt, deleted: true, ...(conflicts.includes(id) && { localConflict: true, ...(bases[id] && { localConflictBase: bases[id] }) }) }];
+    });
+    return tombstones.length ? mergeWorkspaceItems(items, tombstones) : items;
   }, true).then(() => {});
 }
 

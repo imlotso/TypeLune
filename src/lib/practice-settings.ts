@@ -1,6 +1,6 @@
-import type { Difficulty, Language } from '../data/articles';
-import { defaultPace, type PaceSettings, type PracticeMode, type PracticePreset, type PresetReading, type ReaderSettings } from './models';
-import { isPaceSettings } from './pace';
+import type { Difficulty, Language } from '../data/articles.js';
+import { defaultPace, type PaceSettings, type PracticeMode, type PracticePreset, type PresetReading, type ReaderSettings } from './models.js';
+import { isPaceSettings } from './pace.js';
 
 export type PortablePracticeSettings = { language: Language; difficulty: Difficulty; mode: PracticeMode; minutes: number; strict: boolean; autoPause: boolean; pace: PaceSettings; shortcutsEnabled: boolean } & PresetReading;
 export type PracticeSettingsFile = { format: 'typing-practice-settings'; version: 1; exportedAt: string; settings: PortablePracticeSettings; presets: PracticePreset[] };

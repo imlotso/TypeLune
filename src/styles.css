@@ -19,7 +19,7 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #6450bd; outline-offset: 3px; }
 .site-header { min-height: 88px; padding: 0 4.2%; display: flex; align-items: center; gap: 24px; background: #fdfbfb; color: #514a7a; position: relative; z-index: 3; }
 .brand { display: flex; gap: 13px; align-items: center; flex: none; border: 0; background: transparent; color: #514a7a; font-size: 23px; font-weight: 800; white-space: nowrap; }
-.brand svg { color: #a69ae9; }
+.brand-logo { display: block; width: 185px; height: 48px; object-fit: cover; object-position: center; }
 .site-header nav { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex: 1; }
 .site-header nav button { border: 0; color: #554e7c; background: transparent; border-radius: 999px; padding: 11px 21px; white-space: nowrap; font-size: 16px; font-weight: 700; transition: background-color .18s ease, color .18s ease; }
 .site-header nav button:hover, .site-header nav button.nav-active { background: #d9eafa; color: #484778; }
@@ -91,6 +91,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .rank-number { width: 30px; text-align: center; color: #85809a; font-weight: 700; }
 .rank-1 { color: #e4b955; }.rank-2 { color: #9da8ba; }.rank-3 { color: #d3a07c; }
 .rank-name { flex: 1; color: #50496e; font-weight: 700; overflow-wrap: anywhere; }
+.rank-identity { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.rank-time { color: var(--typing-muted); font-size: 12px; }
 .rank-name small { display: inline-block; color: #8a81a4; background: #f4f1fa; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
 .rank-accuracy { color: var(--typing-muted); font-size: 13px; white-space: nowrap; }
 .ranking-list strong { color: #7461bd; white-space: nowrap; }.ranking-list strong small { font-size: 12px; font-weight: 500; }
@@ -171,7 +173,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 :root[data-theme='dark'] { color-scheme: dark; color: #ece8fa; background: #17192c; }
 [data-theme='dark'] .site-header { background: #1e2037; color: #f0ecff; }
 [data-theme='dark'] .brand, [data-theme='dark'] .site-header nav button { color: #f0ecff; }
-[data-theme='dark'] .brand svg { color: #c4b8ff; }
+[data-theme='dark'] .brand-logo { filter: invert(1) hue-rotate(180deg) saturate(1.3); }
 [data-theme='dark'] .site-header nav button:hover, [data-theme='dark'] .site-header nav button.nav-active { color: #fff; background: #39486d; }
 [data-theme='dark'] .site-header nav button.account-button { color: #f2edff; background: #292b45; border-color: #817aa6; }
 [data-theme='dark'] .site-header nav button.account-button:hover { background: #3c3b5b; }
@@ -223,7 +225,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 @media (max-width: 700px) {
   .site-header { padding: 12px 16px 8px; gap: 7px; min-height: auto; flex-wrap: wrap; }
-  .brand { font-size: 20px; }.brand svg { width: 32px; height: 32px; }
+  .brand-logo { width: 160px; height: 42px; }
   .site-header nav { flex: 1 0 100%; justify-content: flex-start; flex-wrap: wrap; gap: 2px; overflow: visible; }
   .site-header nav button { font-size: 13px; padding: 8px 9px; }.site-header nav button.account-button { min-width: 58px; }
   .room { min-height: calc(100svh - 100px); background-size: auto 100%; }

@@ -34,7 +34,7 @@ it('does not apply a delayed submission to the next completed practice', async (
   time = 2000;
   fireEvent.change(input, { target: { value: '甲乙丙丁' } });
   const first = await screen.findByRole('dialog', { name: '练习成绩' });
-  fireEvent.change(within(first).getByLabelText('上榜昵称'), { target: { value: '访客' } });
+  fireEvent.change(within(first).getByLabelText('上榜昵称'), { target: { value: 'visitor-访客' } });
   await waitFor(() => expect((within(first).getByRole('button', { name: '提交到排行榜' }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(within(first).getByRole('button', { name: '提交到排行榜' }));
   await waitFor(() => expect(resolvePublish).toBeTypeOf('function'));
@@ -86,7 +86,7 @@ it('unlocks the restored draft when an earlier submission is still pending', asy
   await waitFor(() => expect(readDraft()?.recordId).not.toBe(firstId));
   time = 4000; fireEvent.change(input, { target: { value: '甲乙丙丁' } });
   dialog = await screen.findByRole('dialog', { name: '练习成绩' });
-  fireEvent.change(within(dialog).getByLabelText('上榜昵称'), { target: { value: '访客' } });
+  fireEvent.change(within(dialog).getByLabelText('上榜昵称'), { target: { value: 'visitor-访客' } });
   await waitFor(() => expect((within(dialog).getByRole('button', { name: '提交到排行榜' }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(within(dialog).getByRole('button', { name: '提交到排行榜' }));
   await waitFor(() => expect(resolvePublish).toBeTypeOf('function'));

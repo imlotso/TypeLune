@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, ApiError } from '../lib/api';
+import { ApiError } from '../lib/api';
+import { fetchWorkspace, type KnownWorkspaceBackgrounds } from '../lib/workspace-fetch';
 import { localPracticeNeedsRecovery } from '../lib/local-practice-generation';
 import { applyPresetAction, type PresetAction } from '../lib/practice-settings';
 import { normalizeWorkspaceRecord } from '../lib/records';
 import type { MistakeStatus, PracticeRecord, ReaderSettings, SyncState, WorkspaceItem, WorkspaceKind, WorkspaceValues } from '../lib/models';
 import {
-  cachedWorkspace, chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceItem, mergeRemoteWorkspace, mutateWorkspaceValue,
+  cachedWorkspace, chunkWorkspaceItems, deleteWorkspaceValue, mergeRemoteWorkspace, mutateWorkspaceValue,
   newerWorkspaceItems, putWorkspaceValue, readWorkspace, readWorkspaceGeneration, saveWorkspaceGeneration, subscribeWorkspace, workspaceGenerationKey, workspaceItemKey, workspaceRecoveryReason, WorkspaceMergeConflictError, workspaceSettings, workspaceValue,
 } from '../lib/workspace';
 
@@ -35,29 +36,6 @@ type View = {
   cloudCount: number | null;
   recoveryReason: 'generation' | 'conflict' | null;
 };
-type Response = { items: WorkspaceItem[]; serverTime: number; protocol: number; generation: number; backgroundsVersion?: string; backgroundsUnchanged?: boolean };
-type KnownBackgrounds = { version: string; items: WorkspaceItem[] };
-
-async function workspaceRequest(owner: string, signal: AbortSignal, items?: WorkspaceItem[], known?: KnownBackgrounds, generation?: number): Promise<Response> {
-  const data = await api<Response>(items === undefined ? '/api/workspace' : '/api/workspace/sync', {
-    method: items === undefined ? 'GET' : 'POST',
-    body: items === undefined ? undefined : { generation, items: items.map(({ serverRevision, baseUpdatedAt: _baseTime, baseRevision: _baseRevision, clientGeneration: _clientGeneration, localFallback: _localFallback, localConflict: _localConflict, ...item }) => ({ ...item, baseRevision: serverRevision ?? 0 })) },
-    headers: { 'X-Workspace-Owner': owner, 'X-Workspace-Backgrounds': known?.version ?? 'initial', 'X-Workspace-Protocol': '2', 'X-Workspace-Capabilities': 'local-conflict-v1' },
-    signal,
-  });
-  if (!Array.isArray(data.items) || data.items.length > 4100 || !data.items.every(isWorkspaceItem) ||
-    !Number.isSafeInteger(data.serverTime) || data.serverTime <= 0 || data.protocol !== 2 || !Number.isSafeInteger(data.generation) || data.generation < 1 ||
-    data.items.some((item) => item.serverRevision === undefined)) {
-    throw new Error('同步数据无法读取');
-  }
-  if (data.backgroundsVersion !== undefined && (typeof data.backgroundsVersion !== 'string' || !/^[a-f0-9]{64}$/.test(data.backgroundsVersion))) throw new Error('同步数据无法读取');
-  if (data.backgroundsUnchanged) {
-    if (!known || data.backgroundsVersion !== known.version || data.items.some((item) => item.kind === 'background')) throw new Error('同步数据无法读取');
-    return { ...data, items: [...data.items, ...known.items] };
-  }
-  return data;
-}
-
 export function useWorkspace(ownerId: string | null, enabled = true) {
   const [view, setView] = useState<View>(() => ({
     ownerId, ready: false, cloudLoaded: false, items: emptyItems, syncState: ownerId ? 'loading' : 'guest', error: '', lastSyncedAt: readSyncTime(ownerId), pendingCount: null, cloudCount: null, recoveryReason: null,
@@ -77,9 +55,9 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
     let recoveryRequired = false;
     let generation: number | undefined;
     let lastCloud: WorkspaceItem[] | undefined;
-    let knownBackgrounds: KnownBackgrounds | undefined;
+    let knownBackgrounds: KnownWorkspaceBackgrounds | undefined;
     const requestWorkspace = async (items?: WorkspaceItem[]) => {
-      const response = await workspaceRequest(ownerId!, signal, items, knownBackgrounds, generation);
+      const response = await fetchWorkspace(ownerId!, { signal, items, known: knownBackgrounds, generation });
       if (!signal.aborted) {
         lastCloud = response.items;
         publish({ cloudCount: response.items.filter((item) => !item.deleted).length });
@@ -289,6 +267,7 @@ export function useWorkspace(ownerId: string | null, enabled = true) {
       deletedDraftIds: items.filter((item) => item.kind === 'draft' && item.deleted).map((item) => item.id) as readonly string[],
       deletedRecordIds: items.filter((item) => item.kind === 'record' && item.deleted).map((item) => item.id) as readonly string[],
       deletedLocalConflictIds: items.filter((item) => item.kind === 'record' && item.deleted && item.localConflict === true).map((item) => item.id) as readonly string[],
+      deletedLocalConflictBases: Object.fromEntries(items.filter((item) => item.kind === 'record' && item.deleted && item.localConflict === true).map((item) => [item.id, item.localConflictBase ?? item.id])) as Readonly<Record<string, string>>,
       records: active.map(normalizeWorkspaceRecord).filter((record): record is PracticeRecord => !!record).sort((a, b) => b.finishedAt - a.finishedAt),
     };
   }, [items, ownerId, visible?.ready]);

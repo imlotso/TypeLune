@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { deleteLocalHistory, localHistory } from '../src/hooks/usePractice';
 import { deletePracticeRecords } from '../src/lib/history-delete';
 import { legacyConflictId, mergePracticeRecords, normalizeWorkspaceRecord, stableRecordId } from '../src/lib/records';
-import { applyAuthoritativeRecordDeletions, clearLocalWorkspace, mergeRemoteWorkspace, putWorkspaceValue, readWorkspace, saveWorkspaceGeneration } from '../src/lib/workspace';
+import { applyAuthoritativeRecordDeletions, clearLocalWorkspace, deleteGuestHistory, mergeRemoteWorkspace, putWorkspaceValue, readWorkspace, saveWorkspaceGeneration } from '../src/lib/workspace';
 import type { PracticeRecord, WorkspaceItem } from '../src/lib/models';
 
 const record: PracticeRecord = { recordId: 'round', ownerId: 'alice', language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000 };
@@ -64,6 +64,61 @@ it('uses a bounded local marker when an old status cannot be safely reconstructe
   expect((await readWorkspace('alice')).find((item) => item.id === marker)).toMatchObject({ deleted: true, localConflict: true });
 });
 
+it('uses an exempt marker for an unmatched id-less local record', async () => {
+  const legacy: PracticeRecord = { ownerId: 'alice', language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山' };
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));
+  const [record] = mergePracticeRecords(localHistory(), [], []); const marker = legacyConflictId(legacy);
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => {
+    const body = JSON.parse(String(options?.body));
+    expect(body.ids).toEqual([marker]); expect(body.localConflicts).toEqual([marker]);
+    return new Response(JSON.stringify({ ok: true, generation: 1, items: [{ kind: 'record', id: marker, deleted: true, localConflict: true, updatedAt: 2000, serverRevision: 1 }] }));
+  }));
+  await deletePracticeRecords('alice', [record]);
+  expect(localHistory()).toEqual([]);
+});
+
+it('also deletes a matching cloud record when the legacy alias is already its ID', async () => {
+  const legacy: PracticeRecord = { ownerId: 'alice', language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山' };
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));
+  const alias = stableRecordId(legacy); const marker = legacyConflictId(legacy); const cloud = { ...legacy, recordId: alias };
+  await putWorkspaceValue('alice', 'record', alias, cloud);
+  const [record] = mergePracticeRecords(localHistory(), [], [cloud]);
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => {
+    const body = JSON.parse(String(options?.body));
+    expect(body.ids).toEqual([alias, marker]); expect(body.localConflicts).toEqual([marker]);
+    return new Response(JSON.stringify({ ok: true, generation: 1, items: body.ids.map((id: string) => ({ kind: 'record', id, deleted: true, ...(id === marker && { localConflict: true }), updatedAt: 2000, serverRevision: 1 })) }));
+  }));
+  await deletePracticeRecords('alice', [record]);
+  expect(localHistory()).toEqual([]);
+  expect((await readWorkspace('alice')).find((item) => item.id === alias)).toMatchObject({ deleted: true });
+});
+
+it('does not delete a guest record that changed after the old copy was selected', async () => {
+  await clearLocalWorkspace(null);
+  const legacy: PracticeRecord = { ownerId: null, language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山' };
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));
+  const [selected] = mergePracticeRecords(localHistory(), [], []);
+  const alias = stableRecordId(legacy);
+  await putWorkspaceValue(null, 'record', alias, { ...legacy, recordId: alias, typed: '海' });
+  await expect(deletePracticeRecords(null, [selected])).rejects.toThrow('记录已更新');
+  expect(localHistory()).toHaveLength(1);
+  expect((await readWorkspace(null)).find((item) => item.id === alias)).toMatchObject({ value: { typed: '海' } });
+  await clearLocalWorkspace(null);
+});
+
+it('leaves a guest record intact if its deletion marker is occupied', async () => {
+  await clearLocalWorkspace(null);
+  const legacy: PracticeRecord = { ownerId: null, language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山' };
+  const alias = stableRecordId(legacy); const marker = legacyConflictId(legacy);
+  await putWorkspaceValue(null, 'record', alias, { ...legacy, recordId: alias });
+  await putWorkspaceValue(null, 'record', marker, { ...legacy, recordId: marker, typed: '海' });
+  await expect(deleteGuestHistory([alias, marker], [marker], {}, { [alias]: marker })).rejects.toThrow('记录标识已被占用');
+  const items = await readWorkspace(null);
+  expect(items.find((item) => item.id === alias)).toMatchObject({ value: { typed: '山' } });
+  expect(items.find((item) => item.id === marker)).toMatchObject({ value: { typed: '海' } });
+  await clearLocalWorkspace(null);
+});
+
 it('deletes a conflicting local legacy copy without deleting the distinct cloud record', async () => {
   const legacy: PracticeRecord = { ownerId: 'alice', language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山' };
   localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));
@@ -84,12 +139,40 @@ it('deletes a conflicting local legacy copy without deleting the distinct cloud 
   expect((await readWorkspace('alice')).find((item) => item.id === alias)).toMatchObject({ value: { typed: '海' } });
 });
 
+it('retires an alternate marker without deleting either occupied record', async () => {
+  const legacy: PracticeRecord = { ownerId: 'alice', language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山' };
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));
+  const alias = stableRecordId(legacy); const base = legacyConflictId(legacy);
+  const other = { ...legacy, recordId: alias, typed: '海' }; const occupied = { ...legacy, recordId: base, typed: '风' };
+  await putWorkspaceValue('alice', 'record', alias, other); await putWorkspaceValue('alice', 'record', base, occupied);
+  const conflicted = mergePracticeRecords(localHistory(), [], [other, occupied]).find((item) => item.legacyIdConflict)!;
+  const marker = stableRecordId(conflicted);
+  expect(marker).not.toBe(base);
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => {
+    const body = JSON.parse(String(options?.body));
+    expect(body.ids).toEqual([marker]); expect(body.localConflictBases).toEqual([{ id: marker, base }]);
+    return new Response(JSON.stringify({ ok: true, generation: 1, items: [{ kind: 'record', id: marker, deleted: true, localConflict: true, localConflictBase: base, updatedAt: 2000, serverRevision: 1 }] }));
+  }));
+  await deletePracticeRecords('alice', [conflicted]);
+  expect(localHistory()).toEqual([]);
+  expect((await readWorkspace('alice')).find((item) => item.id === alias)).toMatchObject({ value: { typed: '海' } });
+  expect((await readWorkspace('alice')).find((item) => item.id === base)).toMatchObject({ value: { typed: '风' } });
+});
+
 it('purges the same conflicting copy when its content-specific tombstone arrives on another device', () => {
   const legacy: PracticeRecord = { ownerId: 'alice', language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山' };
   localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy, { ...legacy, ownerId: 'bobby' }]));
   deleteLocalHistory('alice', [legacyConflictId(legacy)], [legacyConflictId(legacy)]);
   expect(localHistory()).toHaveLength(1);
   expect(localHistory()[0].ownerId).toBe('bobby');
+});
+
+it('purges an id-less copy when another device receives its alternate marker', () => {
+  const legacy: PracticeRecord = { ownerId: 'alice', language: 'zh', difficulty: 'beginner', duration: 300, speed: 20, accuracy: 99, finishedAt: 1000, typed: '山' };
+  const base = legacyConflictId(legacy); const marker = `legacy-conflict-${'b'.repeat(64)}`;
+  localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy, { ...legacy, ownerId: 'bobby' }]));
+  deleteLocalHistory('alice', [marker], [marker], { [marker]: base });
+  expect(localHistory()).toHaveLength(1); expect(localHistory()[0].ownerId).toBe('bobby');
 });
 
 it('does not treat an ordinary record ID with the conflict prefix as a local-copy tombstone', () => {

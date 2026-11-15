@@ -7,6 +7,7 @@ import { buildPersonalExport, type FeedbackExport } from './personal-export';
 import { localPracticeNeedsRecovery } from './local-practice-generation';
 import { inspectLocalPracticeCopies } from './local-practice-unsynced';
 import { readPagedHistory } from './history';
+import { fetchWorkspace } from './workspace-fetch';
 
 const errorText = (problem: unknown) => problem instanceof Error ? problem.message : '读取失败';
 const dataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
@@ -69,7 +70,7 @@ export async function collectPersonalExport(initialUser: User, options?: { inclu
   try { local = await readWorkspace(ownerId); localAvailable = true; }
   catch (problem) { missing.push(`本机工作区：${errorText(problem)}`); }
   try {
-    const cloud = await api<{ items: WorkspaceItem[] }>('/api/workspace', { headers, timeoutMs: 60_000 });
+    const cloud = await fetchWorkspace(ownerId);
     if (!Array.isArray(cloud.items) || !cloud.items.every(isWorkspaceItem)) throw new Error('同步数据无法读取');
     remote = cloud.items;
   } catch (problem) { missing.push(`云工作区：${errorText(problem)}`); }

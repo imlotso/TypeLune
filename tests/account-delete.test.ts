@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -81,6 +82,25 @@ describe('account deletion', () => {
     const admin = await register('admin');
     expect((await post('/api/account/delete', { currentPassword: password }, admin.headers)).statusCode).toBe(409);
     expect((await get('/api/me', admin.headers)).json().user.id).toBe(admin.id);
+  });
+
+  it('removes upload staging and alternate legacy mappings only for the deleted account', async () => {
+    const alice = await register('alice'); const other = await register('other');
+    const marker = `legacy-conflict-${'b'.repeat(64)}`; const base = `legacy-conflict-${'a'.repeat(64)}`;
+    const request = { ids: [marker], localConflicts: [marker], localConflictBases: [{ id: marker, base }], expectedRevisions: [{ id: marker, revision: 0 }] };
+    const chunk = { requestId: randomUUID(), fileIndex: 0, chunkIndex: 0, chunkCount: 1, name: 'pending.png', mime: 'image/png', totalBytes: 1, digest: 'a'.repeat(64), data: 'AQ==' };
+    for (const account of [alice, other]) {
+      const headers = { ...account.headers, 'x-workspace-owner': account.id, 'x-workspace-capabilities': 'local-conflict-v2' };
+      expect((await post('/api/history/delete', request, headers)).statusCode).toBe(200);
+      expect((await post('/api/feedback/uploads', chunk, headers)).statusCode).toBe(200);
+    }
+    expect((await post('/api/account/delete', { currentPassword: password }, { ...alice.headers, 'x-workspace-owner': alice.id })).statusCode).toBe(200);
+    const check = new Database(join(directory, 'test.sqlite'));
+    for (const table of ['workspace_legacy_record_aliases', 'workspace_local_conflict_bases', 'feedback_upload_chunks']) {
+      expect(check.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE user_id=?`).get(alice.id)).toEqual({ count: 0 });
+      expect(check.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE user_id=?`).get(other.id)).toEqual({ count: 1 });
+    }
+    check.close();
   });
 
   it('prevents concurrent administrators from both deleting the last active administrator', async () => {

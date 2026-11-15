@@ -13,7 +13,7 @@ it('reads all history pages without writing and reports inaccessible feedback', 
   vi.stubGlobal('fetch', vi.fn(async (path: string, options?: RequestInit) => {
     calls.push({ path, method: options?.method });
     if (path === '/api/me') return new Response(JSON.stringify({ user }));
-    if (path === '/api/workspace') return new Response(JSON.stringify({ items: [], serverTime: Date.now() }));
+    if (path === '/api/workspace') return new Response(JSON.stringify({ items: [], protocol: 2, generation: 1, serverTime: Date.now() }));
     if (path === '/api/history?limit=100') return new Response(JSON.stringify({ entries: [{ ...base, recordId: 'one' }], nextCursor: 'second' }));
     if (path === '/api/history?limit=100&cursor=second') return new Response(JSON.stringify({ entries: [{ ...base, recordId: 'two' }], nextCursor: null }));
     if (path.startsWith('/api/feedback')) return new Response(JSON.stringify({ error: '反馈不可用' }), { status: 503 });

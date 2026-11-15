@@ -1,4 +1,4 @@
-import type { Language } from '../data/articles';
+import type { Language } from '../data/articles.js';
 
 export type ProcessSample = { time: number; progress: number; correct: number; errors: number };
 export type ProcessTrace = { version: 1; intervalMs: number; missing: boolean; compacted: boolean; samples: ProcessSample[] };

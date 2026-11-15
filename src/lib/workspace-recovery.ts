@@ -1,6 +1,6 @@
 import { clearLocalPractice } from '../hooks/usePractice';
 import { clearSyncTime } from '../hooks/useWorkspace';
-import { api } from './api';
+import { fetchWorkspace } from './workspace-fetch';
 import { cancelLocalCleanup, prepareLocalCleanup } from './local-account-cleanup';
 import type { WorkspaceItem } from './models';
 import { isWorkspaceItem, replaceLocalWorkspace, saveWorkspaceGeneration } from './workspace';
@@ -13,7 +13,7 @@ export async function resetWorkspaceFromCloud(ownerId: string) {
   prepareLocalCleanup(ownerId);
   let snapshot: { protocol: number; generation: number; items: WorkspaceItem[] };
   try {
-    snapshot = await api('/api/workspace', { headers: { 'X-Workspace-Owner': ownerId, 'X-Workspace-Protocol': '2' }, timeoutMs: 60_000 });
+    snapshot = await fetchWorkspace(ownerId);
     if (snapshot.protocol !== 2 || !Number.isSafeInteger(snapshot.generation) || snapshot.generation < 1 ||
       !Array.isArray(snapshot.items) || !snapshot.items.every((item) => isWorkspaceItem(item) && item.serverRevision !== undefined)) throw new Error('云端资料无法读取');
   } catch (problem) {

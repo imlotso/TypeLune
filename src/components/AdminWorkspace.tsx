@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowSquareOut } from '@phosphor-icons/react/ArrowSquareOut';
-import { Cloud } from '@phosphor-icons/react/Cloud';
 import { MoonStars } from '@phosphor-icons/react/MoonStars';
 import { SignOut } from '@phosphor-icons/react/SignOut';
 import { Sun } from '@phosphor-icons/react/Sun';
@@ -9,6 +8,7 @@ import { useWorkspace } from '../hooks/useWorkspace';
 import { api, type User } from '../lib/api';
 import { type Theme } from '../lib/theme';
 import { AdminConsole } from './AdminConsole';
+import { BrandLogo } from './BrandLogo';
 
 // Returning to the site mounts a fresh practice view, which fetches the current catalog.
 const catalogChanged = () => {};
@@ -50,7 +50,7 @@ export function AdminWorkspace({ user, onLogout, onPreview }: { user: User; onLo
 
   return <div className="administration-app">
     <header className="administration-header">
-      <div className="administration-brand"><Cloud size={32} aria-hidden="true" /><span>云打字</span><span className="administration-badge">管理端</span></div>
+      <div className="administration-brand"><BrandLogo /><span className="administration-badge">管理端</span></div>
       <div className="administration-actions">
         <button className="outline-button" disabled={busy} onClick={onPreview}><ArrowSquareOut size={18} aria-hidden="true" />预览网站</button>
         <button className="administration-theme" disabled={!workspace.settingsReady} aria-label={theme === 'dark' ? '切换至日间模式' : '切换至夜间模式'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>

@@ -40,27 +40,33 @@ it('uses a content-specific conflict ID stable across volatile legacy metadata',
 });
 
 it('does not trust persisted compatibility metadata as an instruction to delete other IDs', () => {
-  const forged = { ...legacy, recordId: 'actual', legacyLocalIds: ['unrelated'], legacyWorkspaceId: true, legacyIdConflict: true, legacyDeletionBlocked: true, legacyProof: { status: 'review' } };
+  const forged = { ...legacy, recordId: 'actual', legacyLocalIds: ['unrelated'], legacyWorkspaceId: true, legacyIdConflict: true, legacyDeletionBlocked: true, legacyConflictBase: 'forged', legacyProof: { status: 'review' } };
   localStorage.setItem('cloudtyping.history.v1', JSON.stringify([forged]));
   expect(localHistory()[0]).not.toHaveProperty('legacyLocalIds');
   expect(localHistory()[0]).not.toHaveProperty('legacyIdConflict');
   expect(localHistory()[0]).not.toHaveProperty('legacyProof');
   expect(localHistory()[0]).not.toHaveProperty('legacyDeletionBlocked');
+  expect(localHistory()[0]).not.toHaveProperty('legacyConflictBase');
   const cloud = normalizeWorkspaceRecord({ kind: 'record', id: 'actual', updatedAt: 1000, value: forged })!;
   expect(cloud).not.toHaveProperty('legacyLocalIds');
   expect(cloud).not.toHaveProperty('legacyWorkspaceId');
   expect(cloud).not.toHaveProperty('legacyProof');
+  expect(cloud).not.toHaveProperty('legacyConflictBase');
   localStorage.setItem('cloudtyping.history.v1', JSON.stringify([{ ...legacy, status: 'unexpected-secret-value' }]));
   expect(localHistory()[0].legacyProof).toBeUndefined();
 });
 
-it('blocks deletion if even the content-specific ID is already used by a different record', () => {
+it('uses another marker if even the content-specific ID is already used by a different record', () => {
   localStorage.setItem('cloudtyping.history.v1', JSON.stringify([legacy]));
   const [local] = localHistory();
   const collision: PracticeRecord = { ...legacy, recordId: local.recordId, typed: '海' };
   const second: PracticeRecord = { ...legacy, recordId: legacyConflictId(local), typed: '风' };
   const merged = mergePracticeRecords([local], [], [collision, second]);
-  expect(merged.find((item) => item.legacyIdConflict)).toMatchObject({ legacyDeletionBlocked: true });
+  const candidate = merged.find((item) => item.legacyIdConflict)!;
+  expect(candidate).toMatchObject({ legacyConflictBase: legacyConflictId(local) });
+  expect(candidate.recordId).toMatch(/^legacy-conflict-[a-f0-9]{64}$/u);
+  expect(candidate.recordId).not.toBe(legacyConflictId(local));
+  expect(candidate.legacyDeletionBlocked).not.toBe(true);
 });
 
 it('retains bounded local metadata for server-side alias verification', () => {

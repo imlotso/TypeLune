@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { ChatCircleText } from '@phosphor-icons/react/ChatCircleText';
 import { api } from '../lib/api';
+import { stageFeedbackAttachments } from '../lib/feedback-upload';
 
 export type FeedbackCategory = 'issue' | 'suggestion' | 'article';
 export type FeedbackLink = { id: string; title: string; snapshotKey: string; position: string; wrongText: string };
@@ -55,12 +56,6 @@ function uuid() {
 export function newFeedbackDraft(article?: FeedbackLink): FeedbackDraft {
   return { requestId: uuid(), category: article ? 'article' : 'issue', title: '', description: '', attachments: [], article };
 }
-const readFile = (file: File) => new Promise<string>((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('无法读取截图'));
-  reader.onerror = () => reject(new Error('无法读取截图'));
-  reader.readAsDataURL(file);
-});
 const dateText = (value: number) => new Date(value).toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 
 export function FeedbackThread({ feedback }: { feedback: FeedbackDetail }) {
@@ -137,7 +132,7 @@ export function FeedbackView({ ownerId, draft, setDraft, onLogin, routeFeedbackI
     const routeAtStart = routeRef.current;
     setBusy(true);
     try {
-      const attachments = await Promise.all(draft.attachments.map(async (file) => ({ name: file.name, data: await readFile(file) })));
+      const attachments = await stageFeedbackAttachments(draft.attachments, ownerId, draft.requestId);
       const article = draft.article && { id: draft.article.id, snapshotKey: draft.article.snapshotKey, position: draft.article.position, wrongText: draft.article.wrongText };
       const response = await api<{ feedback: FeedbackDetail }>('/api/feedback', { method: 'POST', headers: { 'X-Workspace-Owner': ownerId }, timeoutMs: 60_000,
         body: { requestId: draft.requestId, category: draft.category, title: draft.title, description: draft.description, attachments, ...(article && { article }) } });

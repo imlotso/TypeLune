@@ -238,7 +238,7 @@ describe('practice recovery API', () => {
     expect((await recover(headers, { ...attempt, elapsedMs: 45_000 })).json()).toEqual({
       id: attempt.clientId, status: 'review', result: finish.json(),
     });
-    const publish = await post('/api/leaderboard', headers, { attemptId: attempt.clientId, nickname: '云朵' });
+    const publish = await post('/api/leaderboard', headers, { attemptId: attempt.clientId, nickname: 'visitor-云朵' });
     expect(publish.json()).toEqual({ status: 'review' });
     expect((await recover(guest(), attempt)).json()).toMatchObject({ code: 'SCORE_FINALIZED' });
     const pending = await app.inject({ url: '/api/admin/review', headers: admin });
@@ -264,7 +264,7 @@ describe('practice recovery API', () => {
     expect(recovered.statusCode).toBe(200);
     expect(recovered.json()).toEqual({ id: attempt.clientId, status: 'review', result: finish.json() });
     expect((await app.inject({ url: path, headers: original })).statusCode).toBe(404);
-    expect((await post('/api/leaderboard', replacement, { attemptId: attempt.clientId, nickname: '云朵' })).json()).toEqual({ status: 'review' });
+    expect((await post('/api/leaderboard', replacement, { attemptId: attempt.clientId, nickname: 'visitor-云朵' })).json()).toEqual({ status: 'review' });
     expect((await recover(original, attempt)).json()).toMatchObject({ code: 'SCORE_FINALIZED' });
   });
 
@@ -392,19 +392,19 @@ describe('practice recovery API', () => {
     expect(finish.json()).toMatchObject({ status: 'review' });
     const publish = (requestHeaders: OwnerHeaders, nickname: string) =>
       post('/api/leaderboard', requestHeaders, { attemptId: attempt.clientId, nickname });
-    expect((await publish(claim, '云朵')).json()).toEqual({ status: 'review' });
-    expect((await publish(claim, '更名')).json()).toEqual({ status: 'review' });
+    expect((await publish(claim, 'visitor-云朵')).json()).toEqual({ status: 'review' });
+    expect((await publish(claim, 'visitor-更名')).json()).toEqual({ status: 'review' });
     const pending = await app.inject({ url: '/api/admin/review', headers: admin });
-    expect(pending.json().entries).toEqual([expect.objectContaining({ id: attempt.clientId, nickname: '云朵' })]);
+    expect(pending.json().entries).toEqual([expect.objectContaining({ id: attempt.clientId, nickname: 'visitor-云朵' })]);
     const next = recoveryClaim(1);
     const recovered = await recover(headers, { ...attempt, ...next });
     expect(recovered.json()).toMatchObject({ claimVersion: 2, result: { ...finish.json(), submitted: true } });
     const current = claimHeaders(headers, next.claimId, 2);
-    expect((await publish(claim, '更名')).json()).toMatchObject({ code: 'PRACTICE_TAKEN' });
+    expect((await publish(claim, 'visitor-更名')).json()).toMatchObject({ code: 'PRACTICE_TAKEN' });
     expect((await post(`/api/admin/review/${attempt.clientId}`, admin, { action: 'approve', reason: '通过审核' })).statusCode).toBe(200);
-    expect((await publish(current, '再更名')).json()).toEqual({ status: 'ranked' });
+    expect((await publish(current, 'visitor-再更名')).json()).toEqual({ status: 'ranked' });
     const ranking = await app.inject('/api/leaderboard?language=zh&difficulty=beginner&duration=60');
-    expect(ranking.json().entries).toEqual([expect.objectContaining({ attemptId: attempt.clientId, nickname: '云朵' })]);
+    expect(ranking.json().entries).toEqual([expect.objectContaining({ attemptId: attempt.clientId, nickname: 'visitor-云朵' })]);
   });
 
   it('does not recreate an attempt after administrators reject or remove its score', async () => {
@@ -504,7 +504,7 @@ describe('practice recovery API', () => {
     await recover(headers, attempt);
     await post(path + '/finish', headers, { typed: '', elapsedMs: 9000 });
     now += 20 * 60_000;
-    const published = await post('/api/leaderboard', headers, { attemptId: attempt.clientId, nickname: '云朵' });
+    const published = await post('/api/leaderboard', headers, { attemptId: attempt.clientId, nickname: 'visitor-云朵' });
     expect(published.statusCode).toBe(400);
     expect(published.json()).not.toHaveProperty('code');
   });

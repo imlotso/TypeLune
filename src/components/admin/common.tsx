@@ -17,12 +17,14 @@ export const reasonLabels: Record<string, string> = {
   paste_or_drop: '粘贴或拖放', unusual_progress: '输入进度异常', missing_activity: '进度记录不足',
   stale_activity: '结束前缺少进度记录', high_speed: '速度较高', paused_session: '曾暂停或恢复',
   timing_discrepancy: '计时差异较大', recovered_session: '恢复中断练习',
+  guest_policy: '游客成绩默认审核', user_policy: '注册用户成绩默认审核',
 };
 const actionLabels: Record<string, string> = {
   'user.bootstrap': '初始化管理员', 'user.disable': '停用账号', 'user.enable': '启用账号', 'user.promote': '设为管理员', 'user.demote': '撤销管理员', 'user.revoke_sessions': '退出所有会话',
   'article.create': '新建文章', 'article.update': '编辑文章', 'article.publish': '发布文章',
   'article.archive': '归档文章', 'article.delete': '删除文章',
   'score.approve': '通过成绩', 'score.reject': '拒绝成绩', 'score.remove': '下架成绩',
+  'score.bulk_remove': '按日期清理成绩',
   'smtp.update': '保存', 'smtp.reset': '恢复默认', 'smtp.verify': '测试连接',
   'settings.site.update': '保存',
   'feedback.handle': '处理反馈',
@@ -76,6 +78,7 @@ export function useAdminList<T>(ownerId: string, path: string, defaults: Record<
   return {
     ...resource, filters, page, setPage, identity: `${query}:${revision}`,
     filter: (key: string, value: string) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1); },
+    filterMany: (values: Record<string, string>) => { setFilters((current) => ({ ...current, ...values })); setPage(1); },
     refresh: () => setRevision((current) => current + 1),
   };
 }

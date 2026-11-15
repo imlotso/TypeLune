@@ -1,5 +1,5 @@
 import { clearLocalPractice, readDrafts, savedPracticeFromLegacy } from '../hooks/usePractice';
-import { api } from './api';
+import { fetchWorkspace } from './workspace-fetch';
 import { stableRecordId } from './records';
 import { localPracticeNeedsRecovery } from './local-practice-generation';
 import { isProcessTrace } from './process-trace';
@@ -145,7 +145,7 @@ export async function importGuestItems(ownerId: string, plan: GuestImportPlan, r
 }
 
 export async function verifyGuestImport(ownerId: string, accepted: GuestItem[]) {
-  const response = await api<{ protocol: number; items: WorkspaceItem[] }>('/api/workspace', { headers: { 'X-Workspace-Owner': ownerId, 'X-Workspace-Protocol': '2' }, timeoutMs: 60_000 });
+  const response = await fetchWorkspace(ownerId);
   if (response.protocol !== 2 || !Array.isArray(response.items) || !response.items.every(isWorkspaceItem)) throw new Error('云端资料无法读取');
   const cloud = new Map(response.items.map((item) => [`${item.kind}:${item.id}`, item]));
   return accepted.every((item) => { const stored = cloud.get(`${item.kind}:${item.id}`); return stored && !stored.deleted && sameWorkspaceValue(item.kind, stored.value, item.value); });

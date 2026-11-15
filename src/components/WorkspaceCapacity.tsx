@@ -15,7 +15,7 @@ export function WorkspaceCapacity({ ownerId, onCompacted, onManage, onResetSetti
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [confirmingSettings, setConfirmingSettings] = useState(false);
-  const headers = { 'X-Workspace-Owner': ownerId, 'X-Workspace-Protocol': '2' };
+  const headers = { 'X-Workspace-Owner': ownerId, 'X-Workspace-Protocol': '2', 'X-Workspace-Capabilities': 'local-conflict-v2' };
   async function refresh() {
     setBusy(true); setError('');
     try {

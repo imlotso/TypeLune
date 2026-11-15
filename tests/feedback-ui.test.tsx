@@ -55,6 +55,7 @@ it('keeps the draft and retry key when a submission fails', async () => {
     if (path === '/api/me') body = { user: member };
     else if (path === '/api/articles') body = { articles: [] };
     else if (path.startsWith('/api/workspace')) body = { items: [], serverTime: Date.now() };
+    else if (path === '/api/feedback/uploads') body = { ok: true };
     else if (path === '/api/feedback' && options?.method === 'POST') {
       submitted.push(JSON.parse(String(options.body)));
       if (submitted.length === 1) { status = 503; body = { error: '暂时无法提交' }; }

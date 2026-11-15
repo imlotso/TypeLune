@@ -5,7 +5,7 @@ import { App } from '../src/App';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); window.history.replaceState(null, '', '/'); });
 
-it('opens real help and policy pages without inventing contact information', async () => {
+it('shows the supplied operator, contact and effective policy versions', async () => {
   Element.prototype.scrollIntoView = vi.fn();
   vi.stubGlobal('fetch', vi.fn(async (path: string) => new Response(JSON.stringify(path === '/api/me' ? { user: null } : path === '/api/articles' ? { articles: [] } : { items: [], serverTime: Date.now() }))));
   render(<App />);
@@ -17,11 +17,13 @@ it('opens real help and policy pages without inventing contact information', asy
   expect(screen.getByText(/WPM/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: '关于与联系' }));
   expect(await screen.findByRole('heading', { name: '关于与联系' })).toBeTruthy();
-  expect(screen.getByText(/联系信息尚未配置/)).toBeTruthy();
+  expect(screen.getByText('运营主体：www.sitetalk.net')).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'admin@imlotso.com' }).getAttribute('href')).toBe('mailto:admin@imlotso.com');
   fireEvent.click(screen.getByRole('button', { name: '隐私政策' }));
   expect(await screen.findByRole('heading', { name: '隐私政策' })).toBeTruthy();
   expect(screen.getByText(/反馈截图/)).toBeTruthy();
-  expect(screen.getByText(/生效日期未设置/)).toBeTruthy();
+  expect(screen.getByText('版本：1.0 · 生效日期：2026-11-15')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: '服务条款' }));
   expect(await screen.findByRole('heading', { name: '服务条款' })).toBeTruthy();
+  expect(screen.getByText('版本：1.0 · 生效日期：2026-11-15')).toBeTruthy();
 });

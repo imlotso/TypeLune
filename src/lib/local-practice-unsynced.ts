@@ -3,7 +3,7 @@ import type { PracticeRecord, SavedPractice } from './models';
 import { mergePracticeRecords, stableRecordId } from './records';
 
 type Risk = { pending: number; unknown: boolean; fingerprint: string; rawFingerprint: string };
-const ignored = new Set(['savedAt', 'claimId', 'recoveryRequestId', 'localSyncGeneration', 'scoreStatus', 'legacyLocalIds', 'legacyWorkspaceId', 'legacyIdConflict', 'legacyDeletionBlocked', 'legacyProof']);
+const ignored = new Set(['savedAt', 'claimId', 'recoveryRequestId', 'localSyncGeneration', 'scoreStatus', 'legacyLocalIds', 'legacyWorkspaceId', 'legacyIdConflict', 'legacyDeletionBlocked', 'legacyConflictBase', 'legacyProof']);
 function covered(local: unknown, cloud: unknown): boolean {
   if (local === undefined) return true;
   if (Array.isArray(local)) return Array.isArray(cloud) && local.length === cloud.length && local.every((value, index) => covered(value, cloud[index]));

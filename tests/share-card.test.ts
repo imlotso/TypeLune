@@ -6,7 +6,7 @@ it('keeps only public card fields and never copies article bodies or typed text'
   const record: PracticeRecord = { recordId: 'private-id', ownerId: 'private-owner', language: 'zh', difficulty: 'beginner', duration: 300, mode: 'timed', speed: 55, accuracy: 98, finishedAt: 1000, elapsedMs: 12_000,
     article: { id: 'private', title: '私文标题', text: '绝密正文', language: 'zh', difficulty: 'beginner', custom: true }, typed: '绝密输入' };
   const data = makeShareCardData(record, 'https://typing.example.test/path', '云朵', true);
-  expect(data).toMatchObject({ siteName: '云打字练习', siteUrl: 'https://typing.example.test', language: 'zh', speed: 55, accuracy: 98, title: '私文标题', nickname: '云朵', personalBest: true });
+  expect(data).toMatchObject({ siteName: 'TypeFlow', siteUrl: 'https://typing.example.test', language: 'zh', speed: 55, accuracy: 98, title: '私文标题', nickname: '云朵', personalBest: true });
   const json = JSON.stringify(data);
   for (const secret of ['绝密正文', '绝密输入', 'private-owner', 'private-id']) expect(json).not.toContain(secret);
 });

@@ -14,6 +14,8 @@ import { Play } from '@phosphor-icons/react/Play';
 import { Sun } from '@phosphor-icons/react/Sun';
 import { Trophy } from '@phosphor-icons/react/Trophy';
 import { AdminWorkspace } from './components/AdminWorkspace';
+import { BrandLogo } from './components/BrandLogo';
+import { guestNicknamePrefix, validGuestNickname } from './lib/leaderboard';
 import { AccountDialog } from './components/AccountDialog';
 import { AccountMenu } from './components/AccountMenu';
 import { CommandPalette, type Command } from './components/CommandPalette';
@@ -53,7 +55,7 @@ import { useWorkspace } from './hooks/useWorkspace';
 import { useSiteFeatures } from './hooks/useSiteFeatures';
 import { useScoreStatus } from './hooks/useScoreStatus';
 import { shortcutNames, useShortcuts, type ShortcutAction } from './hooks/useShortcuts';
-import { api, ApiError, type User } from './lib/api';
+import { api, apiPages, ApiError, type User } from './lib/api';
 import { catalogSnapshotKey, compareDraftProgress, defaultPace, sameCompletedDraftProgress, sameDraftSnapshot, staleDraftBase, type ArticleSnapshot, type PaceSettings, type PracticePreset, type PracticeRecord, type PresetReading, type ReaderSettings, type SavedPractice } from './lib/models';
 import type { PracticeSettingsFile } from './lib/practice-settings';
 import { calculatePace, selectPaceTarget } from './lib/pace';
@@ -248,7 +250,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [showGuestImport, setShowGuestImport] = useState(false);
   const [hasGuestData, setHasGuestData] = useState(false);
   const [confirmPractice, setConfirmPractice] = useState<{ action: 'restart' | 'finish'; resumeOnCancel: boolean } | null>(null);
-  const [nickname, setNickname] = useState('');
+  const [nickname, setNickname] = useState(guestNicknamePrefix);
   const [rankMessage, setRankMessage] = useState('');
   const [rankSubmitted, setRankSubmitted] = useState(false);
   const [scoreStatusRevision, setScoreStatusRevision] = useState(0);
@@ -370,7 +372,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   useEffect(() => {
     const controller = new AbortController();
     setCatalogState('loading');
-    void api<{ articles: ArticleSnapshot[] }>('/api/articles', { signal: controller.signal }).then(({ articles: published }) => {
+    void apiPages<ArticleSnapshot>('/api/articles', 'articles', { signal: controller.signal }).then((published) => {
       if (!Array.isArray(published) || published.some((article) => !article || typeof article.id !== 'string' || typeof article.title !== 'string' || typeof article.text !== 'string' || article.custom !== false || !['zh', 'en'].includes(article.language) || !['beginner', 'intermediate', 'advanced'].includes(article.difficulty))) throw new Error('文章目录无法读取');
       if (controller.signal.aborted) return;
       setRouteCatalog(published); setCatalogState('ready');
@@ -448,9 +450,9 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
 
   useEffect(() => {
     if (!workspace.ready || !workspace.deletedRecordIds.length) return;
-    try { if (deleteLocalHistory(ownerId, [...workspace.deletedRecordIds], [...workspace.deletedLocalConflictIds])) setLocalRecordVersion((version) => version + 1); }
+    try { if (deleteLocalHistory(ownerId, [...workspace.deletedRecordIds], [...workspace.deletedLocalConflictIds], workspace.deletedLocalConflictBases)) setLocalRecordVersion((version) => version + 1); }
     catch { reportSaveError(); }
-  }, [ownerId, workspace.ready, workspace.deletedRecordIds, workspace.deletedLocalConflictIds, reportSaveError]);
+  }, [ownerId, workspace.ready, workspace.deletedRecordIds, workspace.deletedLocalConflictIds, workspace.deletedLocalConflictBases, reportSaveError]);
 
   useEffect(() => {
     if (view !== 'stats' || !workspace.settingsReady || workspace.settings.statisticsTimezone || (ownerId && !workspace.cloudLoaded)) return;
@@ -461,10 +463,10 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     if (!authReady) return [];
     const local = localHistory().filter((record) => (record.ownerId ?? null) === ownerId);
     const deleted = new Set(workspace.deletedRecordIds);
-    const conflicts = new Set(workspace.deletedLocalConflictIds);
+    const conflicts = new Set(Object.values(workspace.deletedLocalConflictBases));
     return mergePracticeRecords(local, remoteHistory, workspace.records).filter((record) => !deleted.has(stableRecordId(record)) &&
       !(conflicts.size && record.legacyLocalIds?.length && conflicts.has(legacyConflictId(record))));
-  }, [authReady, ownerId, remoteHistory, workspace.records, workspace.deletedRecordIds, workspace.deletedLocalConflictIds, localRecordVersion, result, view]);
+  }, [authReady, ownerId, remoteHistory, workspace.records, workspace.deletedRecordIds, workspace.deletedLocalConflictBases, localRecordVersion, result, view]);
   async function deleteRecords(selected: PracticeRecord[]) {
     if (ownerId && (!workspace.cloudLoaded || !historyLoaded || historyError)) throw new Error('记录仍在读取，请稍后重试');
     const current = selected.map((record) => records.find((entry) => stableRecordId(entry) === stableRecordId(record) &&
@@ -875,6 +877,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   async function submitRank() {
     if (!result?.attemptId) return;
     if (!user && site.features?.guestLeaderboardEnabled === false) { setRankMessage('游客上榜已关闭'); return; }
+    if (!user && !validGuestNickname(nickname)) { setRankMessage('游客昵称须以 visitor 开头，最多 16 个字符'); return; }
     const attemptId = result.attemptId;
     const request = ++rankRequest.current;
     const current = () => live.current && rankRequest.current === request && currentResult.current?.attemptId === attemptId;
@@ -1023,7 +1026,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
 
   return <div className={`app-shell${focused ? ' app-focused' : ''}`} ref={focusRoot}>
     {!focused && <header className="site-header">
-      <button className="brand" onClick={() => navigate('practice')} aria-label="云打字练习首页"><Cloud size={40} weight="regular" /><span>云打字练习</span></button>
+      <button className="brand" onClick={() => navigate('practice')} aria-label="TypeFlow 首页"><BrandLogo /></button>
       <nav aria-label="主要导航">
         {(['practice', 'library', 'rankings', 'history'] as const).map((item) => <button key={item} className={view === item ? 'nav-active' : ''} aria-current={view === item ? 'page' : undefined} onClick={() => navigate(item)}>{actionNames[item]}</button>)}
         <div className="more-nav" ref={moreMenu}>
@@ -1094,7 +1097,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
           if (catalogState === 'error') return <section className="content-panel feature-panel"><p className="form-error" role="alert">文章暂不可用</p><button type="button" className="outline-button" onClick={refreshCatalog}>重试</button></section>;
           return <section className="content-panel feature-panel"><div className="content-heading"><h1>文章未找到</h1></div><button type="button" className="outline-button" onClick={() => navigate('library')}>返回文章库</button></section>;
         })()}
-        {view === 'rankings' && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} />}
+        {view === 'rankings' && authReady && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} onAddressChange={(address) => { currentPath.current = address; }} />}
         {view === 'history' && <RecordsView records={records} ownerId={ownerId} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} routeRecordId={routeRecordId}
           routeLoading={!workspace.ready || (!!ownerId && !historyLoaded)} routePartial={historyError || !!workspace.error || (!!ownerId && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory()}
           onOpenRecord={openRecord} onCloseRecord={() => commitView('history')} onRetryRecords={() => { setHistoryRevision((revision) => revision + 1); void workspace.sync(); }} recoveryFor={recoveryForRecord} />}
@@ -1176,8 +1179,9 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       {practice.canRetryOnline && <div className="rank-submit"><button className="primary-button" disabled={phase === 'restoring'} onClick={() => void practice.retryOnline()}>{phase === 'restoring' ? '正在恢复…' : '重试上榜'}</button></div>}
       {practice.canRetryOnline && practice.feedback && <p className="form-error" role="alert">{practice.feedback}</p>}
       {!result.offline && result.eligible && !rankSubmitted && (!resultStatus.status || resultStatus.status.state === 'not_submitted') && <div className="rank-submit">
-        {!user && <label>上榜昵称<input value={nickname} maxLength={32} onChange={(event) => setNickname(event.target.value)} /></label>}
-        <button className="primary-button" disabled={busy || resultStatus.loading || (!user && (!nickname.trim() || site.features?.guestLeaderboardEnabled === false))} onClick={() => void submitRank()}><Trophy size={20} /> {busy ? '提交中…' : '提交到排行榜'}</button>
+        {!user && <label>上榜昵称<input value={nickname} maxLength={32} aria-invalid={!validGuestNickname(nickname)} onChange={(event) => setNickname(event.target.value)} /></label>}
+        {!user && !validGuestNickname(nickname) && <p className="form-error">游客昵称须以 visitor 开头，最多 16 个字符。</p>}
+        <button className="primary-button" disabled={busy || resultStatus.loading || (!user && (!validGuestNickname(nickname) || site.features?.guestLeaderboardEnabled === false))} onClick={() => void submitRank()}><Trophy size={20} /> {busy ? '提交中…' : '提交到排行榜'}</button>
         {!user && site.features?.guestLeaderboardEnabled === false && <p className="form-error" role="status">游客上榜已关闭。</p>}
       </div>}
       {rankMessage && (!rankSubmitted || !resultStatus.status) && <p className={rankSubmitted ? 'form-notice' : 'form-error'} role={rankSubmitted ? 'status' : 'alert'}>{rankSubmitted && <CheckCircle size={18} />} {rankMessage}</p>}

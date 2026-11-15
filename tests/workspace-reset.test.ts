@@ -22,3 +22,19 @@ it('preserves local data on a failed fetch and replaces it only after an explici
   expect(readWorkspaceGeneration('alice')).toBe(2);
   expect(pendingLocalCleanups()).toEqual([]);
 });
+
+it('keeps all local data if a later workspace page fails during reset', async () => {
+  await putWorkspaceValue('alice', 'favorite', 'old', { articleId: 'old' });
+  saveWorkspaceGeneration('alice', 1);
+  vi.stubGlobal('fetch', vi.fn(async (_path: string, options?: RequestInit) => {
+    const cursor = new Headers(options?.headers).get('X-Workspace-Cursor');
+    if (cursor) return new Response(JSON.stringify({ error: '暂时不可用' }), { status: 503 });
+    return new Response(JSON.stringify({ protocol: 2, generation: 2, serverTime: Date.now(), nextCursor: 'page-two', items: [
+      { kind: 'favorite', id: 'remote', updatedAt: 5, serverRevision: 1, value: { articleId: 'remote' } },
+    ] }));
+  }));
+  await expect(resetWorkspaceFromCloud('alice')).rejects.toThrow('暂时不可用');
+  expect((await readWorkspace('alice')).map((item) => item.id)).toEqual(['old']);
+  expect(readWorkspaceGeneration('alice')).toBe(1);
+  expect(pendingLocalCleanups()).toEqual([]);
+});

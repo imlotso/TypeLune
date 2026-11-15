@@ -198,7 +198,7 @@ test('submits an online result, uses an admin account and publishes the reviewed
   const result = page.getByRole('dialog', { name: '练习成绩' });
   await expect(result.getByText(`${total} / ${total}`)).toBeVisible();
   await expect(result.locator('.result-metrics > div').first().locator('strong')).toHaveText(String(expectedSpeed));
-  await result.getByRole('textbox', { name: '上榜昵称' }).fill('CI 访客');
+  await result.getByRole('textbox', { name: '上榜昵称' }).fill('visitor-CI访客');
   const submitted = page.waitForResponse((response) => response.url().endsWith('/api/leaderboard') && response.request().method() === 'POST');
   await result.getByRole('button', { name: '提交到排行榜' }).click();
   expect((await submitted).status()).toBe(200);
@@ -207,9 +207,9 @@ test('submits an online result, uses an admin account and publishes the reviewed
   await result.getByRole('button', { name: '排行榜', exact: true }).click();
   const beforeReview = await rankingLoaded;
   expect(beforeReview.status()).toBe(200);
-  expect((await beforeReview.json()).entries.some((entry: { nickname: string }) => entry.nickname === 'CI 访客')).toBe(false);
+  expect((await beforeReview.json()).entries.some((entry: { nickname: string }) => entry.nickname === 'visitor-CI访客')).toBe(false);
   await expect(page.getByText('暂无成绩')).toBeVisible();
-  await expect(page.getByText('CI 访客')).toHaveCount(0);
+  await expect(page.getByText('visitor-CI访客')).toHaveCount(0);
 
   await page.getByRole('button', { name: '登录', exact: true }).click();
   if (existingAdmin) {
@@ -252,19 +252,28 @@ test('submits an online result, uses an admin account and publishes the reviewed
   await expect(page.getByRole('heading', { name: '管理后台' })).toBeVisible();
   await page.getByRole('button', { name: '站点设置', exact: true }).click();
   await page.getByLabel('中文（字/分钟）').fill('230');
+  await page.getByLabel('游客成绩默认审核').selectOption('off');
+  await page.getByLabel('注册用户成绩默认审核').selectOption('on');
+  await page.getByLabel('展示天数（0 为全部）').fill('30');
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('已保存');
   await page.reload();
   await page.getByRole('button', { name: '站点设置', exact: true }).click();
   await expect(page.getByLabel('中文（字/分钟）')).toHaveValue('230');
+  await expect(page.getByLabel('游客成绩默认审核')).toHaveValue('off');
+  await expect(page.getByLabel('注册用户成绩默认审核')).toHaveValue('on');
+  await expect(page.getByLabel('展示天数（0 为全部）')).toHaveValue('30');
   await page.getByLabel('中文（字/分钟）').fill('220');
+  await page.getByLabel('游客成绩默认审核').selectOption('on');
+  await page.getByLabel('注册用户成绩默认审核').selectOption('off');
+  await page.getByLabel('展示天数（0 为全部）').fill('0');
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('已保存');
   await page.getByRole('button', { name: '邮件', exact: true }).click();
   await expect(page.getByLabel('SMTP 主机')).toBeVisible();
   await expect(page.getByRole('button', { name: '测试连接' })).toBeDisabled();
   await page.getByRole('button', { name: '成绩', exact: true }).click();
-  const row = page.locator('li').filter({ hasText: 'CI 访客' });
+  const row = page.locator('li').filter({ hasText: 'visitor-CI访客' });
   await expect(row).toBeVisible();
   await row.getByRole('button', { name: '通过', exact: true }).click();
   const approval = page.getByRole('dialog', { name: '通过成绩' });
@@ -275,7 +284,8 @@ test('submits an online result, uses an admin account and publishes the reviewed
   await page.getByRole('button', { name: '预览网站', exact: true }).click();
   await expect(page.getByRole('button', { name: '管理后台', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '排行榜', exact: true }).click();
-  const ranked = page.locator('li').filter({ hasText: 'CI 访客' });
+  await page.getByRole('button', { name: '游客榜', exact: true }).click();
+  const ranked = page.locator('li').filter({ hasText: 'visitor-CI访客' });
   await expect(ranked.locator('strong')).toHaveText(`${expectedSpeed} 字/分`);
   await expect(ranked).toContainText('100%');
   await page.getByRole('button', { name: 'ci_admin', exact: true }).click();

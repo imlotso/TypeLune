@@ -1,6 +1,6 @@
-import type { Language } from '../data/articles';
-import type { PaceSettings, PracticeRecord } from './models';
-import { matchingPracticeHistory } from './personal-best';
+import type { Language } from '../data/articles.js';
+import type { PaceSettings, PracticeRecord } from './models.js';
+import { matchingPracticeHistory } from './personal-best.js';
 
 export function isPaceSettings(value: unknown): value is PaceSettings {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;

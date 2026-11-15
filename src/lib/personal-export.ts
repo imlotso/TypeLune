@@ -107,7 +107,7 @@ export function buildPersonalExport(input: Inputs) {
   }
   const workspaceRecords = items.map(normalizeWorkspaceRecord).filter((item): item is PracticeRecord => !!item);
   const deletedRecords = new Set(items.filter((item) => item.kind === 'record' && item.deleted).map((item) => item.id));
-  const conflicts = new Set(items.filter((item) => item.kind === 'record' && item.deleted && item.localConflict === true).map((item) => item.id));
+  const conflicts = new Set(items.filter((item) => item.kind === 'record' && item.deleted && item.localConflict === true).map((item) => item.localConflictBase ?? item.id));
   const active = (values: PracticeRecord[]) => values.filter((value) => !deletedRecords.has(stableRecordId(value)) &&
     !(conflicts.size && value.legacyLocalIds?.length && conflicts.has(legacyConflictId(value))));
   const mergedRecords = mergePracticeRecords(active(input.localHistory), active(input.remoteHistory), active(workspaceRecords));

@@ -10,6 +10,10 @@ const availabilityFields = [
   ['guestLeaderboardEnabled', '游客提交排行榜'],
 ] as const;
 const availabilityOptions = [['on', '开启'], ['off', '关闭']] as const;
+const reviewFields = [
+  ['guestReviewRequired', '游客成绩默认审核'],
+  ['userReviewRequired', '注册用户成绩默认审核'],
+] as const;
 const thresholdFields = [
   ['reviewThresholdZh', '中文（字/分钟）'],
   ['reviewThresholdEn', '英文（WPM）'],
@@ -21,19 +25,23 @@ function SiteSettingsForm({ ownerId, initial, reload }: AdminProps & { initial: 
   const [thresholds, setThresholds] = useState({
     reviewThresholdZh: String(initial.settings.reviewThresholdZh),
     reviewThresholdEn: String(initial.settings.reviewThresholdEn),
+    leaderboardDisplayDays: String(initial.settings.leaderboardDisplayDays),
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [conflict, setConflict] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
   const dirty = availabilityFields.some(([field]) => availability[field] !== saved.settings[field]) ||
-    thresholdFields.some(([field]) => Number(thresholds[field]) !== saved.settings[field]);
+    reviewFields.some(([field]) => availability[field] !== saved.settings[field]) ||
+    thresholdFields.some(([field]) => Number(thresholds[field]) !== saved.settings[field]) ||
+    Number(thresholds.leaderboardDisplayDays) !== saved.settings.leaderboardDisplayDays;
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !dirty || conflict) return;
     const settings: SiteSettings = {
       ...availability, reviewThresholdZh: Number(thresholds.reviewThresholdZh), reviewThresholdEn: Number(thresholds.reviewThresholdEn),
+      leaderboardDisplayDays: Number(thresholds.leaderboardDisplayDays),
     };
     setBusy(true);
     setError('');
@@ -58,6 +66,17 @@ function SiteSettingsForm({ ownerId, initial, reload }: AdminProps & { initial: 
             setSavedMessage('');
             setAvailability((previous) => ({ ...previous, [field]: value === 'on' }));
           }} />)}
+      </div>
+    </fieldset>
+    <fieldset className="settings-group" disabled={busy || conflict}>
+      <legend>排行榜</legend>
+      <div className="feature-form-pair">
+        {reviewFields.map(([field, label]) => <SelectField key={field} label={label} options={availabilityOptions}
+          value={availability[field] ? 'on' : 'off'} onChange={(value) => {
+            setSavedMessage(''); setAvailability((previous) => ({ ...previous, [field]: value === 'on' }));
+          }} />)}
+        <label>展示天数（0 为全部）<input type="number" min={0} max={3650} step={1} required value={thresholds.leaderboardDisplayDays}
+          onChange={(event) => { const { value } = event.target; setSavedMessage(''); setThresholds((previous) => ({ ...previous, leaderboardDisplayDays: value })); }} /></label>
       </div>
     </fieldset>
     <fieldset className="settings-group" disabled={busy || conflict}>

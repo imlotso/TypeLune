@@ -12,7 +12,7 @@ export function makeShareCardData(record: PracticeRecord, siteUrl: string, nickn
   if (!['http:', 'https:'].includes(url.protocol) || !['zh', 'en'].includes(record.language) || (record.mode !== undefined && !['timed', 'article'].includes(record.mode)) ||
     !Number.isFinite(record.speed) || record.speed < 0 || !Number.isFinite(record.accuracy) || record.accuracy < 0 || record.accuracy > 100 ||
     !Number.isFinite(record.duration) || record.duration <= 0) throw new Error('成绩数据无法读取');
-  return { siteName: '云打字练习', siteUrl: url.origin, language: record.language, mode: record.mode ?? 'timed', duration: record.duration,
+  return { siteName: 'TypeFlow', siteUrl: url.origin, language: record.language, mode: record.mode ?? 'timed', duration: record.duration,
     elapsedMs: typeof record.elapsedMs === 'number' && Number.isFinite(record.elapsedMs) && record.elapsedMs >= 0 ? record.elapsedMs : null,
     speed: record.speed, accuracy: record.accuracy, ...(record.language === 'en' && typeof correctCpm === 'number' && Number.isFinite(correctCpm) && correctCpm >= 0 && { correctCpm }), nickname, title: record.article?.title ?? '', personalBest };
 }

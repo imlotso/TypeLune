@@ -3,7 +3,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useWorkspace } from '../src/hooks/useWorkspace';
 import {
-  chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, markWorkspaceDraftFallback, mergeWorkspaceItems, newerWorkspaceItems, putWorkspaceValue, readWorkspace,
+  chunkWorkspaceItems, deleteWorkspaceValue, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, markWorkspaceDraftFallback, mergeRemoteWorkspace, mergeWorkspaceItems, newerWorkspaceItems, putWorkspaceValue, readWorkspace, saveWorkspaceGeneration,
 } from '../src/lib/workspace';
 import { defaultSettings, type SavedPractice, type WorkspaceItem } from '../src/lib/models';
 import { defaultBackground } from '../src/lib/background';
@@ -377,4 +377,37 @@ describe('workspace sync', () => {
     expect(result.current.records).toHaveLength(1);
     expect(JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body)).items).toEqual([expect.objectContaining({ id: 'saved' })]);
   });
+});
+
+it('preserves local data when a workspace page fails and merges only after a complete retry', async () => {
+  const owner = 'page-interruption';
+  const synced = { ...favorite('deleted-remotely', 1), serverRevision: 1 };
+  saveWorkspaceGeneration(owner, 1);
+  await mergeRemoteWorkspace(owner, [synced], Date.now(), new AbortController().signal, true, [], 1);
+  await putWorkspaceValue(owner, 'favorite', 'keep-local', { articleId: 'keep-local' });
+  const local = await readWorkspace(owner);
+  const deleted: WorkspaceItem = { kind: 'favorite', id: 'deleted-remotely', updatedAt: 2, deleted: true, serverRevision: 2 };
+  let fail = true;
+  let remote: WorkspaceItem[] = [deleted];
+  const fetcher = vi.fn(async (_url: string, options: RequestInit) => {
+    if (options.method === 'POST') {
+      remote = mergeWorkspaceItems(remote, asServer(JSON.parse(String(options.body)).items));
+      return new Response(JSON.stringify({ acknowledged: true, protocol: 2, generation: 1, serverTime: Date.now() }));
+    }
+    const cursor = new Headers(options.headers).get('X-Workspace-Cursor');
+    if (cursor && fail) return new Response('{}', { status: 503 });
+    if (cursor) return new Response(JSON.stringify({ items: [], protocol: 2, generation: 1, serverTime: Date.now(), nextCursor: null }));
+    return new Response(JSON.stringify({ items: remote, protocol: 2, generation: 1, serverTime: Date.now(), nextCursor: 'page-two' }));
+  });
+  vi.stubGlobal('fetch', fetcher);
+  const { result } = renderHook(() => useWorkspace(owner));
+  await waitFor(() => expect(result.current.syncState).toBe('error'));
+  expect(await readWorkspace(owner)).toEqual(local);
+  expect(result.current.cloudLoaded).toBe(false);
+  fail = false;
+  await act(async () => { await result.current.sync(); });
+  expect(result.current.syncState).toBe('synced');
+  expect(result.current.favorites).toContain('keep-local');
+  expect(result.current.favorites).not.toContain('deleted-remotely');
+  expect((await readWorkspace(owner)).find((item) => item.id === 'deleted-remotely')).toMatchObject({ deleted: true });
 });

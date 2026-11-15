@@ -49,6 +49,7 @@ it('verifies a real local SMTP connection without sending, then sends through SM
     expect(delivered.statusCode).toBe(200);
     expect(messages).toHaveLength(2);
     expect(messages[1]).toContain('reader@example.test');
+    expect(messages[1]).toContain('TypeFlow');
     for (const socket of sockets) socket.destroy();
     await new Promise<void>((resolve) => smtp.close(() => resolve()));
     const unavailable = await app.inject({ method: 'POST', url: '/api/admin/smtp/verify', headers, payload: { revision: 0 } });

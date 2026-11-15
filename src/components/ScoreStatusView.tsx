@@ -5,7 +5,7 @@ export function scoreStatusText(status: ServerScoreStatus) {
     case 'not_submitted': return status.expired ? '尚未提交，提交时间已过。' : '尚未提交。';
     case 'pending': return '已提交，待复核。';
     case 'ranked': return '已上榜。';
-    case 'published': return '已发布，榜单显示同条件最高成绩。';
+    case 'published': return `已发布，${status.message || '榜单显示同条件最高成绩'}。`;
     case 'rejected': return '审核未通过。';
     case 'removed': return '成绩已下架。';
     case 'ineligible': return '不参与排行。';

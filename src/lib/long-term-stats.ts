@@ -1,6 +1,6 @@
-import type { Difficulty, Language } from '../data/articles';
-import { snapshotKey, type PracticeMode, type PracticeRecord } from './models';
-import { stableRecordId } from './records';
+import type { Difficulty, Language } from '../data/articles.js';
+import { snapshotKey, type PracticeMode, type PracticeRecord } from './models.js';
+import { stableRecordId } from './records.js';
 
 export type StatisticsRange = '7' | '30' | '90' | '365' | 'all' | 'custom';
 export type StatisticsFilters = { language: Language; article: string; mode: PracticeMode | ''; duration: string; difficulty: Difficulty | '';

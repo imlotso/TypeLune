@@ -4,7 +4,7 @@ export const passwordRule = '密码须为 10–128 个字符';
 export const isValidUsername = (value: string) => /^[\p{L}\p{N}_-]{3,24}$/u.test(value);
 export const isValidPassword = (value: string) => value.length >= 10 && value.length <= 128;
 export const isValidEmail = (value: string) => value.length <= 254 && /^[^\s@]{1,64}@[^\s@.]+(?:\.[^\s@.]+)+$/.test(value);
-import { splitCharacters } from './scoring';
+import { splitCharacters } from './scoring.js';
 
 export const isValidDisplayName = (value: string) => {
   const length = splitCharacters(value).length;

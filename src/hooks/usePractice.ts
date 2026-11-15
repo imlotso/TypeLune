@@ -140,7 +140,7 @@ function completeLegacySnapshot(record: History) {
     ['zh', 'en'].includes(item.language as string) && ['beginner', 'intermediate', 'advanced'].includes(item.difficulty as string) && typeof item.custom === 'boolean';
 }
 function normalizeLegacyRecord(stored: History): History {
-  const { legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, legacyDeletionBlocked: _blocked, legacyProof: _proof, ...record } = stored;
+  const { legacyLocalIds: _localIds, legacyWorkspaceId: _workspaceId, legacyIdConflict: _conflict, legacyDeletionBlocked: _blocked, legacyConflictBase: _base, legacyProof: _proof, ...record } = stored;
   const recordId = record.recordId || stableRecordId(record);
   const proof = legacyRecordProof(record);
   const legacy = record.recordId ? {} : { legacyLocalIds: [recordId], ...(proof && { legacyProof: proof }) };
@@ -155,13 +155,13 @@ function normalizeLegacyRecord(stored: History): History {
 export function localHistory(): History[] {
   try { return readRawHistory().filter(validLocalHistory).map(normalizeLegacyRecord); } catch { return []; }
 }
-export function deleteLocalHistory(ownerId: string | null, ids: string[], localConflictIds: string[] = []) {
+export function deleteLocalHistory(ownerId: string | null, ids: string[], localConflictIds: string[] = [], localConflictBases: Readonly<Record<string, string>> = {}) {
   const raw = localStorage.getItem(historyKey);
   if (!raw) return false;
   const entries: unknown = JSON.parse(raw);
   if (!Array.isArray(entries)) throw new Error('本机历史无法读取');
   const selected = new Set(ids);
-  const conflictIds = new Set(localConflictIds.filter((id) => selected.has(id)));
+  const conflictIds = new Set(localConflictIds.filter((id) => selected.has(id)).map((id) => localConflictBases[id] ?? id));
   const remaining = entries.filter((entry) => !entry || typeof entry !== 'object' || Array.isArray(entry) ||
     ((entry as PracticeRecord).ownerId ?? null) !== ownerId || (!selected.has(stableRecordId(entry as PracticeRecord)) &&
       !(conflictIds.size && !(entry as PracticeRecord).recordId && validLocalHistory(entry) && conflictIds.has(legacyConflictId(normalizeLegacyRecord(entry))))));

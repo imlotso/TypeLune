@@ -1,4 +1,4 @@
-import type { PracticeRecord } from './models';
+import type { PracticeRecord } from './models.js';
 
 export type PersonalComparison = { previousBest: number | null; personalBest: number; improvement: number | null;
   sampleCount: number; averageSpeed: number | null; speedDifference: number | null; averageAccuracy: number | null; accuracyDifference: number | null };

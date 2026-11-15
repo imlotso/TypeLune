@@ -1,4 +1,4 @@
-# 云打字练习
+# TypeFlow
 
 一个轻松的中英文打字练习网站。内置中文和英文各 21 篇有作者及原文出处的公版长文，偏重亲情、友情、思念、孤独、遗憾和成长，分别覆盖入门、进阶和挑战三个阶段。每篇中文至少 1000 个汉字，英文至少 1000 词；不靠重复或拼接凑长度。测试默认 5 分钟，可手动设置 1–60 分钟，并支持日间和夜间模式。打完当前文章或时间到时立即展示结果。
 
@@ -37,15 +37,15 @@
 
 ## 同步与部署说明
 
-同步请求按当前账号校验，使用项目的 Fastify/SQLite API；单次最多 100 项或 4 MiB，每账号普通工作区上限 2,000 项和 32 MiB 内容。无效单项保留在本机并报告失败，其余有效项目仍可同步。同步协议使用代次、项目修订和删除标记；整理标记后，旧设备须先保留未同步资料并重新同步，旧客户端的不安全写入会被拒绝。经核验的旧记录关联标记单独计数。协议、容量边界与回退说明见[同步记录](docs/qa/2026-11-15-workspace-protocol.md)和[旧记录兼容](docs/qa/2026-11-15-legacy-workspace-records.md)。
+同步请求按当前账号校验，使用 Fastify API 和 SQLite 或 PostgreSQL；单次最多 100 项或 4 MiB，每账号普通工作区上限 2,000 项和 32 MiB 内容。数据按页读取，中断时保留本机资料；无效单项保留在本机并报告失败。同步协议使用代次、项目修订和删除标记；整理标记后，旧设备须先保留未同步资料并重新同步，旧客户端的不安全写入会被拒绝。经核验的旧记录关联标记单独计数。协议、容量边界与回退说明见[同步记录](docs/qa/2026-11-15-workspace-protocol.md)和[旧记录兼容](docs/qa/2026-11-15-legacy-workspace-records.md)。
 
 背景支持 JPG、PNG、WebP，原图不超过 10 MiB 或 4000 万像素。浏览器将其重新编码为不超过 2560 px 长边、768 KiB 的静态图片；不保留原始图片元数据。服务端核对编码中的实际尺寸，拒绝外链、SVG、动画和超限背景。访客仅保存在本机，登录后随当前账号同步；日夜背景独立保存，取消编辑不改变原图。恢复默认会同步到其他设备，之后可以重新上传。背景以独立项目保存，普通练习同步通过版本摘要复用未修改的背景，避免反复传输图片。
 
-Node/Docker 部署提供完整 API。受保护的 Sites Worker 仍为静态资源服务：若使用纯静态托管，账号、云端同步和排行需要另行连接同源 API；本地练习可独立使用。真实邮件投递仍需配置 SMTP，开发邮箱不向外发送邮件。
+Node/Docker 和 Vercel 部署提供完整 API。受保护的 Sites Worker 仍为静态资源服务：若使用纯静态托管，账号、云端同步和排行需要另行连接同源 API；本地练习可独立使用。真实邮件投递仍需配置 SMTP，开发邮箱不向外发送邮件。
 
 ## 本地开发
 
-推荐 Node.js 26 LTS（本地开发至少需要 Node.js 22.13）和 npm：
+Vercel 使用 Node.js 22.x；本地开发至少需要 Node.js 22.13，现有 Docker 镜像使用 Node.js 26：
 
 ```bash
 npm ci
@@ -89,7 +89,7 @@ openssl rand -hex 32
 
 将生成的随机值填入 `.env` 的 `CODE_SECRET`，填写 `SITE_DOMAIN`，然后按需填写 SMTP 和管理员邮箱。切勿提交 `.env` 或泄露密钥。
 
-`VITE_SITE_OPERATOR`、`VITE_SITE_CONTACT_EMAIL`、`VITE_PRIVACY_VERSION`、`VITE_PRIVACY_EFFECTIVE_DATE`、`VITE_TERMS_VERSION` 和 `VITE_TERMS_EFFECTIVE_DATE` 是公开的构建配置，可在 `.env` 中填写后重新构建；日期使用 `YYYY-MM-DD`。留空时页面会明确显示信息未配置或政策为草案，联系入口仍可使用站内反馈。政策与帮助内容在 `src/data/site-content.ts` 维护，更新内容或配置后需重新构建。不要在这些公开变量中填写密码或其他密钥。
+`VITE_SITE_OPERATOR`、`VITE_SITE_CONTACT_EMAIL`、`VITE_PRIVACY_VERSION`、`VITE_PRIVACY_EFFECTIVE_DATE`、`VITE_TERMS_VERSION` 和 `VITE_TERMS_EFFECTIVE_DATE` 是公开的构建配置，可在 `.env` 中填写后重新构建；日期使用 `YYYY-MM-DD`。未设置时采用站点维护者提供的公开资料和政策版本，默认值、政策与帮助内容在 `src/data/site-content.ts` 维护，更新后需重新构建。站内反馈入口始终可用。不要在这些公开变量中填写密码或其他密钥。
 
 ```bash
 docker compose up -d --build
@@ -126,6 +126,10 @@ unset dazi_admin_password
 - 邮件页面可配置 SMTP 主机、端口、加密方式、发件人及账号密码，测试连接后保存即可生效，也可恢复部署配置。后台配置只允许解析到公网的 SMTP 域名和常见邮件端口；内网邮件服务请使用部署环境变量。测试连接不发送邮件，实际投递仍需使用真实邮箱验证。
 - 后台 SMTP 密码加密保存在数据库中，密钥由 `CODE_SECRET` 派生，不会在页面或日志中回显。备份数据库时须安全保存原 `CODE_SECRET`；更换密钥后需要在后台重新填写 SMTP 密码。
 - 操作日志记录操作者、时间、对象及填写的原因。后台用户详情只展示账号信息与练习统计。
+
+## Vercel 与 Neon
+
+项目也支持 Vercel Node.js Functions 和 PostgreSQL，同时保留本地 SQLite、Node 与 Docker 运行方式。隔离环境、服务端密钥、迁移、备份、恢复和回滚步骤见 [Vercel + Neon 操作说明](docs/vercel-neon.md)。实际部署前须先完成隔离 Preview 验证。
 
 ## 数据备份与恢复
 
