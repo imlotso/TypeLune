@@ -28,7 +28,7 @@ export function AccountDeletion({ user, busy, setBusy, visibilityVersion, onDele
     finally { setBusy(false); }
   }
   return <form className="auth-form" onSubmit={submit}>
-    <p className="form-error">账号、云工作区、私人文章、草稿、背景、记录和反馈将删除，公开成绩将撤回。注销无法恢复；离线设备副本无法即时清除，已有备份副本也不会即时清除。请关闭此设备的旧版页面，避免再次写入缓存。</p>
+    <p className="form-error">账号、云工作区、私人文章、草稿、背景、记录和反馈将删除，公开成绩将撤回。注销无法恢复；离线设备副本无法即时清除，已有备份副本也不会即时清除。请先关闭此设备的旧版页面；旧页面继续运行可能覆盖其他账号的本机记录。</p>
     <button type="button" className="outline-button" disabled={busy} onClick={() => void exportData()}>导出个人数据</button>
     <PasswordField key={visibilityVersion} label="当前密码（注销）" toggleLabel="当前密码（注销）" autoComplete="current-password" value={password} disabled={busy} required onChange={(event) => setPassword(event.target.value)} />
     <label className="settings-check"><input type="checkbox" checked={confirmed} disabled={busy} onChange={(event) => setConfirmed(event.target.checked)} />我了解注销无法恢复</label>

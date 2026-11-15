@@ -286,7 +286,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const theme = user ? pendingTheme ?? workspace.settings.theme : guestTheme;
   const ready = authReady && workspace.ready;
   const adminLogin = directAdmin && authReady && !user && !adminLoginDismissed;
-  const reportSaveError = useCallback(() => { if (live.current) setFeedback('无法保存进度'); }, []);
+  const reportSaveError = useCallback(() => { if (live.current) setFeedback('无法保存进度，请复制输入后再关闭页面'); }, []);
   const paceSettings = workspace.settings.pace ?? defaultPace;
   const paceRecords = useMemo(() => {
     if (!paceSettings.enabled || paceSettings.source === 'custom') return [];
@@ -686,7 +686,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       } else {
         // An unmarked history entry has no reliable direction or distance in
         // older browsers. Leave it intact and keep the current view in memory.
-        setFeedback('无法保存进度');
+        setFeedback('无法保存进度，请复制输入后再关闭页面');
       }
     };
     // Browser back first dismisses a dialog, allowing its own unsaved-change

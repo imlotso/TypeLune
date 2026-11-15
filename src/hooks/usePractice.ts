@@ -402,6 +402,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   liveConfig.current = config;
   const startRequest = useRef(0);
   const parked = useRef(false);
+  const unsavedProgress = useRef(false);
   const lastWorkspaceSave = useRef(-Infinity);
   const recorded = useRef(new Set<string>());
   const continuationRef = useRef<Attempt | null>(null);
@@ -439,6 +440,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   const persist = useCallback((attempt: Attempt, force = false) => {
     const forked = ensureOwnership(attempt);
     const saved = saveDraft(attempt, typedRef.current, ownerToken.current);
+    unsavedProgress.current = !saved;
     if (!saved) setFeedback('进度保存失败。');
     emitDraft(attempt, typedRef.current, force || forked);
     return saved;
@@ -455,6 +457,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       }
       const saved = await liveConfig.current.onParkDraft(workspaceDraft(attempt, typedRef.current));
       if (saved && attemptRef.current === attempt && phaseRef.current === 'paused') {
+        unsavedProgress.current = false;
         setFeedback('草稿已保存在本机工作区。');
         return true;
       }
@@ -823,6 +826,12 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
         try { if (!isLocalAccountBlocked(attempt.ownerId)) localStorage.setItem(draftPrefix + attempt.recordId, JSON.stringify({ ...saved, leaseOwner: ownerToken.current, leaseAt: Date.now() })); } catch { /* Progress remains usable in memory. */ }
       }
     }, 5000);
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!unsavedProgress.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
     window.addEventListener('pagehide', onPageHide);
     window.addEventListener('pageshow', onPageShow);
     window.addEventListener('online', retryPaused);
@@ -830,7 +839,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       if (liveConfig.current.autoPause && document.visibilityState === 'hidden' && phaseRef.current === 'running') void pause();
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => { mounted.current = false; window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', onPageShow); window.removeEventListener('online', retryPaused); document.removeEventListener('visibilitychange', onVisibilityChange); clearInterval(heartbeat); clearTimer(); if (attemptRef.current) releaseLease(attemptRef.current, ownerToken.current); };
+    return () => { mounted.current = false; window.removeEventListener('beforeunload', onBeforeUnload); window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', onPageShow); window.removeEventListener('online', retryPaused); document.removeEventListener('visibilitychange', onVisibilityChange); clearInterval(heartbeat); clearTimer(); if (attemptRef.current) releaseLease(attemptRef.current, ownerToken.current); };
   }, []);
 
   const finish = useCallback(async (early = false) => {

@@ -210,6 +210,14 @@ test('keeps unmarked history entries intact without Navigation API when draft st
   await page.goBack();
   await expect(page.getByText('无法保存进度')).toBeVisible();
   await expect(page.getByRole('textbox', { name: '当前行输入' })).toHaveValue('山');
+  expect(await page.evaluate(() => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; })).toBe(true);
+  const warning = page.waitForEvent('dialog');
+  const refresh = page.reload({ timeout: 3000 }).catch(() => null);
+  const unload = await warning;
+  expect(unload.type()).toBe('beforeunload');
+  await unload.dismiss();
+  await refresh;
+  await expect(page.getByRole('textbox', { name: '当前行输入' })).toHaveValue('山');
   await expect(page).toHaveURL(/\/library$/);
   expect(await page.evaluate(() => history.state?.foreign)).toBe('preserve');
   await page.evaluate(() => (window as Window & { restoreStorage?: () => void }).restoreStorage?.());
@@ -217,6 +225,7 @@ test('keeps unmarked history entries intact without Navigation API when draft st
   await expect(page).toHaveURL(/\/$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/library$/);
+  expect(await page.evaluate(() => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; })).toBe(false);
   expect(await page.evaluate(() => history.state?.foreign)).toBe('preserve');
   await expect(page.getByRole('heading', { name: '文章库' })).toBeVisible();
 });
