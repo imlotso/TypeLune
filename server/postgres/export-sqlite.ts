@@ -6,7 +6,7 @@ import type { Client } from 'pg';
 import { createApp } from '../app.js';
 import { decodeEmail } from '../database/email.js';
 import { assertPostgresTarget, type ExpectedTarget } from './migrate.js';
-import { dataTables, schemaMatches } from './schema.js';
+import { dataTables as baseDataTables, schemaMatches } from './schema.js';
 
 type Column = { name: string; type: string; pk: bigint };
 type Row = Record<string, unknown>;
@@ -54,6 +54,8 @@ export async function exportSqlite(client: Client, destination: string, target: 
     await client.query(`SET LOCAL search_path TO ${quote(target.schema)}, pg_catalog`);
     const version = await client.query<{ version: number; checksum: string }>('SELECT version,checksum FROM dazi_schema_migrations ORDER BY version');
     if (!schemaMatches(version.rows)) throw new Error('Unsupported PostgreSQL schema version');
+    const hasSupport = !!(await client.query("SELECT to_regclass('support_settings') AS name")).rows[0]?.name;
+    const dataTables = [...baseDataTables, ...(hasSupport ? ['support_settings'] : [])];
     sqlite.exec('BEGIN IMMEDIATE');
     for (const table of [...dataTables].reverse()) sqlite.exec(`DELETE FROM ${quote(table)}`);
     const counts: Record<string, number> = {};
