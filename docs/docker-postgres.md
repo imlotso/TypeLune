@@ -2,7 +2,7 @@
 
 这是与 [Vercel + PostgreSQL / Neon](vercel-neon.md)并行的路线，不是把 Vercel 替换为 Docker，也不删除原 SQLite 兼容路线。使用仓库根目录的 `compose.postgres.yaml`；不带 `-f` 的 `docker compose` 仍使用 SQLite。
 
-**本轮状态：代码已包含，容器实测未完成。** 当前可用机器没有 Docker 引擎。真实宿主 PostgreSQL 18.7 的 Node HTTP / Vercel handler 测试已通过，但不能替代镜像构建、Compose、容器替换后的持久化或容器备份恢复演练。下列命令是待验收的操作流程，不是已经执行的部署记录。生产上线仍须另行批准。
+**本轮状态：隔离容器实测已完成。** 候选 `788982a` 在独立临时环境中通过真实 Docker/Compose + PostgreSQL 18.7、Caddy HTTP、容器替换持久化及新卷备份恢复；详见[实机记录](qa/2026-11-16-docker-runtime.md)。本文是安全操作指南，不表示每一条示例命令已原样执行，更不代表公网 TLS、真实邮件或生产迁移已验证。生产上线仍须明确批准。
 
 ## 文件、版本和持久卷
 
@@ -144,7 +144,7 @@ test -z "$(docker ps -aq --filter "label=com.docker.compose.project=$PG_RESTORE_
 test -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$PG_RESTORE_PROJECT")"
 pgr config --quiet
 pgr up -d --wait postgres
-pgr exec -T postgres pg_isready -U typelune -d typelune
+pgr exec -T postgres pg_isready -h 127.0.0.1 -U typelune -d typelune
 table_count="$(pgr exec -T postgres psql -X -U typelune -d typelune -Atc \
   "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema');")"
 test "$table_count" = 0
@@ -166,6 +166,6 @@ pgr exec -T postgres pg_restore -U typelune -d typelune \
 - 后端分支真实 PG18.7 测试为 130 文件 / 634 项；最终集成候选 `143b9bb` 的真实 PG + SQLite 共 142 文件 / 680 项，全部通过。Node 22.23.5 的 Vercel 专项另有 14 项通过。完整 Chrome 130 项在临时 SQLite 上通过，不声称它们本轮全部在 PG 上重跑。
 - Docker + PG 的待验收命令：先 `docker build -t dazi-ci:local .`，再 `DAZI_TEST_IMAGE=dazi-ci:local npm run test:docker:postgres`。该脚本使用唯一测试容器/卷/网络，测试初始化、登录、二维码权限和重启持久化，最后只清理其自己创建的测试资源；**它不覆盖 Compose/Caddy、容器替换或本页备份恢复流程**。
 - 现有 GitHub Actions Docker job 仍只调用 SQLite `test:docker`。PG smoke 尚未接入该 job，本轮没有触发 Actions。任何 SQLite 绿灯均不能作为 Docker + PG 的验收证据。
-- 无 Docker 引擎导致实际尝试报 `docker ENOENT`。本页新增命令只做文档与静态检查，尚无容器备份恢复、真实公网 HTTPS 或本轮 Vercel Preview 结果。
+- 早期宿主尝试因无 Docker 引擎报 `docker ENOENT`；后续已在独立环境完成真实容器及备份恢复验证，记录明确区分候选提交。尚未用这些测试证明真实公网 HTTPS、真实邮件或生产迁移。
 
 详见[双路线验证记录](qa/2026-11-16-dual-postgres.md)与[最终集成记录](qa/2026-11-16-nightly-integration.md)。生产数据、域名、当前部署和截图均未因本次文档补充而改变。

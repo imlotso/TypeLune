@@ -98,6 +98,6 @@ npm run db:postgres -- export /安全路径/新回滚快照.sqlite
 
 ## 当前验证范围
 
-本轮候选的具体记录见[双 PostgreSQL 路线验证](qa/2026-11-16-dual-postgres.md)和[最终集成记录](qa/2026-11-16-nightly-integration.md)：真实本地 PG18.7 + Node 22 的 Vercel handler 专项通过，并非一次新的 Vercel Preview 部署。Docker 引擎不可用，容器路线尚未实际验收；不将 SQLite 或宿主 Node + PG 结果当作 Docker 结果。
+本轮候选的具体记录见[双 PostgreSQL 路线验证](qa/2026-11-16-dual-postgres.md)和[最终集成记录](qa/2026-11-16-nightly-integration.md)：真实本地 PG18.7 + Node 22 的 Vercel handler 专项通过，并非一次新的 Vercel Preview 部署。后续 Docker + PG18.7 与 SQLite 容器路线已在独立环境真实验收，见[Docker 实机记录](qa/2026-11-16-docker-runtime.md)；不将宿主 Node + PG 结果当作 Docker 结果。
 
 本地隔离 PostgreSQL 覆盖注册和验证码并发、权限撤销、配置冲突、成绩去重、恢复练习、多实例限流、32 MiB 配额并发、超过 4.5 MB 的分页、SQLite 往返迁移、备份恢复、冷启动和连接恢复；现有浏览器用例也分别在 SQLite 和 PostgreSQL 上运行。本机 SMTP 测试使用临时服务验证 TLS 和 STARTTLS 握手、接收验证码以及连接测试不发信。实际 Neon、Vercel Preview、Vercel 至 Neon 延迟、公网 SMTP 连接/送达和实体设备输入法仍需在隔离环境验证。运行 `npm run test:vercel-esm` 可检查 Node 22 对函数入口和其模块图的原生导入；这不能替代真实 Preview。

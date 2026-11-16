@@ -40,6 +40,7 @@ const failedSync = { status: 503, contentType: 'application/json', body: JSON.st
 test('account language follows two independent browsers and both settings entries', async ({ page, browser, baseURL, clientIp }) => {
   const owner = await register(page.request, 'locale_two_browsers');
   await page.goto('/');
+  await expect(page.getByRole('button', { name: 'locale_two_browsers', exact: true })).toBeVisible();
   const dialog = await openSettings(page);
   await expect(dialog.getByText('已同步', { exact: true })).toBeVisible();
   await dialog.getByRole('combobox', { name: '界面语言', exact: true }).selectOption('en');
@@ -81,6 +82,7 @@ test.describe('automatic account language', () => {
     let writes = 0;
     page.on('request', request => { if (request.url().endsWith('/api/workspace/sync')) writes++; });
     await page.goto('/');
+    await expect(page.getByRole('button', { name: 'locale_auto_browser', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Interface language: English. Switch to 中文' })).toBeEnabled();
     expect(writes).toBe(0);
     expect((await preference(page.request, owner))?.uiLocale).toBeUndefined();
@@ -125,6 +127,7 @@ test('cached offline language survives reload, retries, and refuses a competing 
   const owner = await register(page.request, 'locale_offline');
   await seed(page.request, owner, 'zh', 9);
   await page.goto('/');
+  await expect(page.getByRole('button', { name: 'locale_offline', exact: true })).toBeVisible();
   const toggle = page.getByRole('button', { name: '界面语言：中文，切换为 English' });
   await expect(toggle).toBeEnabled();
   await page.route(workspaceUrl, route => route.fulfill(failedSync));
@@ -160,6 +163,7 @@ test('a first-device sync failure cannot save an unknown account over cloud pref
   page.on('request', request => { if (request.url().endsWith('/api/workspace/sync')) writes++; });
   await page.route(workspaceUrl, route => route.fulfill(failedSync));
   await page.goto('/');
+  await expect(page.getByRole('button', { name: 'locale_no_cache', exact: true })).toBeVisible();
   const dialog = await openSettings(page);
   await expect(dialog.getByText('同步失败', { exact: true })).toBeVisible();
   await expect(dialog.getByRole('combobox', { name: '界面语言', exact: true })).toBeDisabled();

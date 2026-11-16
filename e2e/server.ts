@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -26,6 +26,9 @@ if (postgresUrl) {
   await setup.query(`CREATE SCHEMA "${schema}"`);
   await setup.query(`SET search_path TO "${schema}"`);
   await migratePostgres(setup, { database: parsed.pathname.slice(1), schema });
+  // Optional production extensions are installed explicitly, including in this
+  // uniquely named, loopback-only disposable browser-test schema.
+  await setup.query(readFileSync(new URL('../server/postgres/support-settings.sql', import.meta.url), 'utf8'));
   const database = new PostgresDatabase(postgresUrl, schema);
   try { await seedPostgresCatalog(new AsyncPostgres(database)); } finally { await database.close(); }
 }

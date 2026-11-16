@@ -1,5 +1,7 @@
 # Dual PostgreSQL deployment paths
 
+> Historical host-side verification below. Subsequent actual Docker/Compose + PG18.7 and SQLite container verification, including candidate `788982a`, is recorded in [Docker runtime QA](2026-11-16-docker-runtime.md). Earlier Docker-unavailable statements describe the earlier host attempt, not the final candidate status.
+
 Both paths are supported. This does not replace Vercel and does not remove the existing SQLite `compose.yaml` compatibility route.
 
 Operator entry points: [Docker + PostgreSQL 18](../docker-postgres.md) and [Vercel + Neon](../vercel-neon.md). The Docker guide includes the persistent-volume layout, fresh-install versus upgrade commands, full-database backup, empty isolated restore, version limits and rollback precautions. Its Docker commands are documented, not claimed to have run here.

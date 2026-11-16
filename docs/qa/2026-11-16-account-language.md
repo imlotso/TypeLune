@@ -56,3 +56,11 @@ node scripts/verify-browser-local.mjs
 真实截图位于 `docs/qa/screenshots/2026-11-16-account-language/`，四张已分别保存至 Library：中文/英文账号设置、手机英文账号设置、英文练习设置。画面中的账号均为一次性 `example.test` 测试账号。原有课程/后台截图保留，未删除用户数据。
 
 Vercel + PostgreSQL 的 handler 路径和 SQLite 兼容已实际测试。Docker + PostgreSQL 18 的真实容器验证由独立运行记录管理：不得把宿主 Node HTTP 或 SQLite 结果当作容器结果；需以该记录明确的候选提交为准。新增语言偏好本身不要求 schema 迁移。生产必须等待用户看图后的明确同意。
+
+## 发布前 PostgreSQL 浏览器预检
+
+用户查看截图后已明确批准生产发布，实际发布结果另行核验。发布前检查发现 PG 浏览器测试启动器只安装核心 schema，遗漏显式安装可选 `support_settings`。已在 loopback 临时库复现后台支持设置无法加载的失败，然后仅在唯一隔离测试 schema 中补装扩展；没有改为生产冷启动自动迁移。
+
+真实 PG18.7 的语言与支持入口浏览器专项 8 项通过，24.1 秒、正常退出 0。较慢的 PG 初始化还暴露新语言测试在账号会话未恢复时操作游客菜单的竞态；测试现明确等待预期账号入口出现再操作，保留全部同步/持久化/冲突断言，没有增加超时或删测。实际应用代码仍为已完成 Docker 验证的 `788982a`；后续差异仅测试夹具和验证文档。
+
+最终 Docker + PG18.7 与 SQLite 容器测试均已完成，详见 [Docker 实机记录](2026-11-16-docker-runtime.md)。

@@ -90,7 +90,7 @@ npm run test:docker
 
 不带 `-f` 的 `docker compose` 命令仍选择 SQLite，**不是 Docker + PostgreSQL**。PostgreSQL 路线必须显式选择 `compose.postgres.yaml`，不能使用下方 SQLite 备份脚本替代 PostgreSQL 备份。
 
-本轮真实 PostgreSQL 的 Node HTTP / Vercel handler 与 SQLite 集成测试已通过；本机没有 Docker 引擎，**Docker + PostgreSQL 的容器构建、Compose 启动、容器重建后的持久化及备份恢复尚未实测**，也没有部署本轮 Vercel Preview。具体证据和差异见[双 PostgreSQL 路线记录](docs/qa/2026-11-16-dual-postgres.md)及[最终集成记录](docs/qa/2026-11-16-nightly-integration.md)。代码与文档就绪不等于生产上线批准。
+真实 PostgreSQL 的 Node HTTP / Vercel handler 与 SQLite 集成测试已通过。独立临时环境也已完成 **Docker + PostgreSQL 18.7 的实际镜像构建、Compose/Caddy、容器重建持久化与备份恢复**，并复验 SQLite 容器兼容路线。所测提交和边界见 [Docker 实机记录](docs/qa/2026-11-16-docker-runtime.md)、[账号语言验证](docs/qa/2026-11-16-account-language.md)及[双 PostgreSQL 路线记录](docs/qa/2026-11-16-dual-postgres.md)。公网 TLS、真实邮件/支付与生产上线不由本地测试代替；生产发布须明确批准。
 
 ## Docker Compose 部署（SQLite 兼容路线）
 
