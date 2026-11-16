@@ -40,7 +40,7 @@ describe('beginner course', () => {
     const mistake = record(0, { mistakes: [{ position: 0, expected: 'f', actual: 'x' }] });
     expect(lessonRecommendation(mistake).kind).toBe('review');
     expect(lessonRecommendation(record(0, { typed: 'f' })).kind).toBe('retry');
-    expect(lessonRecommendation(record(7)).kind).toBe('complete');
+    expect(lessonRecommendation(record(7)).lesson?.id).toBe('sentences-2');
     expect(lessonRecommendation({ ...record(), article: undefined }).kind).toBe('none');
   });
   it('maps keys as static hints including case, punctuation and whitespace', () => {
