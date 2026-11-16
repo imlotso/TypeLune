@@ -16,3 +16,15 @@ Isolated branch: `dot/support-upload-fix`; no production writes and no real paym
 - WebKit 27.2, iPhone 13 emulation (390px viewport, DPR 3): actual isolated admin upload/save then public mobile dialog passed. Both portrait fixtures use a roughly 200-character synthetic payload; jsQR decoded each actual rendered element screenshot and no horizontal overflow was observed. This is desktop WebKit emulation, not real iOS Safari or real payment-app verification.
 - The loopback server emits Secure cookies. The WebKit test re-adds only its disposable login cookie without Secure for HTTP testing, without changing any application security setting. Early runs failed on a wrong localized selector and on entering the admin account's public route without Preview; those test navigation issues were corrected. Only the final successful run is counted.
 - The same portrait mobile browser test also passed on system Chrome (1/1). The focused 14 tests and typecheck passed; integrated full-suite results belong to the integrating branch.
+
+## Standard-density display follow-up
+The integration run exposed a real presentation issue: the two-column thumbnail was too small to decode the dense portrait fixture at desktop DPR 1. Earlier DPR 3 mobile success did not cover that case.
+
+Both code thumbnails are now keyboard-accessible enlarge buttons. They open the complete image at a larger width inside the same scrollable dialog, preserving the aspect ratio and all pixels in storage; there is no crop or hidden image segment. A bilingual hint explains enlargement, and Back restores focus to the selected code. No new window, third-party scanner or external image URL is used.
+
+Updated browser regression verifies aspect ratio, decodes the actual enlarged element screenshots, then verifies keyboard focus restoration. It passed separately on:
+- Default system Chrome desktop configuration (1280px, DPR 1): 1/1.
+- System Chrome narrow mobile viewport (390px, DPR 1): 1/1.
+- WebKit iPhone 13 emulation (390px, DPR 3): 1/1.
+
+The 14 focused tests, typecheck and build remain passing. Thumbnail decoding is not guaranteed; the explicit enlarged view is the supported fallback for dense codes. These synthetic decoding checks do not claim acceptance by real payment apps or a real iPhone test.

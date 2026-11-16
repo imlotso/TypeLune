@@ -16,3 +16,9 @@
 .support-single { grid-template-columns: minmax(0, 240px); justify-content: center; }
 .support-note { font-size: 12px; color: var(--typing-muted); text-align: center; line-height: 1.7; }
 @media (max-width: 480px) { .support-codes { gap: 12px; } .support-image { padding: 8px; border-radius: 9px; } .footer-links { gap: 8px 16px; } }
+
+.support-image-button { width: 100%; cursor: zoom-in; color: inherit; }
+.support-image-button:focus-visible { outline: 3px solid var(--typing-accent, #3971d8); outline-offset: 3px; }
+.support-expanded { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 16px; }
+.support-expanded > img { display: block; width: 100%; max-width: 500px; height: auto; max-height: none; object-fit: contain; background: white; }
+.support-expanded > p { margin: 0; }

@@ -28,9 +28,15 @@ test('portrait payment fixtures remain readable after saving and mobile display'
  await expect(page.getByText('已保存',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'预览网站',exact:true}).click();await page.getByRole('button',{name:'支持 TypeLune',exact:true}).click();
  for(const [index,name] of ['支付宝收款码','微信收款码'].entries()){
-  const image=page.getByRole('img',{name,exact:true});await expect(image).toBeVisible();
+  const enlarge=page.getByRole('button',{name:'放大查看'+name,exact:true});
+  await expect(enlarge).toBeVisible();await enlarge.click();
+  const image=page.getByRole('img',{name:'放大的'+name,exact:true});await expect(image).toBeVisible();
+  const geometry=await image.evaluate((element:HTMLImageElement)=>({width:element.clientWidth,height:element.clientHeight,naturalWidth:element.naturalWidth,naturalHeight:element.naturalHeight}));
+  expect(Math.abs(geometry.width/geometry.height-geometry.naturalWidth/geometry.naturalHeight)).toBeLessThan(0.01);
   const screenshot=await image.screenshot();const {data,info}=await sharp(screenshot).ensureAlpha().raw().toBuffer({resolveWithObject:true});
   expect(jsQR(new Uint8ClampedArray(data),info.width,info.height)?.data).toBe(codes[index].payload);
+  await page.getByRole('button',{name:'返回收款码列表',exact:true}).click();
+  await expect(enlarge).toBeFocused();
  }
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:'test-results/support-portrait-mobile.png'});

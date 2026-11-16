@@ -15,6 +15,14 @@ export function SiteFooter({ ready, onNavigate }: { ready: boolean; onNavigate: 
   const { t } = useI18n();
   const [support, setSupport] = useState<Support>();
   const [open, setOpen] = useState(false);
+  const [enlarged, setEnlarged] = useState<'alipay' | 'wechat' | null>(null);
+  const enlargeButtons = useRef<Partial<Record<'alipay' | 'wechat', HTMLButtonElement | null>>>({});
+  const backButton = useRef<HTMLButtonElement>(null);
+  const previousCode = useRef<'alipay' | 'wechat' | null>(null);
+  useEffect(() => {
+    if (enlarged) { previousCode.current = enlarged; backButton.current?.focus(); }
+    else if (previousCode.current) { enlargeButtons.current[previousCode.current]?.focus(); previousCode.current = null; }
+  }, [enlarged]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const request = useRef<AbortController | undefined>(undefined);
@@ -34,16 +42,21 @@ export function SiteFooter({ ready, onNavigate }: { ready: boolean; onNavigate: 
   return <>
     <footer className="site-footer site-footer-updated">
       <div className="footer-links">{links.map(([page, label]) => <button key={page} className="text-button" disabled={!ready} onClick={() => onNavigate(page)}>{label}</button>)}
-        {available && <button className="text-button support-button" onClick={() => { setOpen(true); load(); }}>{t('支持 TypeLune', 'Support TypeLune')}</button>}
+        {available && <button className="text-button support-button" onClick={() => { setEnlarged(null); setOpen(true); load(); }}>{t('支持 TypeLune', 'Support TypeLune')}</button>}
       </div>
       <span className="site-attribution">Powered by <a href="https://www.sitetalk.net" target="_blank" rel="noopener noreferrer">SiteTalk</a></span>
     </footer>
     {open && <Dialog title={t('支持 TypeLune', 'Support TypeLune')} onClose={() => setOpen(false)} className="support-dialog">
       {loading ? <p role="status">{t('正在读取收款码…', 'Loading payment codes…')}</p> : error ? <div><p role="alert" className="form-error">{t('收款码暂时无法读取', 'Payment codes are unavailable')}</p><button className="outline-button" onClick={load}>{t('重试', 'Retry')}</button></div> : !available ? <p role="status">{t('收款码尚未配置', 'No payment codes are configured')}</p> : <>
-        <div className={'support-codes' + (!support?.alipay || !support?.wechat ? ' support-single' : '')}>
-          {support?.alipay && <figure><figcaption className="support-alipay">{t('支付宝', 'Alipay')}</figcaption><div className="support-image"><img src={support.alipay.dataUrl} alt={t('支付宝收款码', 'Alipay payment QR code')} /></div></figure>}
-          {support?.wechat && <figure><figcaption className="support-wechat">{t('微信', 'WeChat Pay')}</figcaption><div className="support-image"><img src={support.wechat.dataUrl} alt={t('微信收款码', 'WeChat payment QR code')} /></div></figure>}
-        </div>
+        {enlarged && support[enlarged] ? <div className="support-expanded">
+          <button type="button" className="outline-button" ref={backButton} onClick={() => setEnlarged(null)}>{t('返回收款码列表', 'Back to payment codes')}</button>
+          <p>{enlarged === 'alipay' ? t('支付宝', 'Alipay') : t('微信', 'WeChat Pay')}</p>
+          <img src={support[enlarged]!.dataUrl} alt={enlarged === 'alipay' ? t('放大的支付宝收款码', 'Enlarged Alipay payment QR code') : t('放大的微信收款码', 'Enlarged WeChat payment QR code')} />
+          <p className="support-note">{t('图片完整显示，未裁剪。可滚动查看；付款前请核对收款方。', 'Full image, without cropping. Scroll to view it; verify the recipient before paying.')}</p>
+        </div> : <><div className={'support-codes' + (!support?.alipay || !support?.wechat ? ' support-single' : '')}>
+          {support?.alipay && <figure><figcaption className="support-alipay">{t('支付宝', 'Alipay')}</figcaption><button type="button" className="support-image support-image-button" ref={element => { enlargeButtons.current.alipay = element; }} aria-label={t('放大查看支付宝收款码', 'Enlarge Alipay payment QR code')} onClick={() => setEnlarged('alipay')}><img src={support.alipay.dataUrl} alt={t('支付宝收款码', 'Alipay payment QR code')} /></button></figure>}
+          {support?.wechat && <figure><figcaption className="support-wechat">{t('微信', 'WeChat Pay')}</figcaption><button type="button" className="support-image support-image-button" ref={element => { enlargeButtons.current.wechat = element; }} aria-label={t('放大查看微信收款码', 'Enlarge WeChat payment QR code')} onClick={() => setEnlarged('wechat')}><img src={support.wechat.dataUrl} alt={t('微信收款码', 'WeChat payment QR code')} /></button></figure>}
+        </div><p className="support-note">{t('点击收款码可放大查看，便于扫描。', 'Select a payment code to enlarge it for scanning.')}</p></>}
         <p className="support-note">{t('金额自定。付款前请核对收款方与金额。', 'Choose your amount. Verify the recipient and amount before paying.')}</p>
       </>}
     </Dialog>}
