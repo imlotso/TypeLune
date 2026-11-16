@@ -84,7 +84,7 @@ main().catch((error: unknown) => {
   // Database drivers can include SQL parameters, hostnames, and credentials in
   // their diagnostics. Only print fixed, explicitly safe operator messages.
   const safe = error instanceof Error && [
-    'Use migrate, import, export, seed or bootstrap',
+    'Use migrate, import, export, seed, bootstrap, support or repair-punctuation',
     'DATABASE_URL and an explicitly confirmed target database/schema are required',
     'An explicit SQLite source path is required',
     'An explicit SQLite destination is required',
