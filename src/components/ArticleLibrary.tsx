@@ -22,6 +22,8 @@ type Props = {
   onSave: (article: PrivateArticle) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
   initialTab?: 'all' | 'favorites' | 'private';
+  isSignedIn?: boolean;
+  onLogin?: () => void;
 };
 
 
@@ -159,7 +161,7 @@ const difficultyNames: Record<Difficulty, string> = { beginner: t("入门", "Beg
   </Dialog>;
 }
 
-export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect, onOpenArticle, onSave, onDelete, initialTab = 'all' }: Props) {
+export function ArticleLibrary({ articles, favorites, onToggleFavorite, onSelect, onOpenArticle, onSave, onDelete, initialTab = 'all', isSignedIn = false, onLogin }: Props) {
   const { t, locale } = useI18n();
 const difficultyNames: Record<Difficulty, string> = { beginner: t("入门", "Beginner"), intermediate: t("进阶", "Intermediate"), advanced: t("挑战", "Advanced") };
 const libraryTabs = { all: t("全部", "All"), favorites: t("收藏", "Favorites"), private: t("我的文章", "My articles") } as const;
@@ -238,7 +240,8 @@ const lengthRanges = [
       <label>{t("难度", "Difficulty")}<select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">{t("全部", "All")}</option>{Object.entries(difficultyNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
       <label>{t("篇幅", "Length")}<select value={length} onChange={(event) => setLength(event.target.value)}><option value="">{t("全部", "All")}</option>{lengthRanges.map(({ label }, index) => <option key={label} value={index}>{label}</option>)}</select></label>
     </div>
-    {!matches.length ? <p className="empty-state">{t("暂无匹配文章", "No matching articles")}</p> : <ul className="feature-list">
+    <ul className="feature-list">
+    {!matches.length && <li><p className="empty-state">{t("暂无匹配文章", "No matching articles")}</p></li>}
       {matches.map(({ article, size }) => <li key={article.id} className="feature-row">
         <div className="feature-row-main">
           <h2>{article.title}</h2>
@@ -260,7 +263,17 @@ const lengthRanges = [
           <button className="outline-button feature-action-button" aria-label={t(`练习《${article.title}》`, `Practice ${article.title}`)} onClick={() => onSelect(article)}>{t("练习", "Practice")}</button>
         </div>
       </li>)}
-    </ul>}
+      <li className="library-import-row"><div className="library-import-card">
+        <span className="library-import-icon" aria-hidden="true"><FileText size={24} /></span>
+        <div className="library-import-copy"><h2>{t("还没找到想练的文章？", "Not finding the right article?")}</h2>
+          <p>{isSignedIn ? t("导入喜欢的内容，开始自己的练习。", "Import something you love and make it your next practice.") : t("可直接导入，保存在此浏览器；登录后可导入账号并同步。", "Import locally in this browser. Sign in to copy your articles to your account and sync.")}</p>
+        </div>
+        <div className="library-import-actions">
+          <button type="button" className="outline-button" onClick={() => setEditor(null)}>{t("导入自己的文章", "Import your article")} <span aria-hidden="true">→</span></button>
+          {!isSignedIn && onLogin && <button type="button" className="text-button" onClick={onLogin}>{t("登录同步", "Sign in to sync")}</button>}
+        </div>
+      </div></li>
+    </ul>
     {editor !== undefined && <ArticleEditor article={editor} initialLanguage={language} onSave={saveArticle} onClose={() => setEditor(undefined)} />}
     {deleting && <Dialog title={t(`删除《${deleting.title}》？`, `Delete ${deleting.title}?`)} onClose={() => { if (!deletePending) setDeleting(undefined); }}>
       <div className="feature-form">
