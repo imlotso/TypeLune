@@ -35,7 +35,12 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; generation.current++; operation.current?.abort(); };
+    const protectSaving = (event: BeforeUnloadEvent) => {
+      if (!savingRef.current) return;
+      event.preventDefault(); event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', protectSaving);
+    return () => { window.removeEventListener('beforeunload', protectSaving); mounted.current = false; generation.current++; operation.current?.abort(); };
   }, []);
   useEffect(() => { if (!dirty) setDraft(value); }, [value, dirty]);
 

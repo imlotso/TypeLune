@@ -114,3 +114,11 @@ it('reflects the daily toggle immediately while a provider request is pending an
  fireEvent.click(screen.getByRole('checkbox',{name:'每日自动更新壁纸'}));expect((screen.getByRole('checkbox',{name:'每日自动更新壁纸'}) as HTMLInputElement).checked).toBe(true);
  fireEvent.click(screen.getByRole('button',{name:'取消'}));await act(async()=>{resolve(new Response(JSON.stringify({background:{...saved,daily:{id:'ab12cd',day:'2026-11-16',kind:'nature'}}})));});expect(onSave).not.toHaveBeenCalled();vi.unstubAllGlobals();
 });
+
+it('protects an in-flight save from page unload until the persistent write completes',async()=>{
+ let finish!:()=>void;const onSave=vi.fn(()=>new Promise<void>(resolve=>{finish=resolve;}));
+ render(<BackgroundDialog theme="light" value={saved} onSave={onSave} onClose={()=>{}}/>);
+ fireEvent.change(screen.getByRole('slider',{name:'遮罩'}),{target:{value:35}});fireEvent.click(screen.getByRole('button',{name:'保存'}));
+ const pending=new Event('beforeunload',{cancelable:true});window.dispatchEvent(pending);expect(pending.defaultPrevented).toBe(true);
+ await act(async()=>finish());const completed=new Event('beforeunload',{cancelable:true});window.dispatchEvent(completed);expect(completed.defaultPrevented).toBe(false);
+});
