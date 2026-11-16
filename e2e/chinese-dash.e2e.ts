@@ -2,7 +2,12 @@ import { expect, test } from './fixtures';
 
 test('Chinese IME em dashes match Xiang Fei without a false mismatch or offset', async ({page}) => {
   await page.goto('/articles/zh-intermediate-6');
-  await page.getByRole('button', {name:'练习',exact:true}).last().click();
+  const detail = page.locator('.public-article');
+  await expect(detail.getByRole('heading', { name: '想飞', exact: true })).toBeVisible();
+  await expect(detail.locator('.public-article-text')).toContainText('假如这时候窗子外有雪——街上，');
+  await detail.getByRole('button', {name:'练习',exact:true}).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('heading', { name: '想飞', exact: true })).toBeVisible();
   const input=page.getByRole('textbox',{name:'当前行输入'});
   await expect(input).toBeEnabled();
   const prefix='假如这时候窗子外有雪';
