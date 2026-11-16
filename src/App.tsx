@@ -1,3 +1,7 @@
+import { SystemMessage } from './components/SystemMessage';
+import { useI18n } from './lib/i18n';
+import { LanguageToggle } from './components/LanguageToggle';
+import { WorkspaceI18nProvider } from './components/WorkspaceI18nProvider';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { ArrowCounterClockwise } from '@phosphor-icons/react/ArrowCounterClockwise';
 import { ArrowRight } from '@phosphor-icons/react/ArrowRight';
@@ -49,7 +53,11 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { StatsView } from './components/StatsView';
 import { SiteInfoView } from './components/SiteInfoView';
 import { articles, type Difficulty, type Language } from './data/articles';
-import { infoLabels, type InfoPage } from './data/site-content';
+import { LessonsView, LessonGuide, LessonResult } from './components/LessonsView';
+import { AssessmentPanel } from './components/AssessmentPanel';
+import { assessmentArticle, isAssessmentArticle, isWeakKeyArticle } from './lib/assessment';
+import { SiteFooter } from './components/SiteFooter';
+import { lessonArticle, lessonCopy, lessonForArticle, type Lesson } from './lib/lessons';
 import { continuationDraftId, deleteLocalHistory, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, recoveryDraftFromSaved, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useSiteFeatures } from './hooks/useSiteFeatures';
@@ -79,11 +87,10 @@ import { articleIdFromPath, feedbackIdFromPath, mainRoute, navigationEntryIndex,
 
 type View = MainRoute;
 type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?: boolean; recoverCompleted?: boolean };
-const difficultyNames: Record<Difficulty, string> = { beginner: '入门', intermediate: '进阶', advanced: '挑战' };
-const languageNames: Record<Language, string> = { zh: '中文', en: 'English' };
+
 const builtIns: ArticleSnapshot[] = articles.map(({ content, ...article }) => ({ ...article, text: content, custom: false }));
 const builtInById = new Map(builtIns.map((article) => [article.id, article]));
-const recordViews: View[] = ['history', 'mistakes', 'stats'];
+const recordViews: View[] = ['history', 'mistakes', 'stats', 'lessons'];
 const authChangeKey = 'cloudtyping.auth-change.v1';
 
 function formatTime(milliseconds: number) {
@@ -105,6 +112,7 @@ function legacyArticle(draft: PracticeDraft): ArticleSnapshot {
 }
 
 export function App() {
+  const { t, locale } = useI18n();
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [accountNotice, setAccountNotice] = useState('');
@@ -129,7 +137,7 @@ export function App() {
     setFeedbackResume(handoff);
     pendingFeedback.current = undefined;
     setPreviewOwner(undefined);
-    const path = next?.isAdmin ? '/admin' : !next ? '/' : handoff ? (feedbackIdFromPath(window.location.pathname) ? window.location.pathname : '/feedback') : mainRoute(window.location.pathname) === 'notfound' ? '/' : window.location.pathname;
+    const path = next?.isAdmin ? (/^\/admin\/?$/.test(window.location.pathname) ? `/admin${window.location.search}` : '/admin') : !next ? '/' : handoff ? (feedbackIdFromPath(window.location.pathname) ? window.location.pathname : '/feedback') : mainRoute(window.location.pathname) === 'notfound' ? '/' : window.location.pathname;
     window.history.replaceState(null, '', path);
     setUser(next);
     setAuthReady(true);
@@ -149,7 +157,7 @@ export function App() {
       try { await finishLocalCleanup(owner); } catch { failed = true; }
     }
     setPendingCleanup(pendingLocalCleanups());
-    setAccountNotice(failed ? '本机数据仍未完全清理，请检查浏览器存储后重试' : '本机账号数据已清理');
+    setAccountNotice(failed ? t("本机数据仍未完全清理，请检查浏览器存储后重试", "Local cleanup is incomplete. Check browser storage and retry.") : t("本机账号数据已清理", "Local account data cleared"));
     setCleanupBusy(false);
   }
 
@@ -189,7 +197,7 @@ export function App() {
     if (inAdministration && window.location.pathname !== '/admin') window.history.replaceState(null, '', '/admin');
     else if (!inAdministration && /^\/admin\/?$/.test(window.location.pathname)) window.history.replaceState(null, '', '/');
   }, [authReady, user?.id, user?.isAdmin, inAdministration]);
-  if (!authReady && /^\/admin\/?$/.test(window.location.pathname)) return <div className="administration-session" role="status"><Cloud size={32} aria-hidden="true" />正在读取账号…</div>;
+  if (!authReady && /^\/admin\/?$/.test(window.location.pathname)) return <div className="administration-session" role="status"><Cloud size={32} aria-hidden="true" />{t("正在读取账号…", "Loading account…")}</div>;
   if (inAdministration && user) return <AdminWorkspace key={user.id} user={user} onLogout={() => changeUser(null)} onPreview={() => { window.history.replaceState(null, '', '/'); setPreviewOwner(user.id); }} />;
   return <PracticeApp key={`${user ? `account:${user.id}` : 'guest'}:${identityEpoch}`} user={user} authReady={authReady} onUser={changeUser}
     accountNotice={accountNotice} onAccountReauthentication={(message) => { changeUser(null); setAccountNotice(message); }}
@@ -202,9 +210,17 @@ export function App() {
     onUpdateUser={updateUser} onAdministration={user?.isAdmin ? () => setPreviewOwner(undefined) : undefined} />;
 }
 
-function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, onWorkspaceReset, guestImportOffer, onDismissGuestImport, pendingCleanup, cleanupBusy, onRetryCleanup, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; onWorkspaceReset: () => void; guestImportOffer: boolean; onDismissGuestImport: () => void; pendingCleanup: number; cleanupBusy: boolean; onRetryCleanup: () => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
+function PracticeApp(props: Omit<Parameters<typeof PracticeAppContent>[0], 'workspace'>) {
+  const workspace = useWorkspace(props.user?.id ?? null, props.authReady);
+  return <WorkspaceI18nProvider ownerId={props.user?.id ?? null} workspace={workspace}><PracticeAppContent {...props} workspace={workspace} /></WorkspaceI18nProvider>;
+}
+
+function PracticeAppContent({ workspace, user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, onWorkspaceReset, guestImportOffer, onDismissGuestImport, pendingCleanup, cleanupBusy, onRetryCleanup, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { workspace: ReturnType<typeof useWorkspace>; user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; onWorkspaceReset: () => void; guestImportOffer: boolean; onDismissGuestImport: () => void; pendingCleanup: number; cleanupBusy: boolean; onRetryCleanup: () => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
+  const { t, locale } = useI18n();
+  const difficultyNames: Record<Difficulty, string> = { beginner: t("入门", "Beginner"), intermediate: t("进阶", "Intermediate"), advanced: t("挑战", "Advanced") };
+const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en: 'English' };
   const ownerId = user?.id ?? null;
-  const workspace = useWorkspace(ownerId, authReady);
+
   const site = useSiteFeatures();
   const [selection, setSelection] = useState(builtIns[0]);
   const [publicArticles, setPublicArticles] = useState(builtIns);
@@ -213,6 +229,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const [catalogRevision, setCatalogRevision] = useState(0);
   const refreshCatalog = useCallback(() => setCatalogRevision((revision) => revision + 1), []);
   const [guestTheme, setGuestTheme] = useState(initialTheme);
+  const authCompleted = useRef(false);
   const [directAdmin] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
   const [view, setView] = useState<View>(() => feedbackResume ? 'feedback' : directAdmin ? 'practice' : mainRoute(window.location.pathname));
   const [routeArticleId, setRouteArticleId] = useState(() => articleIdFromPath(window.location.pathname));
@@ -274,7 +291,14 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const focusButton = useRef<HTMLButtonElement>(null);
   const focusRoot = useRef<HTMLDivElement>(null);
   const live = useRef(true);
-  const { language, difficulty, title: displayTitle, text } = selection;
+  const { language, difficulty, title: articleTitle, text } = selection;
+  const selectedLesson = lessonForArticle(selection);
+  const selectedAssessment = isAssessmentArticle(selection);
+  const selectedWeakKeys = isWeakKeyArticle(selection);
+  const selectedTraining = !!selectedLesson || selectedAssessment || selectedWeakKeys;
+  const displayTitle = selectedLesson ? lessonCopy(selectedLesson.title, locale) : selectedAssessment ? assessmentArticle(locale).title : selectedWeakKeys ? t('薄弱键短练习', 'Weak-key practice') : articleTitle;
+  const selectedMode = selectedTraining ? 'article' : workspace.settings.mode;
+  const selectedStrict = selectedTraining ? false : workspace.settings.strict;
   const publicById = useMemo(() => new Map(publicArticles.map((article) => [article.id, catalogSnapshotKey(article)])), [publicArticles]);
   const selectedCatalogKey = useMemo(() => catalogSnapshotKey(selection), [selection]);
   const catalog = useMemo(() => [...publicArticles, ...workspace.privateArticles], [publicArticles, workspace.privateArticles]);
@@ -286,7 +310,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const theme = user ? pendingTheme ?? workspace.settings.theme : guestTheme;
   const ready = authReady && workspace.ready;
   const adminLogin = directAdmin && authReady && !user && !adminLoginDismissed;
-  const reportSaveError = useCallback(() => { if (live.current) setFeedback('无法保存进度，请复制输入后再关闭页面'); }, []);
+  const reportSaveError = useCallback(() => { if (live.current) setFeedback(t("无法保存进度，请复制输入后再关闭页面", "Progress could not be saved. Copy your input before closing.")); }, []);
   const paceSettings = workspace.settings.pace ?? defaultPace;
   const paceRecords = useMemo(() => {
     if (!paceSettings.enabled || paceSettings.source === 'custom') return [];
@@ -306,7 +330,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     guardCatalog: true, onCatalogStale: refreshCatalog, ownerId,
     guestOnlineAllowed: site.features?.guestPracticeEnabled,
     paceTarget: selectedPaceTarget,
-    mode: workspace.settings.mode, strict: workspace.settings.strict, autoPause: workspace.settings.autoPause,
+    mode: selectedMode, strict: selectedStrict, autoPause: workspace.settings.autoPause,
     onRecord(record) {
       setLocalRecordVersion((version) => version + 1);
       if (record.recordId) void putWorkspaceValue(record.ownerId ?? null, 'record', record.recordId, record).catch(reportSaveError);
@@ -335,15 +359,16 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     },
   }, null);
   const { phase, target, typed, result } = practice;
+  const resultTraining = !!lessonForArticle(result?.record?.article) || isAssessmentArticle(result?.record?.article) || isWeakKeyArticle(result?.record?.article);
   const resultStatus = useScoreStatus(result?.attemptId, ownerId, !!result && !result.offline && showResult, scoreStatusRevision);
   const roundDrillAvailable = useMemo(() => result?.record ? createRoundMistakeDrill(result.record, 1) : undefined, [result]);
   const roundDrill = useMemo(() => result?.record ? createRoundMistakeDrill(result.record, Number(mistakeRepeats)) : undefined, [result, mistakeRepeats]);
   const currentResult = useRef(result);
   currentResult.current = result;
   const locked = !['ready', 'finished'].includes(phase);
-  const currentMode = phase === 'ready' ? workspace.settings.mode : practice.mode;
+  const currentMode = phase === 'ready' ? selectedMode : practice.mode;
   const currentDuration = phase === 'ready' ? duration : practice.duration;
-  const currentStrict = phase === 'ready' ? workspace.settings.strict : practice.strict;
+  const currentStrict = phase === 'ready' ? selectedStrict : practice.strict;
   const canStart = ready && !pendingLoad && !accountBusy && !locked && (validDuration || currentMode === 'article');
   const typedCharacters = useMemo(() => splitCharacters(typed), [typed]);
   const targetCharacters = useMemo(() => splitCharacters(target), [target]);
@@ -353,8 +378,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const activePaceTarget = phase === 'ready' ? selectedPaceTarget : practice.paceTarget;
   const paceProgress = activePaceTarget !== undefined && phase !== 'ready' ? calculatePace(previewScore.correct, practice.elapsedMs, activePaceTarget, language) : undefined;
   const clockMs = currentMode === 'article' ? practice.elapsedMs : Math.max(0, currentDuration * 1000 - practice.elapsedMs);
-  const practiceNotice = feedback || practice.feedback || (!locked && currentMode === 'timed' && !validDuration ? '时长须为 1–60 分钟的整数。' : '') ||
-    (!user && phase === 'ready' && !selection.custom && site.features?.guestPracticeEnabled === false ? '游客在线练习已关闭，本轮仅本机保存。' : '');
+  const practiceNotice = feedback || practice.feedback || (!locked && currentMode === 'timed' && !validDuration ? t("时长须为 1–60 分钟的整数。", "Enter a whole number from 1 to 60 minutes.") : '') ||
+    (!user && phase === 'ready' && !selection.custom && site.features?.guestPracticeEnabled === false ? t("游客在线练习已关闭，本轮仅本机保存。", "Guest online practice is disabled. This session is saved locally.") : '');
   const mistakes = useMemo(() => typedCharacters.flatMap((character, index) => index >= practice.offset && character !== targetCharacters[index] ? [{ index, expected: targetCharacters[index], actual: character }] : []), [typedCharacters, targetCharacters, practice.offset]);
 
   useEffect(() => {
@@ -373,7 +398,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     const controller = new AbortController();
     setCatalogState('loading');
     void apiPages<ArticleSnapshot>('/api/articles', 'articles', { signal: controller.signal }).then((published) => {
-      if (!Array.isArray(published) || published.some((article) => !article || typeof article.id !== 'string' || typeof article.title !== 'string' || typeof article.text !== 'string' || article.custom !== false || !['zh', 'en'].includes(article.language) || !['beginner', 'intermediate', 'advanced'].includes(article.difficulty))) throw new Error('文章目录无法读取');
+      if (!Array.isArray(published) || published.some((article) => !article || typeof article.id !== 'string' || typeof article.title !== 'string' || typeof article.text !== 'string' || article.custom !== false || !['zh', 'en'].includes(article.language) || !['beginner', 'intermediate', 'advanced'].includes(article.difficulty))) throw new Error(t("文章目录无法读取", "Could not load articles"));
       if (controller.signal.aborted) return;
       setRouteCatalog(published); setCatalogState('ready');
       if (!published.length) return;
@@ -426,7 +451,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   }, [minutes, minutesText, validDuration, workspace.settings.minutes]);
 
   useEffect(() => {
-    if (result) { setRankMessage(result.submitted ? '已提交，正在确认排行状态。' : ''); setRankSubmitted(!!result.submitted); setShowResult(true); }
+    if (result) { setRankMessage(result.submitted ? t("已提交，正在确认排行状态。", "Submitted. Checking leaderboard status.") : ''); setRankSubmitted(!!result.submitted); setShowResult(true); }
   }, [result]);
   useEffect(() => {
     if (resultStatus.status && ['pending', 'ranked', 'published', 'rejected', 'removed'].includes(resultStatus.status.state)) {
@@ -468,10 +493,10 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       !(conflicts.size && record.legacyLocalIds?.length && conflicts.has(legacyConflictId(record))));
   }, [authReady, ownerId, remoteHistory, workspace.records, workspace.deletedRecordIds, workspace.deletedLocalConflictBases, localRecordVersion, result, view]);
   async function deleteRecords(selected: PracticeRecord[]) {
-    if (ownerId && (!workspace.cloudLoaded || !historyLoaded || historyError)) throw new Error('记录仍在读取，请稍后重试');
+    if (ownerId && (!workspace.cloudLoaded || !historyLoaded || historyError)) throw new Error(t("记录仍在读取，请稍后重试", "Records are loading. Try again shortly."));
     const current = selected.map((record) => records.find((entry) => stableRecordId(entry) === stableRecordId(record) &&
       (!record.legacyLocalIds?.length || legacyConflictId(entry) === legacyConflictId(record))));
-    if (current.some((record) => !record)) throw new Error('记录已更新，请重新选择后删除');
+    if (current.some((record) => !record)) throw new Error(t("记录已更新，请重新选择后删除", "Records changed. Select them again before deleting."));
     const ids = new Set(await deletePracticeRecords(ownerId, current as PracticeRecord[]));
     if (!live.current) return;
     setRemoteHistory((current) => current.filter((record) => !ids.has(stableRecordId(record))));
@@ -487,7 +512,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   }, [result, records, user, nickname, historyCheckedFor, historyError, workspace.cloudLoaded, workspace.syncState]);
 
   const draftBox = useMemo(() => {
-    if (!ready || (view !== 'drafts' && view !== 'history')) return { drafts: [], completed: [] };
+    if (!ready || (view !== 'drafts' && view !== 'history' && view !== 'lessons')) return { drafts: [], completed: [] };
     const drafts = new Map(workspace.drafts.map((draft) => [draft.recordId, draft]));
     const deleted = new Set(workspace.deletedDraftIds);
     const completed: PracticeDraft[] = [];
@@ -579,8 +604,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   async function applyPracticeConfiguration(choice: { language: Language; difficulty: Difficulty; mode: ReaderSettings['mode']; minutes: number; strict: boolean; autoPause: boolean; reading?: PresetReading; pace?: PaceSettings; shortcutsEnabled?: boolean }, presets?: PracticePreset[]) {
     const nextArticle = selection.language === choice.language && selection.difficulty === choice.difficulty ? selection :
       publicArticles.find((article) => article.language === choice.language && article.difficulty === choice.difficulty);
-    if (!nextArticle) throw new Error('该语言和难度暂无文章');
-    if (locked && !await practice.park(true)) throw new Error('当前进度保存失败，请重试');
+    if (!nextArticle) throw new Error(t("该语言和难度暂无文章", "No articles for this language and difficulty"));
+    if (locked && !await practice.park(true)) throw new Error(t("当前进度保存失败，请重试", "Could not save progress. Please retry."));
     try {
       await workspace.updateSettings({ mode: choice.mode, minutes: choice.minutes, strict: choice.strict, autoPause: choice.autoPause, ...(choice.pace && { pace: choice.pace }),
         ...(choice.shortcutsEnabled !== undefined && { shortcutsEnabled: choice.shortcutsEnabled }),
@@ -589,7 +614,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     if (!live.current) return;
     setMinutesText(String(choice.minutes));
     resetPractice(nextArticle, true);
-    setFeedback(presets ? '设置已导入，本机已保存。' : '预设已应用。');
+    setFeedback(presets ? t("设置已导入，本机已保存。", "Settings imported and saved locally.") : t("预设已应用。", "Preset applied."));
     commitView('practice'); setShowPresets(false); setShowSettingsTransfer(false);
   }
 
@@ -617,7 +642,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     interacted.current = true;
     try {
       if (locked && !await practice.park()) {
-        if (phase === 'starting' || phase === 'finishing') setFeedback('练习保存中…');
+        if (phase === 'starting' || phase === 'finishing') setFeedback(t("练习保存中…", "Saving practice…"));
         return;
       }
       ++rankRequest.current;
@@ -686,7 +711,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       } else {
         // An unmarked history entry has no reliable direction or distance in
         // older browsers. Leave it intact and keep the current view in memory.
-        setFeedback('无法保存进度，请复制输入后再关闭页面');
+        setFeedback(t("无法保存进度，请复制输入后再关闭页面", "Progress could not be saved. Copy your input before closing."));
       }
     };
     // Browser back first dismisses a dialog, allowing its own unsaved-change
@@ -728,6 +753,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     setShowMore(false);
     void afterPark(() => setShowCommands(true));
   }
+
+  function selectLesson(lesson: Lesson) { selectArticle(lessonArticle(lesson, locale)); }
 
   function selectArticle(article: ArticleSnapshot) {
     void afterPark(() => {
@@ -772,7 +799,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   function recoverCompletedDraft(draft: PracticeDraft, rankingOnly = false) {
     void afterPark(() => {
       const latest = readDrafts(ownerId).find((item) => item.recordId === draft.recordId && item.completed);
-      if (!latest || !sameCompletedDraftProgress(savedPracticeFromLegacy(latest), savedPracticeFromLegacy(draft))) { setFeedback('恢复资料已变化，请重新查看'); return; }
+      if (!latest || !sameCompletedDraftProgress(savedPracticeFromLegacy(latest), savedPracticeFromLegacy(draft))) { setFeedback(t("恢复资料已变化，请重新查看", "Recovery data changed. Check again.")); return; }
       if (rankingOnly) {
         const available = practice.describeResultRecovery(latest);
         if (!available.available) { setFeedback(available.reason); return; }
@@ -785,10 +812,10 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     void afterPark(async () => {
       let latest: SavedPractice | undefined;
       try { latest = workspaceValue(await readWorkspace(ownerId), 'draft', saved.id); }
-      catch { setFeedback('恢复资料无法读取'); return; }
+      catch { setFeedback(t("恢复资料无法读取", "Could not read recovery data")); return; }
       if (!live.current) return;
-      if (!latest || latest.ownerId !== ownerId || !recordMatchesSavedRecovery(record, latest)) { setFeedback('恢复资料已变化，请重新查看'); return; }
-      if (practice.isStoredDraftLeased(latest.recordId)) { setFeedback('进度正在其他页面使用'); return; }
+      if (!latest || latest.ownerId !== ownerId || !recordMatchesSavedRecovery(record, latest)) { setFeedback(t("恢复资料已变化，请重新查看", "Recovery data changed. Check again.")); return; }
+      if (practice.isStoredDraftLeased(latest.recordId)) { setFeedback(t("进度正在其他页面使用", "Progress is in use in another tab")); return; }
       const available = practice.describeResultRecovery(recoveryDraftFromSaved(latest));
       if (!available.available) { setFeedback(available.reason); return; }
       setShowResult(false); setFeedback(''); setSelection(latest.article);
@@ -796,7 +823,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     });
   }
   function recoveryForRecord(record: PracticeRecord) {
-    if (record.article?.custom || (record.offset ?? 0) > 0) return { available: false, reason: '个人练习不参与排行' };
+    if (record.article?.custom || (record.offset ?? 0) > 0) return { available: false, reason: t("个人练习不参与排行", "Private practice is not ranked") };
     const matches = draftBox.completed.filter((draft) => recoveryMatchesRecord(draft, record.recordId));
     for (const draft of matches) {
       const result = practice.describeResultRecovery(draft);
@@ -804,24 +831,24 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
     }
     if (matches.length) {
       const result = practice.describeResultRecovery(matches[0]);
-      return { available: false, reason: result.available ? '此设备没有可用或一致的恢复资料' : result.reason };
+      return { available: false, reason: result.available ? t("此设备没有可用或一致的恢复资料", "No matching recovery data on this device") : result.reason };
     }
     if (ownerId) {
       for (const saved of workspace.drafts.filter((draft) => recordMatchesSavedRecovery(record, draft))) {
-        if (practice.isStoredDraftLeased(saved.recordId)) return { available: false, reason: '进度正在其他页面使用' };
+        if (practice.isStoredDraftLeased(saved.recordId)) return { available: false, reason: t("进度正在其他页面使用", "Progress is in use in another tab") };
         const result = practice.describeResultRecovery(recoveryDraftFromSaved(saved));
         if (result.available) return { available: true, recover: () => recoverSynchronizedResult(record, saved) };
         return { available: false, reason: result.reason };
       }
     }
-    return { available: false, reason: '此设备没有可用或一致的恢复资料' };
+    return { available: false, reason: t("此设备没有可用或一致的恢复资料", "No matching recovery data on this device") };
   }
 
   function deleteDraft(id: string) {
     const draft = draftBox.drafts.find((item) => item.id === id);
     if (!draft) return;
     void afterPark(() => {
-      if (!discardSavedDraft(draft)) { setFeedback('草稿正在其他页面使用'); return; }
+      if (!discardSavedDraft(draft)) { setFeedback(t("草稿正在其他页面使用", "Draft is open in another tab")); return; }
       if (practice.draftId === id) resetPractice(selection, true);
       void workspace.remove('draft', id).catch(reportSaveError);
     });
@@ -872,16 +899,16 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
 
   function useCustomText() {
     const value = customDraft.replace(/\r\n?/g, '\n').trim().normalize('NFC');
-    if (!value || value.length > 20000) { setCustomError('请输入 1–20,000 个字符。'); return; }
+    if (!value || value.length > 20000) { setCustomError(t("请输入 1–20,000 个字符。", "Enter 1–20,000 characters.")); return; }
     setCustomError('');
     setShowCustom(false);
-    resetPractice({ id: 'custom', title: '自定义文字', text: value, language, difficulty, custom: true }, true);
+    resetPractice({ id: 'custom', title: t("自定义文字", "Custom text"), text: value, language, difficulty, custom: true }, true);
   }
 
   async function submitRank() {
     if (!result?.attemptId) return;
-    if (!user && site.features?.guestLeaderboardEnabled === false) { setRankMessage('游客上榜已关闭'); return; }
-    if (!user && !validGuestNickname(nickname)) { setRankMessage('游客昵称须以 visitor 开头，最多 16 个字符'); return; }
+    if (!user && site.features?.guestLeaderboardEnabled === false) { setRankMessage(t("游客上榜已关闭", "Guest leaderboard submissions are disabled")); return; }
+    if (!user && !validGuestNickname(nickname)) { setRankMessage(t("游客昵称须以 visitor 开头，最多 16 个字符", "Guest names must start with visitor and use at most 16 characters")); return; }
     const attemptId = result.attemptId;
     const request = ++rankRequest.current;
     const current = () => live.current && rankRequest.current === request && currentResult.current?.attemptId === attemptId;
@@ -896,8 +923,8 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         data = await submit();
       }
       if (!current()) return;
-      if (data.status !== 'review' && data.status !== 'ranked') throw new Error('提交结果无法确认，请重试');
-      setRankMessage(data.status === 'review' ? '已提交，待复核。' : '已提交，正在确认排行状态。');
+      if (data.status !== 'review' && data.status !== 'ranked') throw new Error(t("提交结果无法确认，请重试", "Could not confirm submission. Please retry."));
+      setRankMessage(data.status === 'review' ? t("已提交，待复核。", "Submitted for review.") : t("已提交，正在确认排行状态。", "Submitted. Checking leaderboard status."));
       setRankSubmitted(true); setScoreStatusRevision((value) => value + 1);
       practice.markRankSubmitted(attemptId);
     } catch (problem) { if (current()) { setRankMessage((problem as Error).message); setRankSubmitted(false); setScoreStatusRevision((value) => value + 1); } }
@@ -927,7 +954,7 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         const dirty = items.filter((item) => item.serverRevision === undefined || item.baseUpdatedAt === undefined || item.updatedAt !== item.baseUpdatedAt).length;
         if (!options || localPracticeRawFingerprint(id) !== options.rawFingerprint ||
           (dirty > 0 && (!options.riskAcknowledged || (workspace.pendingCount !== null && dirty > workspace.pendingCount)))) {
-          throw new Error('本机资料已变化或有新的未同步项目，请重新检查');
+          throw new Error(t("本机资料已变化或有新的未同步项目，请重新检查", "Local data changed or new items are unsynced. Check again."));
         }
         checkedWorkspace = items;
         workspaceBefore = fingerprint(items);
@@ -936,19 +963,19 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       onUser(null);
       if (clear) {
         try {
-          if (!blocked) throw new Error('无法保护本机数据清理');
+          if (!blocked) throw new Error(t("无法保护本机数据清理", "Could not safely prepare local cleanup"));
           if (localPracticeRawFingerprint(id) !== options?.rawFingerprint || fingerprint(await readBlockedWorkspace(id)) !== workspaceBefore) {
             cancelLocalCleanup(id);
-            onSignedOutNotice('已退出；本机资料在清理期间发生变化，未清除。请重新登录后同步或导出。');
+            onSignedOutNotice(t("已退出；本机资料在清理期间发生变化，未清除。请重新登录后同步或导出。", "Signed out. Local data changed during cleanup and was kept. Sign in to sync or export it."));
             return;
           }
           await finishLocalCleanup(id, checkedWorkspace);
-          onSignedOutNotice('已退出并清除此设备的账号数据');
+          onSignedOutNotice(t("已退出并清除此设备的账号数据", "Signed out and cleared account data on this device"));
         } catch (problem) {
-          if (problem instanceof Error && problem.message === '本机资料已变化') {
+          if (problem instanceof Error && problem.message === t("本机资料已变化", "Local data changed")) {
             cancelLocalCleanup(id);
-            onSignedOutNotice('已退出；本机资料在清理期间发生变化，未清除。请重新登录后同步或导出。');
-          } else onSignedOutNotice('已退出，但本机数据未能完全清理；可重新登录后重试');
+            onSignedOutNotice(t("已退出；本机资料在清理期间发生变化，未清除。请重新登录后同步或导出。", "Signed out. Local data changed during cleanup and was kept. Sign in to sync or export it."));
+          } else onSignedOutNotice(t("已退出，但本机数据未能完全清理；可重新登录后重试", "Signed out, but local cleanup is incomplete. Sign in and retry."));
         }
       }
     } catch (problem) {
@@ -969,12 +996,12 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
         throw problem;
       }
       onUser(null);
-      onSignedOutNotice('注销结果无法确认，请重新登录确认，或重试清理本机数据');
+      onSignedOutNotice(t("注销结果无法确认，请重新登录确认，或重试清理本机数据", "Could not confirm account deletion. Sign in to check or retry local cleanup."));
       return;
     }
     onUser(null);
-    try { await finishLocalCleanup(id); onSignedOutNotice('账号已注销，本机账号数据已清理'); }
-    catch { onSignedOutNotice('账号已注销，但本机数据未能完全清理；请重试清理'); }
+    try { await finishLocalCleanup(id); onSignedOutNotice(t("账号已注销，本机账号数据已清理", "Account deleted and local account data cleared")); }
+    catch { onSignedOutNotice(t("账号已注销，但本机数据未能完全清理；请重试清理", "Account deleted, but local cleanup is incomplete. Retry cleanup.")); }
   }
 
   async function resetWorkspace() {
@@ -1013,100 +1040,105 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
   const source = selection.source && /^https?:\/\//iu.test(selection.source.url) ? selection.source : undefined;
   const filters = <>
     <div className="top-filters">
-      <div className="segmented language-switch" role="group" aria-label="选择语言">
+      <div className="segmented language-switch" role="group" aria-label={t("练习语言", "Practice language")}>
         {(['zh', 'en'] as const).map((item) => <button key={item} disabled={locked} aria-pressed={language === item} onClick={() => changeLanguage(item)}>{languageNames[item]}</button>)}
       </div>
       <span className="filter-divider" aria-hidden="true" />
-      {currentMode === 'timed' ? <label className="duration-input"><Clock size={21} /><span>测试时间</span><input type="number" min="1" max="60" step="1" aria-label="测试时间（分钟）" aria-invalid={!locked && !validDuration} value={phase === 'ready' ? configuredMinutes : String(currentDuration / 60)} disabled={locked || (!!user && !workspace.settingsReady)} onChange={changeDuration} /><span>分钟</span></label> : <span className="count-chip">整篇</span>}
-      {currentStrict && <span className="count-chip">严格纠错</span>}
+      {currentMode === 'timed' ? <label className="duration-input"><Clock size={21} /><span>{t("测试时间", "Duration")}</span><input type="number" min="1" max="60" step="1" aria-label={t("测试时间（分钟）", "Duration in minutes")} aria-invalid={!locked && !validDuration} value={phase === 'ready' ? configuredMinutes : String(currentDuration / 60)} disabled={locked || (!!user && !workspace.settingsReady)} onChange={changeDuration} /><span>{t("分钟", "min")}</span></label> : <span className="count-chip">{t("整篇", "Full article")}</span>}
+      {currentStrict && <span className="count-chip">{t("严格纠错", "Strict correction")}</span>}
     </div>
     <div className="detail-filters">
-      <div className="article-choice"><label className="article-picker"><BookOpen size={24} /><span>选择文章</span><span className="select-wrap"><select value={selectedOption} disabled={locked} onChange={changeArticle} aria-label="选择练习文章">{snapshotOption && <option value="current-snapshot">{selection.title}</option>}{availableArticles.map((article) => <option key={article.id} value={article.id}>{article.title}{article.author ? ` · ${article.author}` : ''}</option>)}</select><CaretDown aria-hidden="true" size={17} /></span></label><button className="text-button custom-button" disabled={locked} onClick={() => { setCustomDraft(selection.id === 'custom' ? text : ''); setCustomError(''); setShowCustom(true); }}>自定义文字</button><button className="text-button custom-button" disabled={!canCommand} onClick={() => void afterPark(() => setShowSpecialTraining(true))}>专项练习</button></div>
-      <div className="difficulty-picker"><span>难度：</span><div className="segmented difficulty-switch" role="group" aria-label="选择难度">{(['beginner', 'intermediate', 'advanced'] as const).map((item) => <button key={item} disabled={locked} aria-pressed={difficulty === item} onClick={() => changeDifficulty(item)}>{difficultyNames[item]}</button>)}</div></div>
+      <div className="article-choice"><label className="article-picker"><BookOpen size={24} /><span>{t("选择文章", "Article")}</span><span className="select-wrap"><select value={selectedOption} disabled={locked} onChange={changeArticle} aria-label={t("选择练习文章", "Choose practice article")}>{snapshotOption && <option value="current-snapshot">{selection.title}</option>}{availableArticles.map((article) => <option key={article.id} value={article.id}>{article.title}{article.author ? ` · ${article.author}` : ''}</option>)}</select><CaretDown aria-hidden="true" size={17} /></span></label><button className="text-button custom-button" disabled={locked} onClick={() => { setCustomDraft(selection.id === 'custom' ? text : ''); setCustomError(''); setShowCustom(true); }}>{t("自定义文字", "Custom text")}</button><button className="text-button custom-button" disabled={!canCommand} onClick={() => void afterPark(() => setShowSpecialTraining(true))}>{t("专项练习", "Focused drills")}</button></div>
+      <div className="difficulty-picker"><span>{t("难度：", "Level:")}</span><div className="segmented difficulty-switch" role="group" aria-label={t("选择难度", "Difficulty")}>{(['beginner', 'intermediate', 'advanced'] as const).map((item) => <button key={item} disabled={locked} aria-pressed={difficulty === item} onClick={() => changeDifficulty(item)}>{difficultyNames[item]}</button>)}</div></div>
     </div>
   </>;
 
-  const actionNames = { library: '文章库', practice: '练习', rankings: '排行榜', history: '我的记录' } as const;
-  const secondaryNames = { drafts: '草稿箱', mistakes: '错字本', stats: '统计' } as const;
+  const actionNames = { lessons: t("新手课程", "Learn"), library: t("文章库", "Library"), practice: t("练习", "Practice"), rankings: t("排行榜", "Rankings"), history: t("我的记录", "History") } as const;
+  const secondaryNames = { drafts: t("草稿箱", "Drafts"), mistakes: t("错字本", "Mistakes"), stats: t("统计", "Statistics") } as const;
   const commandList: Command[] = [
-    { id: 'pause', label: phase === 'running' ? '暂停练习' : '继续练习', shortcut: shortcutNames.pause, disabled: !canCommand || (phase !== 'running' && phase !== 'paused'), run: () => { dispatchShortcut('pause'); } },
-    { id: 'restart', label: '重新开始', shortcut: shortcutNames.restart, disabled: !canCommand, run: () => { dispatchShortcut('restart'); } },
-    { id: 'settings', label: '练习设置', shortcut: shortcutNames.settings, disabled: !canCommand || (!!user && !workspace.settingsReady), run: () => { dispatchShortcut('settings'); } },
+    { id: 'lessons', label: t('新手课程', 'Beginner course'), shortcut: '', disabled: !canCommand, run: () => navigate('lessons') },
+    { id: 'pause', label: phase === 'running' ? t("暂停练习", "Pause practice") : t("继续练习", "Resume practice"), shortcut: shortcutNames.pause, disabled: !canCommand || (phase !== 'running' && phase !== 'paused'), run: () => { dispatchShortcut('pause'); } },
+    { id: 'restart', label: t("重新开始", "Restart"), shortcut: shortcutNames.restart, disabled: !canCommand, run: () => { dispatchShortcut('restart'); } },
+    { id: 'settings', label: t("练习设置", "Practice settings"), shortcut: shortcutNames.settings, disabled: !canCommand || (!!user && !workspace.settingsReady), run: () => { dispatchShortcut('settings'); } },
     ...(['practice', 'library', 'rankings', 'history'] as const).map((id) => ({ id, label: actionNames[id], shortcut: shortcutNames[id], disabled: !canCommand, run: () => { dispatchShortcut(id); } })),
   ];
 
   return <div className={`app-shell${focused ? ' app-focused' : ''}`} ref={focusRoot}>
     {!focused && <header className="site-header">
-      <button className="brand" onClick={() => navigate('practice')} aria-label="TypeLune 首页"><BrandLogo /></button>
-      <nav aria-label="主要导航">
-        {(['practice', 'library', 'rankings', 'history'] as const).map((item) => <button key={item} className={view === item ? 'nav-active' : ''} aria-current={view === item ? 'page' : undefined} onClick={() => navigate(item)}>{actionNames[item]}</button>)}
+      <button className="brand" onClick={() => navigate('practice')} aria-label={t("TypeLune 首页", "TypeLune home")}><BrandLogo /></button>
+      <nav aria-label={t("主要导航", "Main navigation")}>
+        {(['practice', 'lessons', 'library', 'rankings', 'history'] as const).map((item) => <button key={item} className={view === item ? 'nav-active' : ''} aria-current={view === item ? 'page' : undefined} onClick={() => navigate(item)}>{actionNames[item]}</button>)}
         <div className="more-nav" ref={moreMenu}>
-          <button ref={moreButton} className={view === 'drafts' || view === 'mistakes' || view === 'stats' ? 'nav-active' : ''} aria-expanded={showMore} aria-controls={showMore ? 'practice-more' : undefined} onClick={() => setShowMore((value) => !value)}>更多 <CaretDown size={12} aria-hidden="true" /></button>
+          <button ref={moreButton} className={view === 'drafts' || view === 'mistakes' || view === 'stats' ? 'nav-active' : ''} aria-expanded={showMore} aria-controls={showMore ? 'practice-more' : undefined} onClick={() => setShowMore((value) => !value)}>{t("更多", "More")} <CaretDown size={12} aria-hidden="true" /></button>
           {showMore && <div className="more-popover" id="practice-more">
             {(Object.keys(secondaryNames) as Array<keyof typeof secondaryNames>).map((item) => <button key={item} aria-current={view === item ? 'page' : undefined} onClick={() => { moreButton.current?.focus(); navigate(item); }}>{secondaryNames[item]}</button>)}
-            <button disabled={!!user && !workspace.settingsReady} onClick={() => { moreButton.current?.focus(); openSettings(); }}>设置</button>
-            <button disabled={!canCommand} onClick={() => { moreButton.current?.focus(); openCommands(); }}>功能面板</button>
+            <button disabled={!!user && !workspace.settingsReady} onClick={() => { moreButton.current?.focus(); openSettings(); }}>{t("设置", "Settings")}</button>
+            <button disabled={!canCommand} onClick={() => { moreButton.current?.focus(); openCommands(); }}>{t("功能面板", "Commands")}</button>
           </div>}
         </div>
-        <button className="theme-button" disabled={!!user && !workspace.settingsReady} aria-label={theme === 'dark' ? '切换至日间模式' : '切换至夜间模式'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={20} /> : <MoonStars size={20} />}<span>{theme === 'dark' ? '日间' : '夜间'}</span></button>
+        <LanguageToggle />
+        <button className="theme-button" disabled={!!user && !workspace.settingsReady} aria-label={theme === 'dark' ? t("切换至日间模式", "Switch to light mode") : t("切换至夜间模式", "Switch to dark mode")} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={20} /> : <MoonStars size={20} />}<span>{theme === 'dark' ? t("日间", "Light") : t("夜间", "Dark")}</span></button>
         {user ? <AccountMenu user={user} disabled={!canChangeAccount} onAccount={() => { accountReturn.current = view === 'article' ? 'library' : view === 'notfound' || view === 'account' ? 'practice' : view; navigate('account'); }} onRecords={() => navigate('history')} onData={() => navigate('data')} onFeedback={() => navigate('feedback')}
-          onLogout={() => void changeAccount()} onAdministration={onAdministration ? () => void afterPark(onAdministration) : undefined} /> : <button className="account-button" disabled={!canChangeAccount} onClick={() => void changeAccount()}>登录</button>}
+          onLogout={() => void changeAccount()} onAdministration={onAdministration ? () => void afterPark(onAdministration) : undefined} /> : <button className="account-button" disabled={!canChangeAccount} onClick={() => void changeAccount()}>{t("登录", "Sign in")}</button>}
       </nav>
     </header>}
     <RoomBackground theme={theme} background={workspace.backgrounds[theme]}>
       <div className="workspace">
-        {!user && pendingCleanup > 0 && <div className="cleanup-warning" role="alert"><span>本机账号缓存清理未完成。</span><button className="outline-button" disabled={cleanupBusy} onClick={onRetryCleanup}>重试清理</button></div>}
-        {user && guestImportOffer && hasGuestData && view !== 'data' && <div className="cleanup-warning" role="status"><span>有游客资料可导入。</span><button className="outline-button" onClick={() => void afterPark(() => setShowGuestImport(true))}>导入游客资料</button><button className="text-button" onClick={onDismissGuestImport}>稍后</button></div>}
-        {site.error && <div className="cleanup-warning" role="status"><span>站点配置读取失败：{site.error}</span><button className="outline-button" onClick={site.retry}>重试</button></div>}
+        {!user && pendingCleanup > 0 && <div className="cleanup-warning" role="alert"><span>{t("本机账号缓存清理未完成。", "Local account cleanup is incomplete.")}</span><button className="outline-button" disabled={cleanupBusy} onClick={onRetryCleanup}>{t("重试清理", "Retry cleanup")}</button></div>}
+        {user && guestImportOffer && hasGuestData && view !== 'data' && <div className="cleanup-warning" role="status"><span>{t("有游客资料可导入。", "Guest data is available to import.")}</span><button className="outline-button" onClick={() => void afterPark(() => setShowGuestImport(true))}>{t("导入游客资料", "Import guest data")}</button><button className="text-button" onClick={onDismissGuestImport}>{t("稍后", "Later")}</button></div>}
+        {site.error && <div className="cleanup-warning" role="status"><span>{t("站点配置读取失败：", "Could not load site settings:")}{<SystemMessage text={site.error} />}</span><button className="outline-button" onClick={site.retry}>{t("重试", "Retry")}</button></div>}
         {view === 'practice' && <>
-          {focused ? <div className="focus-actions"><button ref={focusButton} className="outline-button feature-action-button" onClick={exitFocus}>退出专注</button><button className="outline-button feature-action-button" disabled={!canCommand} onClick={openCommands}>功能面板</button></div> : filters}
+          {focused ? <div className="focus-actions"><button ref={focusButton} className="outline-button feature-action-button" onClick={exitFocus}>{t("退出专注", "Exit focus")}</button><button className="outline-button feature-action-button" disabled={!canCommand} onClick={openCommands}>{t("功能面板", "Commands")}</button></div> : selectedTraining ? null : filters}
+          {selectedLesson && <LessonGuide lesson={selectedLesson} character={targetCharacters[typedCharacters.length]} onBack={() => navigate('lessons')} />}
+          {(selectedAssessment || selectedWeakKeys) && <section className="lesson-guide" aria-label={t('训练说明', 'Training guide')}><div className="lesson-guide-top"><button className="text-button" onClick={() => navigate('lessons')}>{t('课程目录', 'Course outline')}</button><span>{displayTitle}</span></div><p>{t('英文全文 · 非严格模式 · 不参与排行', 'Full English text · non-strict · unranked')}</p></section>}
           {(workspace.settings.showTimer !== false || workspace.settings.showAccuracy !== false || workspace.settings.showSpeed !== false) && <div className="status-row">
-            {workspace.settings.showTimer !== false && <span><Clock size={23} /> {currentMode === 'article' ? '用时' : '剩余时间'}：<b data-testid="remaining-time">{formatTime(clockMs)}</b></span>}
-            {workspace.settings.showAccuracy !== false && <span><Crosshair size={23} /> 准确率：{roundTyped ? `${previewScore.accuracy}%` : '—'}</span>}
+            {workspace.settings.showTimer !== false && <span><Clock size={23} /> {currentMode === 'article' ? t("用时", "Elapsed") : t("剩余时间", "Remaining")}：<b data-testid="remaining-time">{formatTime(clockMs)}</b></span>}
+            {workspace.settings.showAccuracy !== false && <span><Crosshair size={23} />  {t("准确率：", "Accuracy:")}{roundTyped ? `${previewScore.accuracy}%` : '—'}</span>}
             {workspace.settings.showSpeed !== false && (language === 'en' ? <EnglishSpeed score={roundTyped ? previewScore : undefined} display="live" />
-              : <span><Keyboard size={23} /> 字 / 分钟：{roundTyped ? previewScore.cpm : '—'}</span>)}
+              : <span><Keyboard size={23} />  {t("字 / 分钟：", "Chars / min:")}{roundTyped ? previewScore.cpm : '—'}</span>)}
           </div>}
           {(phase === 'ready' ? paceSettings.enabled : paceSettings.enabled || practice.paceTarget !== undefined) && <PaceIndicator language={language} target={activePaceTarget} secondsAhead={paceProgress?.secondsAhead}
-            notice={phase === 'ready' && user && paceSettings.source !== 'custom' && !historyLoaded ? '正在读取配速目标…' : phase === 'ready' ? '暂无同条件成绩' : '本轮未启用配速'}
+            notice={phase === 'ready' && user && paceSettings.source !== 'custom' && !historyLoaded ? t("正在读取配速目标…", "Loading pace target…") : phase === 'ready' ? t("暂无同条件成绩", "No matching results yet") : t("本轮未启用配速", "Pace is off for this round")}
             partial={phase === 'ready' && paceSettings.source !== 'custom' && (!user || historyLoaded) && (!!historyError || (!!user && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory())} />}
-          <div className="progress-row"><span>文章字数：<b data-testid="article-count">{targetCharacters.length}</b></span><span>已打字数：<b data-testid="typed-count">{typedCharacters.length}</b></span><span>当前错误：<b data-testid="error-count">{previewScore.total - previewScore.correct}</b></span><span>退格：<b data-testid="backspace-count">{practice.backspaces}</b></span></div>
-          {practiceNotice && <p className="practice-notice" role="status">{practiceNotice}</p>}
-          {!user && site.features?.guestLeaderboardEnabled === false && <p className="practice-notice" role="status">游客上榜已关闭。</p>}
-          <section className="typing-panel" aria-label="文章练习">
+          <div className="progress-row"><span>{t("文章字数：", "Article chars:")}<b data-testid="article-count">{targetCharacters.length}</b></span><span>{t("已打字数：", "Typed:")}<b data-testid="typed-count">{typedCharacters.length}</b></span><span>{t("当前错误：", "Errors:")}<b data-testid="error-count">{previewScore.total - previewScore.correct}</b></span><span>{t("退格：", "Backspaces:")}<b data-testid="backspace-count">{practice.backspaces}</b></span></div>
+          {practiceNotice && <p className="practice-notice" role="status">{<SystemMessage text={practiceNotice} />}</p>}
+          {!user && site.features?.guestLeaderboardEnabled === false && <p className="practice-notice" role="status">{t("游客上榜已关闭。", "Guest leaderboard submissions are disabled.")}</p>}
+          <section className="typing-panel" aria-label={t("文章练习", "Typing practice")}>
             <div className="practice-heading">
               <div className="practice-title"><BookOpen size={22} aria-hidden="true" /><div>
                 <h1>{displayTitle}</h1>
                 {target === text && (selection.author || selection.theme || source) && <p className="article-meta">
                   {selection.author && <span>{selection.author}</span>}
                   {selection.theme && <span>{selection.theme}</span>}
-                  {source && <a href={source.url} target="_blank" rel="noopener noreferrer" title={source.name} aria-label={`查看《${displayTitle}》原文`}>查看原文</a>}
-                  {!selection.custom && publicById.get(selection.id) === selectedCatalogKey && <button className="text-button" disabled={!authReady} onClick={() => void afterPark(() => { setFeedbackDraft(newFeedbackDraft({ id: selection.id, title: selection.title, snapshotKey: selectedCatalogKey, position: '', wrongText: '' })); commitView('feedback'); })}>文章纠错</button>}
+                  {source && <a href={source.url} target="_blank" rel="noopener noreferrer" title={source.name} aria-label={`查看《${displayTitle}》原文`}>{t("查看原文", "View source")}</a>}
+                  {!selection.custom && publicById.get(selection.id) === selectedCatalogKey && <button className="text-button" disabled={!authReady} onClick={() => void afterPark(() => { setFeedbackDraft(newFeedbackDraft({ id: selection.id, title: selection.title, snapshotKey: selectedCatalogKey, position: '', wrongText: '' })); commitView('feedback'); })}>{t("文章纠错", "Report article")}</button>}
                 </p>}
               </div></div>
               <div className="practice-actions">
-                {phase === 'running' ? <button className="primary-button start-button" onClick={() => void practice.pause()}><Pause size={18} weight="fill" aria-hidden="true" /> 暂停练习</button>
-                  : phase === 'paused' ? <button className="primary-button start-button" disabled={!ready || accountBusy} onClick={() => void practice.resume()}><Play size={18} weight="fill" aria-hidden="true" /> 继续练习</button>
+                {phase === 'running' ? <button className="primary-button start-button" onClick={() => void practice.pause()}><Pause size={18} weight="fill" aria-hidden="true" />  {t("暂停练习", "Pause practice")}</button>
+                  : phase === 'paused' ? <button className="primary-button start-button" disabled={!ready || accountBusy} onClick={() => void practice.resume()}><Play size={18} weight="fill" aria-hidden="true" />  {t("继续练习", "Resume practice")}</button>
                     : phase === 'ready' ? null : <button className="primary-button start-button" onClick={() => resetPractice(selection, true)} disabled={phase !== 'finished' || !canStart}>
-                      {phase === 'starting' ? '准备中…' : phase === 'restoring' ? '恢复进度中…' : phase === 'pausing' ? '正在暂停…' : phase === 'resuming' ? '正在继续…' : phase === 'finishing' ? '正在结算…' : '再练一次'}
+                      {phase === 'starting' ? t("准备中…", "Preparing…") : phase === 'restoring' ? t("恢复进度中…", "Restoring progress…") : phase === 'pausing' ? t("正在暂停…", "Pausing…") : phase === 'resuming' ? t("正在继续…", "Resuming…") : phase === 'finishing' ? t("正在结算…", "Finishing…") : t("再练一次", "Try again")}
                     </button>}
-                {(phase === 'running' || phase === 'paused') && <><button className="text-button restart-button" onClick={() => void requestPracticeAction('restart')}><ArrowCounterClockwise size={18} aria-hidden="true" />重新开始</button><button className="text-button" onClick={() => void requestPracticeAction('finish')}>结束练习</button></>}
-                {phase === 'ready' && !focused && <button className="text-button" onClick={nextArticle}>换一篇 <ArrowRight size={16} aria-hidden="true" /></button>}
-                {phase === 'finished' && <button className="text-button" onClick={() => setShowResult(true)}>查看本次成绩</button>}
+                {(phase === 'running' || phase === 'paused') && <><button className="text-button restart-button" onClick={() => void requestPracticeAction('restart')}><ArrowCounterClockwise size={18} aria-hidden="true" />{t("重新开始", "Restart")}</button><button className="text-button" onClick={() => void requestPracticeAction('finish')}>{t("结束练习", "Finish")}</button></>}
+                {phase === 'ready' && !focused && !selectedTraining && <button className="text-button" onClick={nextArticle}>{t("换一篇", "Change article")} <ArrowRight size={16} aria-hidden="true" /></button>}
+                {phase === 'finished' && <button className="text-button" onClick={() => setShowResult(true)}>{t("查看本次成绩", "View result")}</button>}
               </div>
             </div>
             <PracticeLines practice={practice} title={displayTitle} reader={workspace.settings} canStart={canStart} onStart={() => { interacted.current = true; setFeedback(''); }} />
           </section>
         </>}
-        {view !== 'practice' && feedback && <p className="form-error view-error" role="alert">{feedback}</p>}
-        {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">连接失败，显示已读取的记录。</p>}
-        {recordViews.includes(view) && hasUnloadedLocalHistory() && <p className="form-error view-error" role="status">部分本机旧版记录或文章快照无法完整读取。</p>}
+        {view === 'lessons' && <LessonsView records={records} drafts={draftBox.drafts} ownerId={ownerId} onSelect={selectLesson} onResume={(draft) => continueDraft(draft)} onTraining={selectArticle} />}
+        {view !== 'practice' && feedback && <p className="form-error view-error" role="alert"><SystemMessage text={feedback} /></p>}
+        {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">{t("连接失败，显示已读取的记录。", "Connection failed. Showing loaded records.")}</p>}
+        {recordViews.includes(view) && hasUnloadedLocalHistory() && <p className="form-error view-error" role="status">{t("部分本机旧版记录或文章快照无法完整读取。", "Some legacy local records or article snapshots could not be fully read.")}</p>}
         {view === 'library' && <ArticleLibrary initialTab={libraryInitialTab} articles={catalog} favorites={workspace.favorites} onOpenArticle={openPublicArticle} onToggleFavorite={(id) => void workspace.toggleFavorite(id).catch(reportSaveError)} onSelect={selectArticle} onSave={(article) => workspace.put('article', article.id, article)} onDelete={(id) => workspace.remove('article', id)} />}
         {view === 'article' && (() => {
           const article = catalogState === 'ready' ? routeCatalog.find((item) => item.id === routeArticleId) : catalogState === 'error' ? builtIns.find((item) => item.id === routeArticleId) : undefined;
           if (article) return <PublicArticleView key={article.id} article={article} offline={catalogState === 'error'} onPractice={() => selectArticle(article)} onBack={() => navigate('library')} />;
-          if (catalogState === 'loading') return <section className="content-panel feature-panel"><p role="status">正在读取文章…</p></section>;
-          if (catalogState === 'error') return <section className="content-panel feature-panel"><p className="form-error" role="alert">文章暂不可用</p><button type="button" className="outline-button" onClick={refreshCatalog}>重试</button></section>;
-          return <section className="content-panel feature-panel"><div className="content-heading"><h1>文章未找到</h1></div><button type="button" className="outline-button" onClick={() => navigate('library')}>返回文章库</button></section>;
+          if (catalogState === 'loading') return <section className="content-panel feature-panel"><p role="status">{t("正在读取文章…", "Loading article…")}</p></section>;
+          if (catalogState === 'error') return <section className="content-panel feature-panel"><p className="form-error" role="alert">{t("文章暂不可用", "Article unavailable")}</p><button type="button" className="outline-button" onClick={refreshCatalog}>{t("重试", "Retry")}</button></section>;
+          return <section className="content-panel feature-panel"><div className="content-heading"><h1>{t("文章未找到", "Article not found")}</h1></div><button type="button" className="outline-button" onClick={() => navigate('library')}>{t("返回文章库", "Back to library")}</button></section>;
         })()}
         {view === 'rankings' && authReady && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} onAddressChange={(address) => { currentPath.current = address; }} />}
         {view === 'history' && <RecordsView records={records} ownerId={ownerId} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} routeRecordId={routeRecordId}
@@ -1119,31 +1151,29 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
           }))}
         />}
         {view === 'mistakes' && <MistakesView records={records} states={workspace.settings.mistakeStates ?? {}} onStatus={(id, status) => void workspace.updateMistakeState(id, status).catch((problem: unknown) => {
-          if (live.current) setFeedback(problem instanceof Error ? problem.message : '错字状态保存失败');
+          if (live.current) setFeedback(problem instanceof Error ? problem.message : t("错字状态保存失败", "Could not save mistake status"));
         })} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} coverage={!ready || (!!ownerId && !historyLoaded) ? 'loading' : historyError || !!workspace.error || (!!ownerId && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory() ? 'partial' : ownerId ? 'complete' : 'local'} timeZone={workspace.settings.statisticsTimezone ?? browserStatisticsTimeZone()} timeZoneProvisional={!workspace.settings.statisticsTimezone} goalMinutes={workspace.settings.dailyGoalMinutes ?? 0} onSaveCalendar={workspace.settingsReady ? workspace.updateSettings : undefined}
           onOpenRecord={(id) => void afterPark(() => commitAddress(pathForRecord(id), 'history'))} />}
         {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} routeFeedbackId={routeFeedbackId} onOpenFeedback={openFeedback} onCloseFeedback={() => commitView('feedback')} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
-        {view === 'account' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>账号设置</h1></div>{authReady ? <><p>请先登录</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>登录</button></> : <p role="status">正在读取账号…</p>}</section>}
-        {view === 'data' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>个人数据</h1></div>{authReady ? <><p>请先登录</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>登录</button></> : <p role="status">正在读取账号…</p>}</section>}
+        {view === 'account' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>{t("账号设置", "Account settings")}</h1></div>{authReady ? <><p>{t("请先登录", "Please sign in")}</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>{t("登录", "Sign in")}</button></> : <p role="status">{t("正在读取账号…", "Loading account…")}</p>}</section>}
+        {view === 'data' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>{t("个人数据", "Personal data")}</h1></div>{authReady ? <><p>{t("请先登录", "Please sign in")}</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>{t("登录", "Sign in")}</button></> : <p role="status">{t("正在读取账号…", "Loading account…")}</p>}</section>}
         {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} onGuestImport={() => setShowGuestImport(true)} onManageCapacity={manageCapacity} onResetSettings={() => workspace.remove('settings', 'preferences')} />}
-        {view === 'notfound' && <section className="content-panel feature-panel"><div className="content-heading"><h1>页面未找到</h1></div><button type="button" className="outline-button" onClick={() => navigate('practice')}>返回练习</button></section>}
+        {view === 'notfound' && <section className="content-panel feature-panel"><div className="content-heading"><h1>{t("页面未找到", "Page not found")}</h1></div><button type="button" className="outline-button" onClick={() => navigate('practice')}>{t("返回练习", "Back to practice")}</button></section>}
         {(view === 'help' || view === 'about' || view === 'privacy' || view === 'terms') && <SiteInfoView page={view} onFeedback={() => navigate('feedback')} />}
       </div>
     </RoomBackground>
-    {!focused && <footer className="site-footer"><button className="text-button" disabled={!authReady} onClick={() => navigate('feedback')}>功能反馈</button>
-      {(Object.keys(infoLabels) as InfoPage[]).map((page) => <button key={page} className="text-button" disabled={!authReady} onClick={() => navigate(page)}>{infoLabels[page]}</button>)}
-    </footer>}
-    {showCustom && <Dialog title="自定义练习文字" onClose={() => setShowCustom(false)}>
-      <label className="custom-editor">练习文字<textarea aria-label="自定义文章内容" value={customDraft} maxLength={20000} onChange={(event) => setCustomDraft(event.target.value)} /></label>
+    {!focused && <SiteFooter ready={authReady} onNavigate={navigate} />}
+    {showCustom && <Dialog title={t("自定义练习文字", "Custom practice text")} onClose={() => setShowCustom(false)}>
+      <label className="custom-editor">{t("练习文字", "Practice text")}<textarea aria-label={t("自定义文章内容", "Custom article content")} value={customDraft} maxLength={20000} onChange={(event) => setCustomDraft(event.target.value)} /></label>
       {customError && <p className="form-error" role="alert">{customError}</p>}
-      <div className="result-actions"><span className="custom-count">{splitCharacters(customDraft).length} / 20000 字符</span><button className="primary-button" onClick={useCustomText}>使用这段文字</button></div>
+      <div className="result-actions"><span className="custom-count">{splitCharacters(customDraft).length}  {t("/ 20000 字符", "/ 20000 characters")}</span><button className="primary-button" onClick={useCustomText}>{t("使用这段文字", "Use this text")}</button></div>
     </Dialog>}
     {showSpecialTraining && <SpecialTrainingDialog language={language} onClose={() => setShowSpecialTraining(false)} onSelect={(article) => { setShowSpecialTraining(false); selectArticle(article); }} />}
-    {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin) { window.history.replaceState(null, '', '/'); currentPath.current = '/'; } }} onLogin={onUser} registrationEnabled={site.features?.registrationEnabled} />}
+    {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin && !authCompleted.current) { window.history.replaceState(null, '', '/'); currentPath.current = '/'; } }} onLogin={(next) => { authCompleted.current = true; onUser(next); }} registrationEnabled={site.features?.registrationEnabled} />}
     {view === 'account' && user && <AccountDialog user={user} onClose={() => navigate(accountReturn.current)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} onGuardChange={setAccountGuard} />}
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} drafts={workspace.drafts} records={workspace.records} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
-    {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={() => { setShowSettings(false); setShowBackground(theme); }} onPresets={() => { setShowSettings(false); setShowPresets(true); }} onSettingsTransfer={() => { setShowSettings(false); setShowSettingsTransfer(true); }} onCommands={() => { setShowSettings(false); setShowCommands(true); }} />}
+    {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={(backgroundTheme = theme) => { setShowSettings(false); setShowBackground(backgroundTheme); }} onPresets={() => { setShowSettings(false); setShowPresets(true); }} onSettingsTransfer={() => { setShowSettings(false); setShowSettingsTransfer(true); }} onCommands={() => { setShowSettings(false); setShowCommands(true); }} />}
     {showPresets && <PresetsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} difficulty={difficulty} onAction={workspace.changePresets} onApply={(preset) => applyPracticeConfiguration(preset)} onClose={() => setShowPresets(false)} />}
     {showSettingsTransfer && <SettingsTransferDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} difficulty={difficulty} onImport={importPracticeConfiguration} onClose={() => setShowSettingsTransfer(false)} />}
     {showCommands && <CommandPalette commands={commandList} shortcutsEnabled={workspace.settings.shortcutsEnabled !== false} onClose={() => setShowCommands(false)} />}
@@ -1153,56 +1183,59 @@ function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onA
       void collectGuestImport(user.id).then((plan) => setHasGuestData(plan.items.length > 0)).catch(() => setHasGuestData(true));
     }} onRecovery={workspace.recoveryReason ? () => { setShowGuestImport(false); setShowRecovery(workspace.recoveryReason!); } : undefined} />}
     {showBackground && <BackgroundDialog theme={showBackground} value={workspace.backgrounds[showBackground]} onClose={() => setShowBackground(undefined)} onSave={(background) => background ? workspace.put('background', showBackground, background) : workspace.remove('background', showBackground)} />}
-    {confirmPractice && <Dialog title={confirmPractice.action === 'restart' ? '重新开始本次练习？' : '结束本次练习？'} onClose={cancelPracticeAction}>
-      {confirmPractice.action === 'restart' && <p className="dialog-intro">本次输入和计时将被清除。</p>}
-      {phase === 'restoring' && <p className="dialog-intro" role="status">恢复中…</p>}
+    {confirmPractice && <Dialog title={confirmPractice.action === 'restart' ? t("重新开始本次练习？", "Restart this practice?") : t("结束本次练习？", "Finish this practice?")} onClose={cancelPracticeAction}>
+      {confirmPractice.action === 'restart' && <p className="dialog-intro">{t("本次输入和计时将被清除。", "Current input and timing will be cleared.")}</p>}
+      {phase === 'restoring' && <p className="dialog-intro" role="status">{t("恢复中…", "Restoring…")}</p>}
       <div className="result-actions">
-        <button className="outline-button" disabled={phase !== 'paused'} onClick={cancelPracticeAction}>继续当前练习</button>
+        <button className="outline-button" disabled={phase !== 'paused'} onClick={cancelPracticeAction}>{t("继续当前练习", "Continue practice")}</button>
         <button className="primary-button" disabled={phase !== 'paused'} onClick={() => {
           const action = confirmPractice.action;
           setConfirmPractice(null);
           if (action === 'restart') resetPractice(catalog.find((article) => article.id === selection.id) ?? selection);
           else void practice.finish();
-        }}>{confirmPractice.action === 'restart' ? '确认重新开始' : '结束并查看成绩'}</button>
+        }}>{confirmPractice.action === 'restart' ? t("确认重新开始", "Restart practice") : t("结束并查看成绩", "Finish and view result")}</button>
       </div>
     </Dialog>}
-    {showResult && result && <Dialog title="练习成绩" onClose={() => setShowResult(false)}>
-      {result.offline ? <>{practice.canRetryOnline ? <><p className="dialog-intro">成绩尚未同步</p><p className="score-status">可恢复提交</p></> : <p className="dialog-intro">{!result.custom && result.elapsedMs < 1000 ? '用时不足 1 秒，不参与排行' : '个人练习，不参与排行'}</p>}</> :
-        resultStatus.status ? <ScoreStatusView status={resultStatus.status} /> : resultStatus.loading ? <p role="status">正在读取成绩状态…</p> : <div><p className="form-error" role="alert">{resultStatus.error || '成绩状态暂不可用'}</p><button type="button" className="text-button" onClick={resultStatus.retry}>重试状态</button></div>}
+    {showResult && result && <Dialog title={t("练习成绩", "Practice result")} onClose={() => setShowResult(false)}>
+      {result.offline ? <>{practice.canRetryOnline ? <><p className="dialog-intro">{t("成绩尚未同步", "Result not yet synced")}</p><p className="score-status">{t("可恢复提交", "Submission can be recovered")}</p></> : <p className="dialog-intro">{!result.custom && result.elapsedMs < 1000 ? t("用时不足 1 秒，不参与排行", "Under 1 second. Not ranked.") : t("个人练习，不参与排行", "Private practice. Not ranked.")}</p>}</> :
+        resultStatus.status ? <ScoreStatusView status={resultStatus.status} /> : resultStatus.loading ? <p role="status">{t("正在读取成绩状态…", "Loading result status…")}</p> : <div><p className="form-error" role="alert">{resultStatus.error || t("成绩状态暂不可用", "Result status unavailable")}</p><button type="button" className="text-button" onClick={resultStatus.retry}>{t("重试状态", "Retry status")}</button></div>}
       <div className="result-metrics">
         {result.language === 'en' ? <EnglishSpeed score={result.score} display="result" />
-          : <div><strong>{result.score.cpm}</strong><span>字 / 分钟</span></div>}
-        <div><strong>{result.score.accuracy}%</strong><span>准确率</span></div>
-        <div><strong>{typedCharacters.length} / {result.articleTotal}</strong><span>已打 / 文章字数</span>{practice.offset > 0 && <small>本轮 {result.score.total} 字</small>}</div>
-        <div><strong>{result.errors}</strong><span>错误字数</span></div>
-        <div><strong>{result.backspaces}</strong><span>退格次数</span></div>
-        <div><strong>{formatTime(result.elapsedMs)}</strong><span>有效用时</span></div>
+          : <div><strong>{result.score.cpm}</strong><span>{t("字 / 分钟", "Chars / min")}</span></div>}
+        <div><strong>{result.score.accuracy}%</strong><span>{t("准确率", "Accuracy")}</span></div>
+        <div><strong>{typedCharacters.length} / {result.articleTotal}</strong><span>{t("已打 / 文章字数", "Typed / article chars")}</span>{practice.offset > 0 && <small>{t("本轮", "This round")} {result.score.total}  {t("字", "chars")}</small>}</div>
+        <div><strong>{result.errors}</strong><span>{t("错误字数", "Errors")}</span></div>
+        <div><strong>{result.backspaces}</strong><span>{t("退格次数", "Backspaces")}</span></div>
+        <div><strong>{formatTime(result.elapsedMs)}</strong><span>{t("有效用时", "Active time")}</span></div>
       </div>
+      {result.record && <LessonResult record={result.record} onSelect={selectLesson} onReview={selectArticle} onCourse={() => navigate('lessons')} />}
+      {result.record && isAssessmentArticle(result.record.article) && <AssessmentPanel records={[result.record, ...records]} ownerId={ownerId} onSelect={selectArticle} />}
+      {result.record && (isAssessmentArticle(result.record.article) || isWeakKeyArticle(result.record.article)) && <button className="text-button" onClick={() => navigate('lessons')}>{t('课程目录', 'Course outline')}</button>}
       {result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? (hasUnloadedLocalHistory() ? 'partial' : 'local') :
         historyCheckedFor !== result.recordId ? 'loading' : historyError || !workspace.cloudLoaded || workspace.syncState !== 'synced' || hasUnloadedLocalHistory() ? 'partial' : 'complete'} />}
       {result.record && <ProcessChart trace={result.record.processTrace} language={result.record.language} />}
-      {result.record && (result.record.mistakesTruncated || (result.record.mistakes?.length ?? 0) >= 500) && <p className="feature-muted" role="status">错字样本可能不完整</p>}
+      {result.record && (result.record.mistakesTruncated || (result.record.mistakes?.length ?? 0) >= 500) && <p className="feature-muted" role="status">{t("错字样本可能不完整", "Mistake samples may be incomplete")}</p>}
       {roundDrillAvailable && <div className="round-mistake-actions">
-        <label>重复次数<input type="number" min={1} max={10} step={1} value={mistakeRepeats} aria-invalid={!roundDrill} onChange={(event) => setMistakeRepeats(event.target.value)} /></label>
-        <button className="outline-button" disabled={!roundDrill} onClick={() => { if (roundDrill) selectArticle(roundDrill); }}>练习本轮错字</button>
+        <label>{t("重复次数", "Repetitions")}<input type="number" min={1} max={10} step={1} value={mistakeRepeats} aria-invalid={!roundDrill} onChange={(event) => setMistakeRepeats(event.target.value)} /></label>
+        <button className="outline-button" disabled={!roundDrill} onClick={() => { if (roundDrill) selectArticle(roundDrill); }}>{t("练习本轮错字", "Practice these mistakes")}</button>
       </div>}
-      {mistakes.length > 0 && <details className="mistake-review"><summary>错字回看 · {mistakes.length > 30 ? `前 30 / ${mistakes.length}` : mistakes.length} 处</summary><ul>{mistakes.slice(0, 30).map((mistake) => <li key={mistake.index}><span>第 {mistake.index + 1} 字</span><span>原文 <b>{readableCharacter(mistake.expected)}</b></span><span>输入 <del>{readableCharacter(mistake.actual)}</del></span></li>)}</ul></details>}
-      {practice.canRetryOnline && <div className="rank-submit"><button className="primary-button" disabled={phase === 'restoring'} onClick={() => void practice.retryOnline()}>{phase === 'restoring' ? '正在恢复…' : '重试上榜'}</button></div>}
+      {mistakes.length > 0 && <details className="mistake-review"><summary>{t("错字回看 ·", "Review mistakes ·")} {mistakes.length > 30 ? `前 30 / ${mistakes.length}` : mistakes.length}  {t("处", "items")}</summary><ul>{mistakes.slice(0, 30).map((mistake) => <li key={mistake.index}><span>{t("第", "#")} {mistake.index + 1}  {t("字", "chars")}</span><span>{t("原文", "Source")} <b>{readableCharacter(mistake.expected)}</b></span><span>{t("输入", "Input")} <del>{readableCharacter(mistake.actual)}</del></span></li>)}</ul></details>}
+      {practice.canRetryOnline && <div className="rank-submit"><button className="primary-button" disabled={phase === 'restoring'} onClick={() => void practice.retryOnline()}>{phase === 'restoring' ? t("正在恢复…", "Restoring…") : t("重试上榜", "Retry submission")}</button></div>}
       {practice.canRetryOnline && practice.feedback && <p className="form-error" role="alert">{practice.feedback}</p>}
       {!result.offline && result.eligible && !rankSubmitted && (!resultStatus.status || resultStatus.status.state === 'not_submitted') && <div className="rank-submit">
-        {!user && <label>上榜昵称<input value={nickname} maxLength={32} aria-invalid={!validGuestNickname(nickname)} onChange={(event) => setNickname(event.target.value)} /></label>}
-        {!user && !validGuestNickname(nickname) && <p className="form-error">游客昵称须以 visitor 开头，最多 16 个字符。</p>}
-        <button className="primary-button" disabled={busy || resultStatus.loading || (!user && (!validGuestNickname(nickname) || site.features?.guestLeaderboardEnabled === false))} onClick={() => void submitRank()}><Trophy size={20} /> {busy ? '提交中…' : '提交到排行榜'}</button>
-        {!user && site.features?.guestLeaderboardEnabled === false && <p className="form-error" role="status">游客上榜已关闭。</p>}
+        {!user && <label>{t("上榜昵称", "Leaderboard nickname")}<input value={nickname} maxLength={32} aria-invalid={!validGuestNickname(nickname)} onChange={(event) => setNickname(event.target.value)} /></label>}
+        {!user && !validGuestNickname(nickname) && <p className="form-error">{t("游客昵称须以 visitor 开头，最多 16 个字符。", "Guest names must start with visitor and use at most 16 characters.")}</p>}
+        <button className="primary-button" disabled={busy || resultStatus.loading || (!user && (!validGuestNickname(nickname) || site.features?.guestLeaderboardEnabled === false))} onClick={() => void submitRank()}><Trophy size={20} /> {busy ? t("提交中…", "Submitting…") : t("提交到排行榜", "Submit to leaderboard")}</button>
+        {!user && site.features?.guestLeaderboardEnabled === false && <p className="form-error" role="status">{t("游客上榜已关闭。", "Guest leaderboard submissions are disabled.")}</p>}
       </div>}
       {rankMessage && (!rankSubmitted || !resultStatus.status) && <p className={rankSubmitted ? 'form-notice' : 'form-error'} role={rankSubmitted ? 'status' : 'alert'}>{rankSubmitted && <CheckCircle size={18} />} {rankMessage}</p>}
-      {result.record && <div className="feature-actions"><button className="outline-button" disabled={!shareData} onClick={() => { setShowResult(false); setShowShare(true); }}>分享成绩</button></div>}
-      {result.record && !shareData && <p className="form-error" role="status">无法生成分享卡</p>}
+      {result.record && <div className="feature-actions"><button className="outline-button" disabled={!shareData} onClick={() => { setShowResult(false); setShowShare(true); }}>{t("分享成绩", "Share result")}</button></div>}
+      {result.record && !shareData && <p className="form-error" role="status">{t("无法生成分享卡", "Could not create share card")}</p>}
       <div className={`result-actions result-navigation${result.continuation ? ' with-continuation' : ''}`}>
-        {result.continuation && <button className="primary-button" onClick={() => continueDraft(result.continuation!)}>继续本篇</button>}
-        <button className="outline-button" onClick={() => resetPractice(selection, true)}>再练一次</button>
-        {!focused && <button className="text-button" onClick={nextArticle}>下一篇 <ArrowRight size={16} aria-hidden="true" /></button>}
-        {!focused && <button className="text-button" onClick={() => navigate('rankings')}>排行榜</button>}
+        {result.continuation && <button className="primary-button" onClick={() => continueDraft(result.continuation!)}>{t("继续本篇", "Continue article")}</button>}
+        <button className="outline-button" onClick={() => resetPractice(selection, true)}>{t("再练一次", "Try again")}</button>
+        {!focused && !resultTraining && <button className="text-button" onClick={nextArticle}>{t("下一篇", "Next article")} <ArrowRight size={16} aria-hidden="true" /></button>}
+        {!focused && !resultTraining && <button className="text-button" onClick={() => navigate('rankings')}>{t("排行榜", "Rankings")}</button>}
       </div>
     </Dialog>}
     {showShare && shareData && <ShareCardDialog data={shareData} theme={theme} onClose={() => { setShowShare(false); setShowResult(true); }} />}

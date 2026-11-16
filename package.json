@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "test:docker": "node scripts/ci-docker-smoke.mjs",
     "db:postgres": "tsx scripts/postgres-database.ts",
-    "test:vercel-esm": "node scripts/verify-vercel-esm.mjs"
+    "test:vercel-esm": "node scripts/verify-vercel-esm.mjs",
+    "test:docker:postgres": "node scripts/ci-docker-postgres-smoke.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
@@ -43,6 +44,7 @@
     "@types/node": "^26.6.6",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/smtp-server": "^3.5.13",
@@ -50,6 +52,8 @@
     "@vitejs/plugin-react": "^6.3.0",
     "esbuild": "^0.28.2",
     "jsdom": "^29.1.1",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
     "smtp-server": "^3.21.4",
     "tailwindcss": "^4.3.5",
     "tsx": "^4.23.15",

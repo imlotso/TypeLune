@@ -78,7 +78,21 @@ npm run test:docker
 
 常规浏览器测试模拟输入法组合事件，账号流程使用测试邮箱。可选的 `scripts/verify-system-ime.sh` 使用独立 Xvfb、Fcitx5 拼音和临时测试服务验证真实 Linux 输入法事件；依赖与范围见[验收记录](docs/qa/2026-11-15-system-ime.md)。这些测试不能替代其他系统输入法、真实 SMTP 投递和公网 HTTPS 的实机验证。
 
-## Docker Compose 部署
+## 部署路线
+
+以下两条 PostgreSQL 路线同时保留，不互相替代：
+
+| 路线 | 入口与数据持久化 | 操作说明 |
+| --- | --- | --- |
+| Vercel + PostgreSQL / Neon | `vercel.json`，独立 PostgreSQL 数据库 | [Vercel + Neon](docs/vercel-neon.md) |
+| 自托管 Docker + PostgreSQL 18 | `compose.postgres.yaml`，`postgres_data` 持久卷 | [初始化、升级、备份恢复与回滚](docs/docker-postgres.md) |
+| SQLite 兼容路线 | 原 `compose.yaml`，`typing_data` 持久卷 | 本文下方 SQLite 章节 |
+
+不带 `-f` 的 `docker compose` 命令仍选择 SQLite，**不是 Docker + PostgreSQL**。PostgreSQL 路线必须显式选择 `compose.postgres.yaml`，不能使用下方 SQLite 备份脚本替代 PostgreSQL 备份。
+
+真实 PostgreSQL 的 Node HTTP / Vercel handler 与 SQLite 集成测试已通过。独立临时环境也已完成 **Docker + PostgreSQL 18.7 的实际镜像构建、Compose/Caddy、容器重建持久化与备份恢复**，并复验 SQLite 容器兼容路线。所测提交和边界见 [Docker 实机记录](docs/qa/2026-11-16-docker-runtime.md)、[账号语言验证](docs/qa/2026-11-16-account-language.md)及[双 PostgreSQL 路线记录](docs/qa/2026-11-16-dual-postgres.md)。公网 TLS、真实邮件/支付与生产上线不由本地测试代替；生产发布须明确批准。
+
+## Docker Compose 部署（SQLite 兼容路线）
 
 准备一台已安装 Docker 和 Compose 的服务器，并将域名解析到服务器，开放 80 和 443 端口。内地服务器请按服务商要求完成备案。Caddy 在域名和端口可用时自动申请 HTTPS 证书。
 
@@ -104,7 +118,7 @@ docker compose logs -f app
 
 `ADMIN_EMAIL` 用于初始化首个管理员。升级时会识别已用该邮箱注册的账号。新站点可以用该邮箱完成验证注册。后续角色保存在数据库中，由现任管理员在用户页面管理。
 
-SMTP 尚未配置时，先启动服务以初始化数据库，再在部署机器上用以下方式创建首个管理员。填写真实邮箱。脚本通过标准输入读取密码，拒绝覆盖已有账号或在已有管理员时创建第二个管理员。
+SMTP 尚未配置时，SQLite 路线先启动服务以初始化数据库，再在部署机器上用以下方式创建首个管理员。PostgreSQL 必须使用 [Docker PostgreSQL 操作器](docs/docker-postgres.md)或 [Vercel / Neon 操作器](docs/vercel-neon.md)，不要使用下面的 SQLite 脚本。填写真实邮箱。脚本通过标准输入读取密码，拒绝覆盖已有账号或在已有管理员时创建第二个管理员。
 
 ```bash
 read -rsp '管理员密码（至少 10 位）: ' dazi_admin_password
@@ -129,9 +143,11 @@ unset dazi_admin_password
 
 ## Vercel 与 Neon
 
-项目也支持 Vercel Node.js Functions 和 PostgreSQL，同时保留本地 SQLite、Node 与 Docker 运行方式。隔离环境、服务端密钥、迁移、备份、恢复和回滚步骤见 [Vercel + Neon 操作说明](docs/vercel-neon.md)。实际部署前须先完成隔离 Preview 验证。
+Vercel Node.js Functions + PostgreSQL 与 Docker + PostgreSQL 是并行支持的路线，另保留 SQLite 兼容方式。隔离环境、服务端密钥、迁移、备份、恢复和回滚步骤见 [Vercel + Neon 操作说明](docs/vercel-neon.md)。实际部署前须先完成隔离 Preview 验证。
 
-## 数据备份与恢复
+## 数据备份与恢复（仅 SQLite）
+
+本节只适用于 `compose.yaml` 的 SQLite。PostgreSQL 请分别使用 [Docker 的完整逻辑备份与隔离恢复流程](docs/docker-postgres.md)或 [Vercel / Neon 备份恢复说明](docs/vercel-neon.md)。
 
 数据库保存在 `typing_data` Docker 卷里。在线备份使用 SQLite 的备份接口，而不是直接复制运行中的数据库：
 

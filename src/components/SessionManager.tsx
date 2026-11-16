@@ -1,11 +1,15 @@
+import { SystemMessage } from './SystemMessage';
+import { useI18n } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 
 type Session = { id: string; device: string; createdAt: number | null; lastActiveAt: number | null; current: boolean };
 type Props = { ownerId: string; busy: boolean; setBusy: (busy: boolean) => void; onSignedOut: (message: string) => void };
-const date = (value: number | null) => value == null ? '未知' : new Date(value).toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 
 export function SessionManager({ ownerId, busy, setBusy, onSignedOut }: Props) {
+  const { t, locale } = useI18n();
+const date = (value: number | null) => value == null ? t("未知", "Unknown") : new Date(value).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
+
   const [sessions, setSessions] = useState<Session[]>();
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
@@ -23,8 +27,8 @@ export function SessionManager({ ownerId, busy, setBusy, onSignedOut }: Props) {
       .then((data) => { if (!controller.signal.aborted) setSessions(data.sessions); })
       .catch((problem: unknown) => {
         if (controller.signal.aborted) return;
-        if (problem instanceof ApiError && problem.status === 401) onSignedOut('登录状态已失效，请重新登录');
-        else { setSessions(undefined); setError(problem instanceof Error ? problem.message : '加载失败'); }
+        if (problem instanceof ApiError && problem.status === 401) onSignedOut(t("登录状态已失效，请重新登录", "Session expired. Please sign in again"));
+        else { setSessions(undefined); setError(problem instanceof Error ? problem.message : t("加载失败", "Could not load")); }
       });
     return () => controller.abort();
   }, [ownerId, revision, busy]);
@@ -33,23 +37,23 @@ export function SessionManager({ ownerId, busy, setBusy, onSignedOut }: Props) {
     try {
       if (id) {
         const result = await api<{ current: boolean }>('/api/account/sessions/revoke', { method: 'POST', headers: { 'X-Workspace-Owner': ownerId }, body: { id } });
-        if (result.current) { onSignedOut('已退出当前设备'); return; }
+        if (result.current) { onSignedOut(t("已退出当前设备", "Signed out of this device")); return; }
         setSessions((current) => current?.filter((session) => session.id !== id));
       } else {
         await api('/api/account/sessions/revoke-others', { method: 'POST', headers: { 'X-Workspace-Owner': ownerId }, body: {} });
         setSessions((current) => current?.filter((session) => session.current));
       }
     } catch (problem) {
-      if (problem instanceof ApiError && problem.status === 401) onSignedOut('登录状态已失效，请重新登录');
-      else setError(problem instanceof Error ? problem.message : '操作失败');
+      if (problem instanceof ApiError && problem.status === 401) onSignedOut(t("登录状态已失效，请重新登录", "Session expired. Please sign in again"));
+      else setError(problem instanceof Error ? problem.message : t("操作失败", "Action failed"));
     } finally { setBusy(false); }
   }
   return <div className="account-sessions">
-    {!sessions && !error && <p role="status">加载中…</p>}
+    {!sessions && !error && <p role="status">{t("加载中…", "Loading…")}</p>}
     {sessions && <><ul className="session-list">{sessions.map((session) => <li key={session.id}>
-      <div><strong>{session.device}</strong>{session.current && <span> · 当前设备</span>}<small>创建：{date(session.createdAt)}<br />最近活动：{date(session.lastActiveAt)}</small></div>
-      <button type="button" className="text-button" disabled={busy} aria-label={session.current ? '退出当前设备' : `退出 ${session.device}`} onClick={() => void revoke(session.id)}>退出</button>
-    </li>)}</ul>{sessions.some((session) => !session.current) && <button type="button" className="outline-button" disabled={busy} onClick={() => void revoke()}>退出其他设备</button>}</>}
-    {error && <><p className="form-error" role="alert">{error}</p><button type="button" className="outline-button" disabled={busy} onClick={() => setRevision((value) => value + 1)}>重试</button></>}
+      <div><strong>{session.device}</strong>{session.current && <span> {t("· 当前设备", "· This device")}</span>}<small>{t("创建：", "Created: ")}{date(session.createdAt)}<br />{t("最近活动：", "Last active: ")}{date(session.lastActiveAt)}</small></div>
+      <button type="button" className="text-button" disabled={busy} aria-label={session.current ? t("退出当前设备", "Sign out this device") : t(`退出 ${session.device}`, `Sign out ${session.device}`)} onClick={() => void revoke(session.id)}>{t("退出", "Sign out")}</button>
+    </li>)}</ul>{sessions.some((session) => !session.current) && <button type="button" className="outline-button" disabled={busy} onClick={() => void revoke()}>{t("退出其他设备", "Sign out other devices")}</button>}</>}
+    {error && <><p className="form-error" role="alert">{<SystemMessage text={error} />}</p><button type="button" className="outline-button" disabled={busy} onClick={() => setRevision((value) => value + 1)}>{t("重试", "Retry")}</button></>}
   </div>;
 }

@@ -8,7 +8,7 @@ const nightPicture = resolve('public/assets/cloud-room-night.png');
 async function editor(page: Page, theme = '日间') {
   await page.getByRole('button', { name: '更多', exact: true }).click();
   await page.getByRole('button', { name: '设置', exact: true }).click();
-  await page.getByRole('button', { name: '背景图', exact: true }).click();
+  await page.getByRole('button', { name: `${theme}背景图`, exact: true }).click();
   return page.getByRole('dialog', { name: `${theme}背景`, exact: true });
 }
 async function upload(page: Page, file = nightPicture) {

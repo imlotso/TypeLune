@@ -173,3 +173,16 @@ it('can update known cached preferences while cloud sync is offline', async () =
   fireEvent.click(toggle);
   await waitFor(async () => expect((await readWorkspace(admin.id)).find((item) => item.kind === 'settings')?.value).toMatchObject({ minutes: 19, theme: 'dark' }));
 });
+
+it('preserves the requested admin column after shared login', async () => {
+  window.history.replaceState(null, '', '/admin?tab=mail');
+  render(<App />);
+  await screen.findByRole('dialog', { name: '登录' });
+  const dialog = screen.getByRole('dialog', { name: '登录' });
+  fireEvent.change(within(dialog).getByLabelText('用户名或邮箱'), {target:{value:admin.username}});
+  fireEvent.change(within(dialog).getByLabelText('密码'), {target:{value:'test-password-only'}});
+  fireEvent.click(within(dialog).getByRole('button', {name:'登录'}));
+  await screen.findByRole('heading', {name:'管理后台'});
+  expect(window.location.search).toBe('?tab=mail');
+  expect(screen.getByRole('button', {name:'邮件'}).getAttribute('aria-current')).toBe('page');
+});

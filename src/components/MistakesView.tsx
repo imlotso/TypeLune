@@ -1,3 +1,4 @@
+import { useI18n } from '../lib/i18n';
 import { useMemo, useState } from 'react';
 import { Notebook } from '@phosphor-icons/react/Notebook';
 import { Play } from '@phosphor-icons/react/Play';
@@ -9,6 +10,8 @@ import { readableCharacter } from '../lib/practice-lines';
 type Props = { records: PracticeRecord[]; states: Record<string, MistakeStatus>; onStatus: (id: string, status?: MistakeStatus) => void; onPractice: (article: ArticleSnapshot) => void };
 
 export function MistakesView({ records, states, onStatus, onPractice }: Props) {
+  const { t, locale } = useI18n();
+
   const [language, setLanguage] = useState<Language>('zh');
   const [selected, setSelected] = useState(new Set<string>());
   const [status, setStatus] = useState<'active' | 'mastered' | 'ignored' | 'all'>('active');
@@ -39,23 +42,23 @@ export function MistakesView({ records, states, onStatus, onPractice }: Props) {
 
   return <section className="content-panel mistakes feature-panel">
     <div className="content-heading">
-      <h1><Notebook size={25} aria-hidden="true" /> 错字本</h1>
-      <button className="primary-button feature-action-button" disabled={!drill.text.trim()} onClick={() => onPractice(drill)}><Play size={16} aria-hidden="true" /> 专项练习</button>
+      <h1><Notebook size={25} aria-hidden="true" /> {t("错字本", "Mistakes")}</h1>
+      <button className="primary-button feature-action-button" disabled={!drill.text.trim()} onClick={() => onPractice(drill)}><Play size={16} aria-hidden="true" /> {t("专项练习", "Targeted practice")}</button>
     </div>
     <div className="feature-toolbar">
-      <div className="segmented feature-segments" role="group" aria-label="错字语言">
-        <button aria-pressed={language === 'zh'} onClick={() => setLanguage('zh')}>中文</button>
+      <div className="segmented feature-segments" role="group" aria-label={t("错字语言", "Article language")}>
+        <button aria-pressed={language === 'zh'} onClick={() => setLanguage('zh')}>{t("中文", "Chinese")}</button>
         <button aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>English</button>
       </div>
-      <button className="outline-button feature-action-button" disabled={!shown.length} onClick={toggleAll}>{allSelected ? '取消全选' : '全选'}</button>
+      <button className="outline-button feature-action-button" disabled={!shown.length} onClick={toggleAll}>{allSelected ? t("取消全选", "Deselect all") : t("全选", "Select all")}</button>
     </div>
     <div className="feature-filters">
-      <label>状态<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="active">待练习</option><option value="mastered">已掌握</option><option value="ignored">已忽略</option><option value="all">全部</option></select></label>
-      <label>时间<select value={period} onChange={(event) => setPeriod(event.target.value)}><option value="">全部</option><option value="7">近 7 天</option><option value="30">近 30 天</option></select></label>
-      <label>频次<select value={frequency} onChange={(event) => setFrequency(event.target.value)}><option value="">全部</option><option value="2">至少 2 次</option><option value="5">至少 5 次</option></select></label>
+      <label>{t("状态", "Status")}<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="active">{t("待练习", "To practice")}</option><option value="mastered">{t("已掌握", "Mastered")}</option><option value="ignored">{t("已忽略", "Ignored")}</option><option value="all">{t("全部", "All")}</option></select></label>
+      <label>{t("时间", "Time")}<select value={period} onChange={(event) => setPeriod(event.target.value)}><option value="">{t("全部", "All")}</option><option value="7">{t("近 7 天", "Last 7 days")}</option><option value="30">{t("近 30 天", "Last 30 days")}</option></select></label>
+      <label>{t("频次", "Frequency")}<select value={frequency} onChange={(event) => setFrequency(event.target.value)}><option value="">{t("全部", "All")}</option><option value="2">{t("至少 2 次", "At least twice")}</option><option value="5">{t("至少 5 次", "At least 5 times")}</option></select></label>
     </div>
-    {truncated && <p className="feature-muted" role="status">错字样本可能不完整</p>}
-    {!shown.length ? <p className="empty-state">暂无错字</p> : <ul className="feature-list">
+    {truncated && <p className="feature-muted" role="status">{t("错字样本可能不完整", "Mistake samples may be incomplete")}</p>}
+    {!shown.length ? <p className="empty-state">{t("暂无错字", "No mistakes")}</p> : <ul className="feature-list">
       {shown.map((entry) => {
         const expected = readableCharacter(entry.expected);
         const date = new Date(entry.lastSeen);
@@ -67,15 +70,15 @@ export function MistakesView({ records, states, onStatus, onPractice }: Props) {
               <strong>{expected}</strong>
             </label>
             <div className="feature-meta">
-              <span>{entry.count} 次</span>
-              <time dateTime={date.toISOString()}>{date.toLocaleDateString('zh-CN')}</time>
-              <span>误输 {entry.actual.map((value) => readableCharacter(value) || '空').join('、')}</span>
+              <span>{entry.count} {t("次", "times")}</span>
+              <time dateTime={date.toISOString()}>{date.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US')}</time>
+              <span>{t("误输 ", "Typed:  ")}{entry.actual.map((value) => readableCharacter(value) || t("空", "empty")).join('、')}</span>
             </div>
             {entry.contexts[0] && <p className="mistake-context">{entry.contexts[0]}</p>}
           </div>
           <div className="feature-actions">
-            <button className="outline-button feature-action-button" onClick={() => onStatus(entry.id, current === 'mastered' ? undefined : 'mastered')}>{current === 'mastered' ? '取消掌握' : '标记已掌握'}</button>
-            <button className="text-button" onClick={() => onStatus(entry.id, current === 'ignored' ? undefined : 'ignored')}>{current === 'ignored' ? '恢复' : '忽略'}</button>
+            <button className="outline-button feature-action-button" onClick={() => onStatus(entry.id, current === 'mastered' ? undefined : 'mastered')}>{current === 'mastered' ? t("取消掌握", "Unmark mastered") : t("标记已掌握", "Mark mastered")}</button>
+            <button className="text-button" onClick={() => onStatus(entry.id, current === 'ignored' ? undefined : 'ignored')}>{current === 'ignored' ? t("恢复", "Restore") : t("忽略", "Ignore")}</button>
           </div>
         </li>;
       })}

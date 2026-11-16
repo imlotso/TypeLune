@@ -104,6 +104,13 @@ suite('PostgreSQL migration and SQLite import', () => {
     await expect(migratePostgres(client, { ...target, database: 'wrong-database' })).rejects.toThrow(/target/i);
     await migratePostgres(client, target);
     await migratePostgres(client, target);
+    const legacySource = new Database(path);
+    legacySource.exec('DROP TABLE support_settings'); legacySource.close();
+    await client.query('CREATE TABLE support_settings(id BIGINT PRIMARY KEY CHECK(id=1),settings TEXT NOT NULL,revision BIGINT NOT NULL)');
+    await client.query('INSERT INTO support_settings VALUES(1,$1,1)',[JSON.stringify({enabled:false,alipay:null,wechat:null})]);
+    await expect(importSqlite(client,path,target)).rejects.toThrow(/not empty/i);
+    await client.query('DELETE FROM support_settings');
+    const restoreSupport = new Database(path);restoreSupport.exec('CREATE TABLE support_settings(id INTEGER PRIMARY KEY CHECK(id=1),settings TEXT NOT NULL,revision INTEGER NOT NULL)');restoreSupport.close();
     const sqlite = new Database(path);
     sqlite.prepare('UPDATE smtp_settings SET config=? WHERE id=1').run('unsupported\0value');
     sqlite.close();
@@ -117,10 +124,13 @@ suite('PostgreSQL migration and SQLite import', () => {
     await expect(importSqlite(client, path, target)).rejects.toThrow(/active retired/i);
     expect((await client.query('SELECT COUNT(*)::int AS count FROM users')).rows[0].count).toBe(0);
     const consistent = new Database(path);
+    consistent.prepare('INSERT INTO support_settings(id,settings,revision) VALUES(1,?,7)').run(JSON.stringify({enabled:false,alipay:null,wechat:null}));
     consistent.prepare("DELETE FROM workspace_items WHERE user_id='u1' AND item_id='inconsistent'").run();
     consistent.prepare("DELETE FROM workspace_deleted_records WHERE user_id='u1' AND record_id='inconsistent'").run();
     consistent.close();
     const result = await importSqlite(client, path, target);
+    expect(result.counts.support_settings).toBe(1);
+    expect((await client.query('SELECT revision FROM support_settings')).rows[0].revision).toBe('7');
     expect(result.counts.users).toBe(2);
     expect(result.counts.public_articles).toBeGreaterThanOrEqual(40);
     expect(result.counts.workspace_items).toBe(2);
@@ -158,6 +168,8 @@ suite('PostgreSQL migration and SQLite import', () => {
     const exported = await exportSqlite(client, rollbackPath, target);
     expect(exported.counts.users).toBe(2);
     const restored = new Database(rollbackPath);
+    expect(restored.prepare('SELECT revision FROM support_settings').get()).toEqual({revision:7});
+    expect(JSON.parse((restored.prepare('SELECT settings FROM support_settings').get() as {settings:string}).settings)).toEqual({enabled:false,alipay:null,wechat:null});
     expect((restored.prepare("SELECT typed FROM challenges WHERE typed IS NOT NULL").get() as { typed: string }).typed).toBe('\0');
     expect((restored.prepare("SELECT email FROM users WHERE username='nullmail'").get() as { email: string }).email).toBe('nul\0mail@example.test');
     expect((restored.prepare("SELECT bytes FROM feedback_attachments WHERE id='attachment-test'").get() as { bytes: Buffer }).bytes).toEqual(Buffer.from([0, 1, 2, 255]));

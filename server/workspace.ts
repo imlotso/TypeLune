@@ -72,6 +72,7 @@ const schemas = {
     mode: mode.optional(), strict: z.boolean().optional(), mistakes, mistakesTruncated: z.boolean().optional(), paceTarget: z.number().positive().max(18_000_000).optional(), processTrace: z.custom<ProcessTrace>(isProcessTrace).optional(),
   }),
   settings: z.object({
+    uiLocale: z.enum(['auto', 'zh', 'en']).optional(),
     minutes: z.number().int().min(1).max(60), mode, strict: z.boolean(), autoPause: z.boolean(),
     fontSize: z.number().min(12).max(40), lineHeight: z.number().min(1).max(3),
     visibleLines: z.number().int().min(1).max(12), theme: z.enum(['light', 'dark']),

@@ -20,7 +20,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .site-header { min-height: 88px; padding: 0 4.2%; display: flex; align-items: center; gap: 24px; background: #fdfbfb; color: #514a7a; position: relative; z-index: 3; }
 .brand { display: flex; gap: 13px; align-items: center; flex: none; border: 0; background: transparent; color: #514a7a; font-size: 23px; font-weight: 800; white-space: nowrap; }
 .brand-logo { display: block; width: 185px; height: 48px; object-fit: cover; object-position: center; mix-blend-mode: multiply; }
-.site-header nav { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex: 1; }
+.site-header nav { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex: 1; flex-wrap: wrap; min-width: 0; padding-block: 4px; }
 .site-header nav button { border: 0; color: #554e7c; background: transparent; border-radius: 999px; padding: 11px 21px; white-space: nowrap; font-size: 16px; font-weight: 700; transition: background-color .18s ease, color .18s ease; }
 .site-header nav button:hover, .site-header nav button.nav-active { background: #d9eafa; color: #484778; }
 .site-header nav button.account-button { border: 1px solid #a69bd8; background: #fff; min-width: 97px; display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
@@ -226,7 +226,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 700px) {
   .site-header { padding: 12px 16px 8px; gap: 7px; min-height: auto; flex-wrap: wrap; }
   .brand-logo { width: 160px; height: 42px; }
-  .site-header nav { flex: 1 0 100%; justify-content: flex-start; flex-wrap: wrap; gap: 2px; overflow: visible; }
+  .site-header nav { flex: 1 0 100%; justify-content: flex-start; flex-wrap: wrap; gap: 2px; overflow: visible; padding-block: 0; }
   .site-header nav button { font-size: 13px; padding: 8px 9px; }.site-header nav button.account-button { min-width: 58px; }
   .room { min-height: calc(100svh - 100px); background-size: auto 100%; }
   .workspace { width: calc(100% - 24px); padding: 22px 0 145px; }
@@ -323,4 +323,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .typing-panel .practice-lines { --practice-row-spacing: 53px; }
   .result-navigation { display: flex; justify-content: flex-start; }
   .result-navigation > button { flex: 1 1 auto; }
+}
+
+/* Interface locale is separate from the practice language selector. */
+.ui-language-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; border: 1px solid #b8afd2; border-radius: 999px; padding: 8px 12px; color: inherit; background: transparent; white-space: nowrap; font-weight: 700; }
+.site-header nav .ui-language-button { padding: 9px 12px; border: 1px solid #b8afd2; font-size: 14px; }
+.ui-language-button:focus-visible { outline: 3px solid #8d7abd; outline-offset: 3px; }
+[data-theme='dark'] .ui-language-button { border-color: #817aa6; }
+@media (max-width: 760px) { .site-header nav .ui-language-button { padding: 8px 10px; font-size: 12px; } }
+@media (max-width: 760px) {
+  /* Long translated action labels must not collapse the article selector. */
+  .article-choice { flex-wrap: wrap; }
+  .article-choice .article-picker { flex: 1 0 100%; }
+  .article-choice .custom-button { margin: 0; }
 }

@@ -106,7 +106,7 @@ test('keeps the administrator shell separate from explicit front-site preview', 
   await expect(page).toHaveURL(/\/library$/);
   await page.getByRole('button', { name: 'ci_admin', exact: true }).click();
   await page.getByRole('menuitem', { name: '返回后台' }).click();
-  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page).toHaveURL(/\/admin\?tab=overview$/);
   await expect(page.getByRole('heading', { name: '管理后台' })).toBeVisible();
 });
 

@@ -1,3 +1,4 @@
+import { useI18n } from '../lib/i18n';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { Check } from '@phosphor-icons/react/Check';
 import { usePractice, type PracticePhase } from '../hooks/usePractice';
@@ -19,6 +20,7 @@ type RowProps = {
 };
 
 const PracticeRow = memo(function PracticeRow({ line, index, active, phase, typedValue, value, composing, blocked, inputStart, controller, currentIndex, activeRow, setComposing, canStart, onStart }: RowProps) {
+ const {t}=useI18n();
   const actual = useMemo(() => splitCharacters(typedValue), [typedValue]);
   const completed = !blocked && actual.length === line.characters.length;
   const rowErrors = actual.filter((character, offset) => character !== line.characters[offset]).length;
@@ -39,20 +41,20 @@ const PracticeRow = memo(function PracticeRow({ line, index, active, phase, type
   }, [active, phase, composing, line.start, inputStart, controller]);
 
   return <div ref={active ? activeRow : undefined} className={`practice-line${active ? ' line-active' : ''}${completed ? ' line-completed' : ''}`} data-active={active}>
-    <div className="line-marker" aria-label={`第 ${index + 1} 行${completed ? '已完成' : active ? '当前行' : '待输入'}`}>
+    <div className="line-marker" aria-label={t(`第 ${index + 1} 行${completed ? '已完成' : active ? '当前行' : '待输入'}`, `Line ${index + 1}: ${completed ? 'complete' : active ? 'current' : 'pending'}`)}>
       {completed && rowErrors === 0 ? <Check size={16} weight="bold" aria-hidden="true" /> : String(index + 1).padStart(2, '0')}
     </div>
     <div className="line-pair">
       <div className="line-source" data-testid={`practice-source-${index}`} data-text={line.text} aria-label={line.text}>
         {!active && (actual.length === 0 || (completed && rowErrors === 0)) ? <span className={completed ? 'char-correct' : undefined}>{visibleText(line.text)}</span> : line.characters.map((character, offset) => {
           const state = offset < actual.length ? (actual[offset] === character ? 'char-correct' : 'char-wrong') : offset === actual.length && phase === 'running' ? 'char-current' : '';
-          return <span key={offset} className={state} title={character === '\n' ? '换行' : character === ' ' ? '空格' : character === '\t' ? '制表符' : undefined}>{character === '\n' ? '↵' : character}</span>;
+          return <span key={offset} className={state} title={character === '\n' ? t("换行","Newline") : character === ' ' ? t("空格","Space") : character === '\t' ? t("制表符","Tab") : undefined}>{character === '\n' ? '↵' : character}</span>;
         })}
       </div>
       <textarea data-practice-input="true"
         ref={active ? controller.current.textareaRef : undefined}
         id={active ? 'typing-input' : undefined}
-        aria-label={active ? '当前行输入' : `第 ${index + 1} 行输入`}
+        aria-label={active ? t("当前行输入","Current line input") : t(`第 ${index + 1} 行输入`, `Line ${index + 1} input`)}
         value={value} disabled={!active || (phase !== 'running' && !(phase === 'ready' && canStart))}
         rows={1} wrap="off" spellCheck={false} autoComplete="off" autoCapitalize="off" autoCorrect="off"
         onChange={(event) => { if (index === currentIndex.current) { if (phase === 'ready' && event.target.value) onStart?.(); controller.current.onChange(event, prefix()); } }}
@@ -86,6 +88,7 @@ const PracticeRow = memo(function PracticeRow({ line, index, active, phase, type
 });
 
 export const PracticeLines = memo(function PracticeLines({ practice, title, reader, canStart = true, onStart }: Props) {
+ const {t}=useI18n();
   const { target, typed, raw, phase, strict, offset } = practice;
   const controller = useRef(practice);
   controller.current = practice;
@@ -169,11 +172,11 @@ export const PracticeLines = memo(function PracticeLines({ practice, title, read
 
   return <>
     <div className="line-progress">
-      <span>第 {activeIndex + 1} / {lines.length} 行</span>
-      <progress aria-label="文章完成进度" max={total || 1} value={typedCharacters.length} />
+      <span>{t(`第 ${activeIndex + 1} / ${lines.length} 行`, `Line ${activeIndex + 1} / ${lines.length}`)}</span>
+      <progress aria-label={t("文章完成进度","Article progress")} max={total || 1} value={typedCharacters.length} />
       <span className="progress-percent">{percent}%</span>
     </div>
-    <div ref={viewport} className="practice-lines" aria-label={`当前文章：${title}`} style={readerStyle}>
+    <div ref={viewport} className="practice-lines" aria-label={t(`当前文章：${title}`,`Current article: ${title}`)} style={readerStyle}>
       {lines.map((line, index) => {
         const active = index === activeIndex;
         const typedValue = typedCharacters.slice(line.start, line.end).join('');
