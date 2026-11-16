@@ -5,6 +5,7 @@ import { api, type User } from '../lib/api';
 import { isValidDisplayName, isValidPassword, isValidUsername, passwordRule, usernameRule } from '../lib/account-validation';
 import { Dialog } from './Dialog';
 import { PasswordField } from './PasswordField';
+import { AvatarUpload } from './AvatarUpload';
 import { AccountAvatar } from './AccountAvatar';
 import { EmailChangeForm } from './EmailChangeForm';
 import { SessionManager } from './SessionManager';
@@ -17,6 +18,9 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut, onDelete, 
 
   const [username, setUsername] = useState(user.username);
   const [displayName, setDisplayName] = useState(user.displayName || user.username);
+  const [profilePublic, setProfilePublic] = useState(user.profilePublic !== false);
+  const [privacyTouched, setPrivacyTouched] = useState(false);
+  useEffect(() => { if (!privacyTouched) setProfilePublic(user.profilePublic !== false); }, [user.profilePublic, privacyTouched]);
   const [avatar, setAvatar] = useState<User['avatar']>(user.avatar ?? null);
   const [usernamePassword, setUsernamePassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -32,7 +36,7 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut, onDelete, 
   const content = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const wasConfirming = useRef(false);
-  const dirty = username !== user.username || displayName !== (user.displayName || user.username) || (avatar ?? null) !== (user.avatar ?? null) ||
+  const dirty = (privacyTouched && profilePublic !== (user.profilePublic !== false)) || username !== user.username || displayName !== (user.displayName || user.username) || (avatar ?? null) !== (user.avatar ?? null) ||
     !!(usernamePassword || currentPassword || newPassword || confirmPassword) || emailDirty || deletionDirty;
   useLayoutEffect(() => { onGuardChange?.({ busy, dirty }); }, [busy, dirty, onGuardChange]);
   useEffect(() => () => onGuardChange?.({ busy: false, dirty: false }), [onGuardChange]);
@@ -66,8 +70,8 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut, onDelete, 
     if (!isValidDisplayName(value)) { setMessage({ area: 'profile', text: t("昵称须为 1–24 个字符", "Display name must be 1–24 characters"), error: true }); return; }
     setBusy(true);
     try {
-      const data = await api<{ user: User }>('/api/account/profile', { method: 'POST', headers: { 'X-Workspace-Owner': user.id }, body: { displayName: value, avatar: avatar ?? null } });
-      onUpdate(data.user); setDisplayName(data.user.displayName || data.user.username); setAvatar(data.user.avatar ?? null); setMessage({ area: 'profile', text: t("资料已保存", "Profile saved"), error: false });
+      const data = await api<{ user: User }>('/api/account/profile', { method: 'POST', headers: { 'X-Workspace-Owner': user.id }, body: { displayName: value, avatar: avatar ?? null, ...(privacyTouched ? { profilePublic } : {}) } });
+      onUpdate(data.user); setDisplayName(data.user.displayName || data.user.username); setAvatar(data.user.avatar ?? null); setProfilePublic(data.user.profilePublic !== false); setPrivacyTouched(false); setMessage({ area: 'profile', text: t("资料已保存", "Profile saved"), error: false });
     } catch (problem) { setMessage({ area: 'profile', text: (problem as Error).message, error: true }); }
     finally { setBusy(false); }
   }
@@ -101,9 +105,12 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut, onDelete, 
     <p className="account-email"><AccountAvatar avatar={user.avatar} size={32} /> <span>{t("用户名：", "Username: ")}{user.username}<br />{t("邮箱：", "Email: ")}{user.email}</span></p>
     <form className="auth-form" onSubmit={saveProfile}>
       <label>{t("公开昵称", "Public display name")}<input value={displayName} disabled={busy} required onChange={(event) => setDisplayName(event.target.value)} /></label>
-      <label>{t("头像", "Avatar")}<select disabled={busy} value={avatar ?? ''} onChange={(event) => setAvatar((event.target.value || null) as User['avatar'])}>
-        <option value="">{t("默认", "Default")}</option><option value="cloud">{t("云朵", "Cloud")}</option><option value="star">{t("星星", "Star")}</option><option value="moon">{t("月亮", "Moon")}</option>
+      <label>{t("头像", "Avatar")}<select aria-label={t("头像", "Avatar")} disabled={busy} value={avatar ?? ''} onChange={(event) => setAvatar((event.target.value || null) as User['avatar'])}>
+        <option value="">{t("默认", "Default")}</option>{avatar?.startsWith('data:') && <option value={avatar}>{t('自定义头像','Custom avatar')}</option>}<option value="cloud">{t("云朵", "Cloud")}</option><option value="star">{t("星星", "Star")}</option><option value="moon">{t("月亮", "Moon")}</option>
       </select></label>
+      <AvatarUpload onProcessingChange={setBusy} value={avatar} onChange={setAvatar} disabled={busy}/>
+      <label className="profile-visibility"><input type="checkbox" checked={profilePublic} disabled={busy} onChange={e=>{setPrivacyTouched(true);setProfilePublic(e.target.checked);}}/>{t('公开个人主页','Public profile')}</label>
+      <p className="feature-muted">{t('公开头像、壁纸和在线练习统计。邮箱、私人文章与输入内容不公开。','Shares your avatar, wallpaper and online practice statistics. Email, private articles and typed text stay private.')}</p>
       <button className="outline-button" disabled={busy}>{t("保存资料", "Save profile")}</button>
       {feedback('profile')}
     </form>

@@ -1,0 +1,60 @@
+import { test, expect } from './fixtures';
+import sharp from 'sharp';
+import { mkdirSync } from 'node:fs';
+const screenshots='docs/qa/screenshots/2026-11-16-profiles-wallpapers';
+test('course guide stays alongside the active input and can be resized in a low-height window',async({page})=>{
+ mkdirSync(screenshots,{recursive:true});await page.setViewportSize({width:1440,height:800});await page.goto('/lessons');
+ const number=page.getByRole('button',{name:'左右交替',exact:true});const box=await number.boundingBox();expect(box!.width).toBeLessThan(45);
+ await page.getByRole('button',{name:'进入第一课',exact:true}).click();
+ const guide=page.getByRole('region',{name:'课程提示'});const input=page.getByRole('textbox',{name:'当前行输入'});
+ await expect(guide).toBeInViewport();await expect(input).toBeInViewport();
+ const before=await guide.boundingBox();const divider=page.getByRole('separator',{name:'调整键位提示宽度'});await divider.focus();await page.keyboard.press('ArrowRight');
+ expect((await guide.boundingBox())!.width).toBeGreaterThan(before!.width);
+ const grip=await divider.boundingBox();await page.mouse.move(grip!.x+grip!.width/2,grip!.y+grip!.height/2);await page.mouse.down();await page.mouse.move(grip!.x+80,grip!.y+grip!.height/2);await page.mouse.up();
+ expect((await guide.boundingBox())!.width).toBeGreaterThan(before!.width+25);
+ await input.fill('fj fj jf jf ff jj fj jf\n');await expect(page.getByTestId('typed-count')).not.toHaveText('0');
+ expect(await page.evaluate(()=>window.scrollY)).toBeLessThan(10);await expect(page.getByRole('textbox',{name:'当前行输入'})).toBeInViewport();
+ await page.screenshot({path:screenshots+'/course-desktop.png',fullPage:true});
+ await page.getByRole('button',{name:'切换至夜间模式',exact:true}).click();await page.screenshot({path:screenshots+'/course-desktop-dark.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await expect(page.getByRole('textbox',{name:'当前行输入'})).toBeInViewport();
+ await page.screenshot({path:screenshots+'/course-mobile.png',fullPage:true});
+});
+test('custom avatar and public profile work across accounts, and privacy blocks direct requests',async({page,browser})=>{
+ mkdirSync(screenshots,{recursive:true});await page.goto('/');const name='profile_'+Date.now().toString(36);const email=name+'@example.test';
+ await page.request.post('/api/auth/code',{data:{email,purpose:'register'}});const code=(await(await page.request.get('/__e2e__/email-code?email='+email+'&purpose=register')).json()).code;
+ const created=await page.request.post('/api/auth/register',{data:{username:name,email,password:'test-profile-password',code}});expect(created.ok()).toBe(true);const user=(await created.json()).user;
+ await page.goto('/account');await expect(page.getByRole('dialog',{name:'账号设置'})).toBeVisible();
+ const avatar=await sharp({create:{width:256,height:256,channels:3,background:'#798bbe'}}).png().toBuffer();
+ await page.getByLabel('上传头像',{exact:true}).setInputFiles({name:'avatar.png',mimeType:'image/png',buffer:avatar});
+ await page.getByRole('textbox',{name:'公开昵称'}).fill('Luna');await page.getByRole('button',{name:'保存资料',exact:true}).click();await expect(page.getByText('资料已保存')).toBeVisible();
+ await expect(page.locator('.account-avatar-image').first()).toBeVisible();await page.screenshot({path:screenshots+'/account-desktop.png',fullPage:true});
+ const visitor=await browser.newContext({locale:'zh-CN'});const guest=await visitor.newPage();await guest.goto('/users/'+user.id);await expect(guest.getByRole('heading',{name:'Luna',exact:true})).toBeVisible();await expect(guest.getByRole('heading',{name:'正在使用的壁纸'})).toBeVisible();
+ expect(await guest.locator('body').textContent()).not.toContain(email);await guest.screenshot({path:screenshots+'/public-profile.png',fullPage:true});
+ await page.getByRole('checkbox',{name:'公开个人主页',exact:true}).uncheck();await page.getByRole('button',{name:'保存资料',exact:true}).click();await expect(page.getByText('资料已保存')).toBeVisible();
+ await expect.poll(async()=> (await guest.request.get('/api/profiles/'+user.id)).status()).toBe(404);await guest.reload();await expect(guest.getByRole('heading',{name:'用户资料不可查看'})).toBeVisible();
+ await page.getByRole('checkbox',{name:'公开个人主页',exact:true}).check();await page.getByRole('button',{name:'保存资料',exact:true}).click();await expect.poll(async()=> (await guest.request.get('/api/profiles/'+user.id)).status()).toBe(200);
+ // UI fixture supplies a score, while the linked profile and privacy checks above use real persisted account data.
+ const currentAvatar=(await(await page.request.get('/api/me')).json()).user.avatar;
+ await page.route('**/api/leaderboard?*',route=>route.fulfill({json:{entries:[{rank:1,nickname:'Luna',speed:68.4,accuracy:98.6,guest:0,createdAt:Date.now(),attemptId:'test-score',userId:user.id,avatar:currentAvatar,profilePublic:true}],self:null,total:1}}));
+ await page.goto('/rankings?board=user&language=en&difficulty=beginner&duration=120&strict=true');await expect(page.getByRole('link',{name:'Luna',exact:true})).toBeVisible();await expect(page.getByRole('columnheader',{name:'WPM ↓'})).toBeVisible();
+ await expect(page.getByLabel('限时（分钟）')).toHaveCount(0);await expect(page.getByText('严格纠错',{exact:true})).toHaveCount(0);
+ await page.screenshot({path:screenshots+'/rankings-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:screenshots+'/rankings-mobile.png',fullPage:true});
+ await page.getByRole('link',{name:'Luna',exact:true}).click();await expect(page.getByRole('heading',{name:'Luna',exact:true})).toBeVisible();await expect(page).toHaveURL(new RegExp('/users/'+user.id));await page.getByRole('button',{name:'返回排行榜',exact:true}).click();await expect(page.getByRole('link',{name:'Luna',exact:true})).toBeVisible();expect(new URL(page.url()).searchParams.get('language')).toBe('en');expect(new URL(page.url()).searchParams.get('board')).toBe('user');await visitor.close();
+});
+test('daily wallpaper preview saves, survives reload, and can be disabled without removing the image',async({page,browser,clientIp})=>{
+ const {data,info}=await sharp('public/assets/lake-default.webp').resize(960).webp().toBuffer({resolveWithObject:true});
+ const background={image:'data:image/webp;base64,'+data.toString('base64'),name:'Wallhaven test fixture',width:info.width,height:info.height,fit:'cover',positionX:50,positionY:50,blur:0,shade:25,daily:{id:'ab12cd',day:new Date().toISOString().slice(0,10),kind:'nature'}};
+ await page.route('**/api/wallpapers/daily?*',route=>route.fulfill({json:{background}}));
+ const username='daily_'+Date.now().toString(36),email=username+'@example.test',password='daily-test-password';
+ await page.request.post('/api/auth/code',{data:{email,purpose:'register'}});const code=(await(await page.request.get('/__e2e__/email-code?email='+email+'&purpose=register')).json()).code;
+ expect((await page.request.post('/api/auth/register',{data:{email,username,password,code}})).ok()).toBe(true);await page.goto('/');await expect(page.getByRole('button',{name:username,exact:true})).toBeVisible();
+ async function open(){await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('button',{name:'设置',exact:true}).click();await expect(page.getByText('已同步',{exact:true})).toBeVisible();await page.getByRole('button',{name:'日间背景图',exact:true}).click();}
+ await open();await page.getByRole('checkbox',{name:'每日自动更新壁纸'}).check();await expect(page.getByRole('link',{name:'图片来源：Wallhaven ↗'})).toBeVisible();
+ await expect(page.getByTestId('custom-background-image')).toHaveCount(0);await page.screenshot({path:screenshots+'/wallpaper-settings.png',fullPage:true});
+ await page.getByRole('button',{name:'保存',exact:true}).click();await expect(page.getByTestId('custom-background-image')).toBeVisible();await page.reload();await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src',background.image);
+ await expect.poll(async()=>{const result=(await(await page.request.get('/api/workspace')).json()).items;return result?.find((item:any)=>item.kind==='settings')?.value?.wallpapers?.light;}).toBe('nature');
+ const otherContext=await browser.newContext({baseURL:test.info().project.use.baseURL,locale:'zh-CN',extraHTTPHeaders:{'X-Forwarded-For':clientIp}});expect((await otherContext.request.post('/api/auth/login',{data:{identifier:username,password}})).ok()).toBe(true);const other=await otherContext.newPage();await other.goto('/');await expect(other.getByTestId('custom-background-image')).toHaveAttribute('src',background.image);await otherContext.close();
+ await open();await expect(page.getByRole('checkbox',{name:'每日自动更新壁纸'})).toBeChecked();await page.getByRole('checkbox',{name:'每日自动更新壁纸'}).uncheck();await page.getByRole('button',{name:'保存',exact:true}).click();
+ await page.reload();await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src',background.image);await open();await expect(page.getByRole('checkbox',{name:'每日自动更新壁纸'})).not.toBeChecked();
+});

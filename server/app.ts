@@ -1,4 +1,6 @@
 import { createSupportSettings, registerSupportAdminRoutes, registerSupportPublicRoutes } from './support-settings.js';
+import { profileValue, registerPublicProfiles } from './profile.js';
+import { registerWallpapers } from './wallpapers.js';
 import { registerHistoryDeletion } from './history-delete.js';
 import { createScoreStatus } from './score-status.js';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
@@ -275,7 +277,9 @@ export async function createApp(options: AppOptions) {
   const expectedAccount = (request: FastifyRequest) => request.headers['x-workspace-owner'];
   const accountMatches = (request: FastifyRequest, user: User) =>
     expectedAccount(request) === undefined || expectedAccount(request) === user.id;
-  const publicUser = (user: User) => ({ id: user.id, username: user.username, email: user.email, isAdmin: user.role === 'admin', displayName: user.display_name || user.username, avatar: user.avatar || null });
+  registerPublicProfiles(app, db, userFor);
+  registerWallpapers(app);
+  const publicUser = (user: User) => ({ id: user.id, username: user.username, email: user.email, isAdmin: user.role === 'admin', displayName: user.display_name || user.username, ...profileValue(user.avatar) });
   const clearAccountSession = (request: FastifyRequest, reply: FastifyReply) => {
     if (expectedAccount(request) === undefined) reply.clearCookie('session', cookieOptions);
   };
@@ -1106,10 +1110,13 @@ export async function createApp(options: AppOptions) {
     }
     const query = request.query as Record<string, string>;
     const { language, difficulty, period = 'all', articleId, mode = 'timed', strict = 'false', board = 'all' } = query;
+    const aggregate = query.duration === undefined && query.mode === undefined && query.strict === undefined && query.articleId === undefined;
+    const page = Number(query.page ?? 1); const pageSize = aggregate ? 10 : 100; const offset = (page - 1) * pageSize;
     const duration = Number(query.duration);
+    if (!Number.isSafeInteger(page) || page < 1 || page > 100000) return invalid(reply, '分页参数无效');
     if (!['zh', 'en'].includes(language) || !difficulties.includes(difficulty as Difficulty) ||
       !['all', 'week', 'month'].includes(period) || !['all', 'guest', 'user'].includes(board) || !isPracticeMode(mode) || !['true', 'false'].includes(strict) ||
-      (mode === 'timed' && !isValidDuration(duration)) ||
+      (!aggregate && mode === 'timed' && !isValidDuration(duration)) ||
       (articleId !== undefined && !(await catalog.hasHistorical(articleId, language as Language, difficulty as Difficulty)))) {
       return invalid(reply, '请选择有效的排行榜');
     }
@@ -1119,32 +1126,36 @@ export async function createApp(options: AppOptions) {
       displayDays ? now() - displayDays * 86_400_000 : 0);
     const rows = (await db.prepare(`
       WITH candidates AS (
-        SELECT id, owner, nickname, speed, accuracy, finished_at, article_id,
+        SELECT id, owner, nickname, speed, accuracy, finished_at, article_id, correct, elapsed_ms,
           ROW_NUMBER() OVER (PARTITION BY owner ORDER BY speed DESC, accuracy DESC, finished_at, id) AS owner_rank
         FROM challenges
         WHERE published=1 AND status='finished' AND ranking_removed=0 AND language=@language
-          AND difficulty=@difficulty AND mode=@mode AND strict=@strict AND finished_at>=@since
+          AND difficulty=@difficulty AND (@aggregate=1 OR (mode=@mode AND strict=@strict)) AND finished_at>=@since
           AND nickname IS NOT NULL AND speed IS NOT NULL
           AND (@board='all' OR (@board='guest' AND owner LIKE 'g:%') OR (@board='user' AND owner LIKE 'u:%'))
           AND (@duration IS NULL OR duration=@duration) AND (@articleId IS NULL OR article_id=@articleId)
       ), ranked AS (
         SELECT owner, COALESCE((SELECT display_name FROM users WHERE 'u:' || users.id=candidates.owner), nickname) AS nickname,
-          speed, accuracy, id AS attemptId, finished_at AS createdAt, article_id AS articleId,
+          speed, accuracy, CASE WHEN elapsed_ms>0 AND correct IS NOT NULL THEN correct*60000.0/elapsed_ms ELSE NULL END AS cpm, id AS attemptId, finished_at AS createdAt, article_id AS articleId,
           CASE WHEN owner LIKE 'g:%' THEN 1 ELSE 0 END AS guest,
           ROW_NUMBER() OVER (ORDER BY speed DESC, accuracy DESC, finished_at, id) AS rank,
           COUNT(*) OVER () AS total
         FROM candidates WHERE owner_rank=1
       )
-      SELECT * FROM ranked WHERE rank<=100 OR owner=@owner ORDER BY rank
+      SELECT * FROM ranked WHERE (rank>@offset AND rank<=@end) OR owner=@owner ORDER BY rank
     `).all({
-      language, difficulty, mode, strict: Number(strict === 'true'), since, owner, board,
-      duration: mode === 'timed' ? duration : null, articleId: articleId ?? null,
+      language, difficulty, mode, strict: Number(strict === 'true'), since, owner, board, aggregate: Number(aggregate), offset, end: offset + pageSize,
+      duration: !aggregate && mode === 'timed' ? duration : null, articleId: articleId ?? null,
     })) as Array<Omit<RankingEntry, 'articleId'> & { owner: string; total: number; rank: number; articleId: string | null }>;
-    const entries = rows.map(({ owner: rowOwner, total: _total, articleId, ...row }) => ({
-      ...row, ...(articleId && { articleId }), mode, strict: strict === 'true', mine: rowOwner === owner,
+    const entries = await Promise.all(rows.map(async ({ owner: rowOwner, total: _total, articleId, ...row }) => {
+      const userId = rowOwner.startsWith('u:') ? rowOwner.slice(2) : undefined;
+      const account = userId ? await db.prepare('SELECT avatar FROM users WHERE id=? AND disabled_at IS NULL').get(userId) as { avatar: string | null } | undefined : undefined;
+      return { ...row, cpm: row.cpm == null ? null : Number(row.cpm), ...(articleId && { articleId }), mine: rowOwner === owner,
+        ...(account && { userId, avatar: profileValue(account.avatar).avatar, profilePublic: profileValue(account.avatar).profilePublic }),
+        ...(!aggregate && { mode, strict: strict === 'true' }) };
     }));
     reply.header('Cache-Control', 'no-store');
-    return { entries: entries.slice(0, 100), self: entries.find((entry) => entry.mine) ?? null, total: rows[0]?.total ?? 0, ...(displayDays && { displayDays }) };
+    return { entries: entries.filter(entry => entry.rank! > offset && entry.rank! <= offset + pageSize), self: entries.find((entry) => entry.mine) ?? null, total: rows[0]?.total ?? 0, ...(displayDays && { displayDays }) };
   });
 
   app.get('/api/history', async (request, reply) => {

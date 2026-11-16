@@ -1,3 +1,8 @@
+import { CourseLayout } from './components/CourseLayout';
+import { PublicProfile } from './components/PublicProfile';
+import { saveWallpaper } from './lib/workspace';
+import { pathForProfile, profileIdFromPath } from './lib/routes';
+import { useDailyWallpaper } from './hooks/useDailyWallpaper';
 import { SystemMessage } from './components/SystemMessage';
 import { useI18n } from './lib/i18n';
 import { LanguageToggle } from './components/LanguageToggle';
@@ -232,6 +237,8 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
   const authCompleted = useRef(false);
   const [directAdmin] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
   const [view, setView] = useState<View>(() => feedbackResume ? 'feedback' : directAdmin ? 'practice' : mainRoute(window.location.pathname));
+  const profileReturn = useRef('/rankings');
+  const [routeProfileId, setRouteProfileId] = useState(() => profileIdFromPath(window.location.pathname));
   const [routeArticleId, setRouteArticleId] = useState(() => articleIdFromPath(window.location.pathname));
   const [routeRecordId, setRouteRecordId] = useState(() => recordIdFromPath(window.location.pathname));
   const [routeFeedbackId, setRouteFeedbackId] = useState(() => feedbackIdFromPath(window.location.pathname));
@@ -308,6 +315,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
   const validDuration = /^\d+$/.test(configuredMinutes) && minutes >= 1 && minutes <= 60;
   const duration = validDuration ? minutes * 60 : workspace.settings.minutes * 60;
   const theme = user ? pendingTheme ?? workspace.settings.theme : guestTheme;
+  useDailyWallpaper(ownerId, theme, workspace.settings, workspace.backgrounds[theme], authReady && workspace.ready && (!ownerId || workspace.cloudLoaded) && !showBackground);
   const ready = authReady && workspace.ready;
   const adminLogin = directAdmin && authReady && !user && !adminLoginDismissed;
   const reportSaveError = useCallback(() => { if (live.current) setFeedback(t("无法保存进度，请复制输入后再关闭页面", "Progress could not be saved. Copy your input before closing.")); }, []);
@@ -661,7 +669,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
     }
     currentPath.current = window.location.pathname + window.location.search + window.location.hash;
     currentEntryIndex.current = navigationEntryIndex();
-    setView(next); setRouteArticleId(articleIdFromPath(path)); setRouteRecordId(recordIdFromPath(path)); setRouteFeedbackId(feedbackIdFromPath(path));
+    setView(next); setRouteProfileId(profileIdFromPath(window.location.pathname)); setRouteArticleId(articleIdFromPath(path)); setRouteRecordId(recordIdFromPath(path)); setRouteFeedbackId(feedbackIdFromPath(path));
   }
   function commitView(next: MainView) { commitAddress(pathForView(next), next); }
 
@@ -669,6 +677,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
     void afterPark(() => { setShowResult(false); setFeedback(''); commitAddress(pathForArticle(id), 'article'); });
   }
 
+  function openProfile(id: string) { void afterPark(() => { profileReturn.current = view === 'rankings' ? window.location.pathname + window.location.search + window.location.hash : '/rankings'; setShowResult(false); commitAddress(pathForProfile(id), 'profile'); }); }
   function openRecord(id: string) { commitAddress(pathForRecord(id), 'history'); }
   function openFeedback(id: string) { commitAddress(pathForFeedback(id), 'feedback'); }
 
@@ -728,7 +737,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       const next = mainRoute(nextPath);
       setShowMore(false); setShowResult(false); setFeedback('');
       if (focused && next !== 'practice') exitFocus();
-      setView(next); setRouteArticleId(articleIdFromPath(nextPath)); setRouteRecordId(recordIdFromPath(nextPath)); setRouteFeedbackId(feedbackIdFromPath(nextPath)); currentPath.current = nextAddress;
+      setView(next); setRouteProfileId(profileIdFromPath(window.location.pathname)); setRouteArticleId(articleIdFromPath(nextPath)); setRouteRecordId(recordIdFromPath(nextPath)); setRouteFeedbackId(feedbackIdFromPath(nextPath)); currentPath.current = nextAddress;
       currentEntryIndex.current = targetEntryIndex;
       if (targetIndex !== undefined) currentHistoryIndex.current = targetIndex;
       else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', nextAddress);
@@ -1078,7 +1087,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
         </div>
         <LanguageToggle />
         <button className="theme-button" disabled={!!user && !workspace.settingsReady} aria-label={theme === 'dark' ? t("切换至日间模式", "Switch to light mode") : t("切换至夜间模式", "Switch to dark mode")} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={20} /> : <MoonStars size={20} />}<span>{theme === 'dark' ? t("日间", "Light") : t("夜间", "Dark")}</span></button>
-        {user ? <AccountMenu user={user} disabled={!canChangeAccount} onAccount={() => { accountReturn.current = view === 'article' ? 'library' : view === 'notfound' || view === 'account' ? 'practice' : view; navigate('account'); }} onRecords={() => navigate('history')} onData={() => navigate('data')} onFeedback={() => navigate('feedback')}
+        {user ? <AccountMenu onProfile={() => openProfile(user.id)} user={user} disabled={!canChangeAccount} onAccount={() => { accountReturn.current = view === 'article' ? 'library' : view === 'profile' || view === 'notfound' || view === 'account' ? 'practice' : view; navigate('account'); }} onRecords={() => navigate('history')} onData={() => navigate('data')} onFeedback={() => navigate('feedback')}
           onLogout={() => void changeAccount()} onAdministration={onAdministration ? () => void afterPark(onAdministration) : undefined} /> : <button className="account-button" disabled={!canChangeAccount} onClick={() => void changeAccount()}>{t("登录", "Sign in")}</button>}
       </nav>
     </header>}
@@ -1089,7 +1098,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
         {site.error && <div className="cleanup-warning" role="status"><span>{t("站点配置读取失败：", "Could not load site settings:")}{<SystemMessage text={site.error} />}</span><button className="outline-button" onClick={site.retry}>{t("重试", "Retry")}</button></div>}
         {view === 'practice' && <>
           {focused ? <div className="focus-actions"><button ref={focusButton} className="outline-button feature-action-button" onClick={exitFocus}>{t("退出专注", "Exit focus")}</button><button className="outline-button feature-action-button" disabled={!canCommand} onClick={openCommands}>{t("功能面板", "Commands")}</button></div> : selectedTraining ? null : filters}
-          {selectedLesson && <LessonGuide lesson={selectedLesson} character={targetCharacters[typedCharacters.length]} onBack={() => navigate('lessons')} />}
+          <CourseLayout active={!!selectedLesson} guide={selectedLesson && <LessonGuide lesson={selectedLesson} character={targetCharacters[typedCharacters.length]} onBack={() => navigate('lessons')} />}>
           {(selectedAssessment || selectedWeakKeys) && <section className="lesson-guide" aria-label={t('训练说明', 'Training guide')}><div className="lesson-guide-top"><button className="text-button" onClick={() => navigate('lessons')}>{t('课程目录', 'Course outline')}</button><span>{displayTitle}</span></div><p>{t('英文全文 · 非严格模式 · 不参与排行', 'Full English text · non-strict · unranked')}</p></section>}
           {(workspace.settings.showTimer !== false || workspace.settings.showAccuracy !== false || workspace.settings.showSpeed !== false) && <div className="status-row">
             {workspace.settings.showTimer !== false && <span><Clock size={23} /> {currentMode === 'article' ? t("用时", "Elapsed") : t("剩余时间", "Remaining")}：<b data-testid="remaining-time">{formatTime(clockMs)}</b></span>}
@@ -1127,6 +1136,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
             </div>
             <PracticeLines practice={practice} title={displayTitle} reader={workspace.settings} canStart={canStart} onStart={() => { interacted.current = true; setFeedback(''); }} />
           </section>
+          </CourseLayout>
         </>}
         {view === 'lessons' && <LessonsView records={records} drafts={draftBox.drafts} ownerId={ownerId} onSelect={selectLesson} onResume={(draft) => continueDraft(draft)} onTraining={selectArticle} />}
         {view !== 'practice' && feedback && <p className="form-error view-error" role="alert"><SystemMessage text={feedback} /></p>}
@@ -1140,7 +1150,8 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
           if (catalogState === 'error') return <section className="content-panel feature-panel"><p className="form-error" role="alert">{t("文章暂不可用", "Article unavailable")}</p><button type="button" className="outline-button" onClick={refreshCatalog}>{t("重试", "Retry")}</button></section>;
           return <section className="content-panel feature-panel"><div className="content-heading"><h1>{t("文章未找到", "Article not found")}</h1></div><button type="button" className="outline-button" onClick={() => navigate('library')}>{t("返回文章库", "Back to library")}</button></section>;
         })()}
-        {view === 'rankings' && authReady && <RankingView initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} onAddressChange={(address) => { currentPath.current = address; }} />}
+        {view === 'profile' && routeProfileId && <PublicProfile key={routeProfileId+':'+ownerId} id={routeProfileId} onBack={() => void afterPark(() => commitAddress(profileReturn.current, 'rankings'))}/>}
+        {view === 'rankings' && authReady && <RankingView onProfile={openProfile} initial={{ language, difficulty, duration, mode: currentMode, strict: currentStrict }} articles={publicArticles} isAdmin={false} ownerId={ownerId} onAddressChange={(address) => { currentPath.current = address; }} />}
         {view === 'history' && <RecordsView records={records} ownerId={ownerId} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} routeRecordId={routeRecordId}
           routeLoading={!workspace.ready || (!!ownerId && !historyLoaded)} routePartial={historyError || !!workspace.error || (!!ownerId && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory()}
           onOpenRecord={openRecord} onCloseRecord={() => commitView('history')} onRetryRecords={() => { setHistoryRevision((revision) => revision + 1); void workspace.sync(); }} recoveryFor={recoveryForRecord} />}
@@ -1182,7 +1193,10 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       setShowGuestImport(false);
       void collectGuestImport(user.id).then((plan) => setHasGuestData(plan.items.length > 0)).catch(() => setHasGuestData(true));
     }} onRecovery={workspace.recoveryReason ? () => { setShowGuestImport(false); setShowRecovery(workspace.recoveryReason!); } : undefined} />}
-    {showBackground && <BackgroundDialog theme={showBackground} value={workspace.backgrounds[showBackground]} onClose={() => setShowBackground(undefined)} onSave={(background) => background ? workspace.put('background', showBackground, background) : workspace.remove('background', showBackground)} />}
+    {showBackground && <BackgroundDialog autoMode={workspace.settings.wallpapers?.[showBackground]} theme={showBackground} value={workspace.backgrounds[showBackground]} onClose={() => setShowBackground(undefined)} onSave={async (background, automatic) => {
+      if(ownerId && !workspace.cloudLoaded && !workspace.hasSavedSettings) throw new Error(t('请先同步账号设置','Sync account settings first'));
+      await saveWallpaper(ownerId,showBackground,background,automatic??'off');
+    }} />}
     {confirmPractice && <Dialog title={confirmPractice.action === 'restart' ? t("重新开始本次练习？", "Restart this practice?") : t("结束本次练习？", "Finish this practice?")} onClose={cancelPracticeAction}>
       {confirmPractice.action === 'restart' && <p className="dialog-intro">{t("本次输入和计时将被清除。", "Current input and timing will be cleared.")}</p>}
       {phase === 'restoring' && <p className="dialog-intro" role="status">{t("恢复中…", "Restoring…")}</p>}

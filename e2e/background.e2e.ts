@@ -56,7 +56,7 @@ test('uploads a real raster, adjusts it, preserves typing and restores default a
   await page.getByRole('button', { name: '恢复默认', exact: true }).click();
   await save(page);
   await expect(image).toHaveCount(0);
-  await expect(page.locator('.sleeping-cat')).toBeVisible();
+  await expect(page.getByRole('main')).toHaveCSS('background-image', /lake-default\.webp/);
   await page.reload();
   await expect(image).toHaveCount(0);
 });

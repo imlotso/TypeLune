@@ -12,6 +12,6 @@ export function RoomBackground({ theme, background, children }: { theme: Backgro
       <div className="background-shade" style={{ opacity: custom.shade / 100 }} />
     </div>}
     {children}
-    {!custom && <img className="sleeping-cat" src="/assets/sleeping-cat.png" alt="" aria-hidden="true" />}
+    {custom?.daily && <a className="wallpaper-credit" href={"https://wallhaven.cc/w/"+custom.daily.id} target="_blank" rel="noopener noreferrer">Wallhaven ↗</a>}
   </main>;
 }

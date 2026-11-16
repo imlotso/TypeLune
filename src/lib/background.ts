@@ -1,12 +1,13 @@
 export type BackgroundTheme = 'light' | 'dark';
 export type BackgroundImage = { image: string; name: string; width: number; height: number };
 export type BackgroundConfig = BackgroundImage & {
+  daily?: { id: string; day: string; kind: 'nature' | 'portrait' };
   fit: 'cover' | 'contain'; positionX: number; positionY: number; blur: number; shade: number;
 };
 
 export const maxBackgroundBytes = 768 * 1024;
 const maxDataLength = Math.ceil(maxBackgroundBytes / 3) * 4;
-const fields = ['image', 'name', 'width', 'height', 'fit', 'positionX', 'positionY', 'blur', 'shade'];
+const fields = ['image', 'name', 'width', 'height', 'fit', 'positionX', 'positionY', 'blur', 'shade', 'daily'];
 const inRange = (value: unknown, min: number, max: number) => typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
 
 function rasterDimensions(value: unknown): { width: number; height: number } | undefined {
@@ -85,6 +86,8 @@ export function isBackgroundConfig(value: unknown): value is BackgroundConfig {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const item = value as Record<string, unknown>;
   const size = rasterDimensions(item.image);
+  const daily = item.daily as BackgroundConfig['daily'];
+  if (daily !== undefined && (!daily || Object.keys(daily).some(key => !['id', 'day', 'kind'].includes(key)) || !/^[a-z0-9]{6}$/.test(daily.id) || !/^\d{4}-\d{2}-\d{2}$/.test(daily.day) || !['nature', 'portrait'].includes(daily.kind))) return false;
   return Object.keys(item).every((key) => fields.includes(key)) && !!size && size.width === item.width && size.height === item.height &&
     typeof item.name === 'string' && item.name.length > 0 && item.name.length <= 120 && !/[\p{Cc}\p{Cf}]/u.test(item.name) &&
     Number.isInteger(item.width) && inRange(item.width, 1, 2560) && Number.isInteger(item.height) && inRange(item.height, 1, 2560) &&

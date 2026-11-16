@@ -3,7 +3,7 @@ export const mainPaths = {
   feedback: '/feedback', account: '/account', data: '/account/data', help: '/help', about: '/about', privacy: '/privacy', terms: '/terms',
 } as const;
 export type MainView = keyof typeof mainPaths;
-export type MainRoute = MainView | 'article' | 'notfound';
+export type MainRoute = MainView | 'article' | 'profile' | 'notfound';
 export const pathForView = (view: MainView) => mainPaths[view];
 export const pathForFeedback = (id: string) => `/feedback/${encodeURIComponent(id)}`;
 export function feedbackIdFromPath(pathname: string): string | undefined {
@@ -32,7 +32,10 @@ export function articleIdFromPath(pathname: string): string | undefined {
     return id && id.length <= 200 && !/[\p{Cc}\p{Cf}]/u.test(id) ? id : undefined;
   } catch { return undefined; }
 }
+export const pathForProfile = (id: string) => `/users/${encodeURIComponent(id)}`;
+export function profileIdFromPath(path: string) { return /^\/users\/([a-zA-Z0-9-]{1,100})\/?$/.exec(path)?.[1]; }
 export function mainRoute(pathname: string): MainRoute {
+  if (profileIdFromPath(pathname)) return 'profile';
   if (articleIdFromPath(pathname)) return 'article';
   if (recordIdFromPath(pathname)) return 'history';
   if (feedbackIdFromPath(pathname)) return 'feedback';

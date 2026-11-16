@@ -36,7 +36,7 @@ export const helpSections = [
 export const privacySections = [
   ['账号与验证', '注册账号保存用户名、邮箱、密码散列和必要的认证数据；验证码与会话使用摘要校验。会话记录粗略浏览器、系统及最近请求时间，邮件服务用于发送账号验证码。'],
   ['练习资料', '浏览器保存草稿、记录、设置、收藏、私人文章和背景。登录后这些资料可同步到账号工作区；游客资料保存在本机。在线练习还会向服务端提交练习进度和结果以校验成绩。'],
-  ['公开成绩', '公开榜单展示昵称、成绩和练习条件，不展示邮箱。游客上榜使用提交时的昵称。'],
+  ['公开成绩', '公开榜单展示昵称、头像和成绩，不展示邮箱。游客上榜使用提交时的昵称。个人主页默认公开日夜壁纸及在线练习统计，可在账号设置关闭；私人文章、输入正文和草稿不进入公开主页。开启每日壁纸后，服务端会请求 Wallhaven 图片，图片权利归原作者。'],
   ['反馈截图', '提交的反馈、截图及补充内容保存在服务端，仅提交者和有权限的管理员可查看；内部备注仅管理员可查看。'],
   ['数据处理', '服务端使用必要的 Cookie 维持会话和游客练习，并处理请求信息以执行访问控制与频率限制。管理操作会记录审计事件。'],
   ['删除与联系', '删除记录会撤回关联的公开成绩。服务端保留必要的随机记录标识和删除登记，防止旧设备重新上传或恢复成绩；账号注销会删除账号及其云资料，并清除账号关联的删除登记。离线设备和已有备份副本不会即时清除。可通过站内反馈或关于页面的联系邮箱联系。'],
@@ -61,7 +61,7 @@ export const helpSectionsEn = [
 export const privacySectionsEn = [
  ['Account & verification', 'Registration stores a username, email, password hash and necessary authentication data. Verification codes and sessions are checked using digests. Sessions record approximate browser and operating-system information and the latest request time. The mail service sends account verification codes.'],
  ['Practice data', 'Your browser stores drafts, records, settings, favorites, private articles and backgrounds. Signed-in data can sync to your account workspace; guest data stays local. Online practice also submits progress and results to the server for verification.'],
- ['Public results', 'Public leaderboards show nicknames, results and practice conditions, not email addresses. Guest entries use the nickname provided on submission.'],
+ ['Public results', 'Public leaderboards show nicknames, avatars and results, not email addresses. Guest entries use the nickname provided on submission. Profiles share day/night wallpapers and online practice statistics by default; disable public viewing in account settings. Private articles, typed text and drafts are not included. Enabling daily wallpapers makes the server request images from Wallhaven; image rights remain with their original owners.'],
  ['Feedback screenshots', 'Submitted feedback, screenshots and updates are stored on the server and are visible only to the submitter and authorized administrators. Internal notes are visible only to administrators.'],
  ['Data processing', 'The server uses necessary cookies for sessions and guest practice, and processes request information for access control and rate limiting. Management operations are recorded in audit events.'],
  ['Deletion & contact', 'Deleting records withdraws their linked public results. The server retains necessary random record identifiers and deletion registrations to prevent old devices from uploading them again or restoring results. Account deletion removes the account, its cloud data and related deletion registrations. Offline devices and existing backup copies are not cleared immediately. Contact the operator through site feedback or the email on the About page.'],

@@ -131,7 +131,7 @@ it('honors leaderboard filters and displays the signed-in user beyond the visibl
   render(<App />);
   await screen.findByRole('button', { name: /小云/ });
   fireEvent.click(screen.getByRole('button', { name: '排行榜' }));
-  fireEvent.change(await screen.findByLabelText('排行时段'), { target: { value: 'week' } });
+  fireEvent.click(await screen.findByRole('button', { name: '近7天' }));
   await waitFor(() => expect(fetch.mock.calls.some(([url]) => url.includes('/api/leaderboard?') && url.includes('period=week'))).toBe(true));
   expect(await screen.findByText('第 108 名')).toBeTruthy();
 });

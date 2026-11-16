@@ -50,6 +50,8 @@ test('uses every history page, deduplicates IDs and exposes older trend points',
   await page.route('**/api/history?*', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(route.request().url().includes('cursor=')
     ? { entries: [record(99), record(100)], nextCursor: null } : { entries: Array.from({ length: 100 }, (_, index) => record(index)), nextCursor: 'next-page' }) }));
   await page.goto('/stats');
+  // Select filters after the authenticated account replaces the guest workspace.
+  await expect(page.getByRole('button', { name: new RegExp(username) })).toBeVisible();
   await page.getByLabel('统计时间范围').selectOption('all');
   await expect(page.locator('dl').filter({ hasText: '练习次数' }).locator('div').filter({ hasText: '练习次数' }).locator('dd')).toHaveText('101');
   await expect(page.getByText('1 条记录缺少有效用时')).toBeVisible();
