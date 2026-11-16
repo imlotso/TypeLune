@@ -64,3 +64,9 @@ Vercel + PostgreSQL 的 handler 路径和 SQLite 兼容已实际测试。Docker 
 真实 PG18.7 的语言与支持入口浏览器专项 8 项通过，24.1 秒、正常退出 0。较慢的 PG 初始化还暴露新语言测试在账号会话未恢复时操作游客菜单的竞态；测试现明确等待预期账号入口出现再操作，保留全部同步/持久化/冲突断言，没有增加超时或删测。实际应用代码仍为已完成 Docker 验证的 `788982a`；后续差异仅测试夹具和验证文档。
 
 最终 Docker + PG18.7 与 SQLite 容器测试均已完成，详见 [Docker 实机记录](2026-11-16-docker-runtime.md)。
+
+## Release gate: Node 22 ESM
+
+The first remote release CI run (`43789452323`) passed all 704 unit/integration tests, both complete 137-case Chromium runs (SQLite and PostgreSQL), and the Docker smoke test. Its final Node 22 ESM gate correctly rejected the new inline type import in `models.ts` with TS2835: NodeNext requires an explicit `.js` extension. This is a real compatibility defect, not an environment exemption.
+
+Reproduced the same failure locally with Node 22.23.5 before changing the single type-only path to `./ui-locale.js`, consistent with the existing shared-model imports. The unchanged `verify-vercel-esm.mjs` then compiled and imported the emitted Function successfully, both with and without experimental require-module support. Typecheck and production build also passed. No checks, compiler settings, or assertions were loosened. The release must wait for the corrected commit's complete remote CI run.

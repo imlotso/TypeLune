@@ -11,7 +11,7 @@ export const defaultPace: PaceSettings = { enabled: false, source: 'custom', cus
 export type PresetReading = { fontSize: number; lineHeight: number; visibleLines: number; showTimer: boolean; showSpeed: boolean; showAccuracy: boolean };
 export type PracticePreset = { id: string; name: string; language: Language; difficulty: Difficulty; mode: PracticeMode; minutes: number; strict: boolean; autoPause: boolean; pace?: PaceSettings; reading?: PresetReading };
 export type ReaderSettings = {
-  uiLocale?: import('./ui-locale').UiLocalePreference;
+  uiLocale?: import('./ui-locale.js').UiLocalePreference;
   minutes: number;
   mode: PracticeMode;
   strict: boolean;
