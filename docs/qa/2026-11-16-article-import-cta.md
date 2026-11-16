@@ -24,3 +24,16 @@ Screenshots under docs/qa/screenshots/2026-11-16-article-cta. Local reproduction
 
 ## Release gate
 Preview only. User review and explicit merge/deployment authorization are still needed. Resolve/triage the suite failures and rerun final relevant CI before release.
+
+## Follow-up: explicit guest storage acknowledgement
+
+User approved the reminder preview. Keep this branch for unified integration with the current course work; do not deploy separately.
+
+- Both creation entries share the guest guard; accounts bypass it, and existing article editing is unchanged.
+- The dialog explains browser-local storage, no upload, clearing/private-browsing loss risks, and explicit guest-to-account import. It offers login, an unchecked reminder preference, and acknowledged continuation.
+- Only checked plus Continue writes the browser preference. Closing or choosing login does not acknowledge. Storage failure permits creation and reports that the reminder was not remembered. Article data is untouched.
+- Six new tests failed before implementation, then passed. Focused run: 24 tests passed in five files.
+- Latest complete unit run: 140 files passed, 7 skipped; 675 tests passed, 39 skipped. The earlier three failures above are historical: all passed in this latest full run.
+- Typecheck and Vite build passed. Forty affected Chrome browser regressions passed, covering guest import, article privacy, editor, navigation, practice, history and sharing.
+- Real Chrome also verified guest creation survives reload with zero workspace-write requests; cancelled checkbox does not persist; checked continuation persists; authenticated articles actually reach the isolated server workspace.
+- Chinese desktop and English mobile reminder screenshots were visually checked. Full PostgreSQL and Docker matrices were not rerun for this frontend-only branch.
