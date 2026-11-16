@@ -65,4 +65,4 @@ export async function apiPages<T>(path: string, field: 'articles' | 'entries', o
   return result;
 }
 
-export type User = { id: string; username: string; email: string; isAdmin: boolean; displayName?: string; avatar?: 'cloud' | 'star' | 'moon' | null };
+export type User = { id: string; username: string; email: string; isAdmin: boolean; displayName?: string; avatar?: string | null; profilePublic?: boolean };

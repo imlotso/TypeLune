@@ -73,6 +73,7 @@ const schemas = {
   }),
   settings: z.object({
     uiLocale: z.enum(['auto', 'zh', 'en']).optional(),
+    wallpapers: z.object({ light: z.enum(['off','nature','portrait']).optional(), dark: z.enum(['off','nature','portrait']).optional() }).optional(),
     minutes: z.number().int().min(1).max(60), mode, strict: z.boolean(), autoPause: z.boolean(),
     fontSize: z.number().min(12).max(40), lineHeight: z.number().min(1).max(3),
     visibleLines: z.number().int().min(1).max(12), theme: z.enum(['light', 'dark']),

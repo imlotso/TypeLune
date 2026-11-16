@@ -1,0 +1,70 @@
+.account-avatar-image { object-fit:cover;border-radius:50%;flex-shrink:0; }
+.avatar-editor {display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+.avatar-editor input {position:absolute;width:1px;height:1px;opacity:0;}
+.avatar-editor label:focus-within {outline:3px solid var(--typing-accent);outline-offset:3px;}
+.profile-visibility {display:flex!important;align-items:center;gap:8px;}
+.profile-visibility input {width:auto!important;}
+.public-profile-heading {display:flex;gap:22px;align-items:center;margin:28px 0;}
+.public-profile-heading h1 {margin:0;overflow-wrap:anywhere;}
+.profile-stats,.profile-wallpapers {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;}
+.profile-stats article {border:1px solid var(--typing-border);border-radius:14px;padding:20px;background:var(--typing-input);}
+.profile-stats strong {font-size:24px;color:var(--typing-accent);}
+.profile-wallpapers figure {margin:0;min-width:0;}
+.profile-wallpapers img {width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:12px;}
+.profile-wallpapers figcaption {display:flex;justify-content:space-between;margin-top:8px;color:var(--typing-muted);font-size:13px;}
+.ranking-simple-filters {display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin:22px 0;}
+.ranking-simple-filters>div {display:flex;align-items:center;gap:12px;font-size:14px;}
+.rankings .feature-segments button {font-size:14px;padding:8px 18px;min-width:0;}
+.ranking-table-scroll {overflow:auto;margin-top:20px;}
+.ranking-table {width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;text-align:left;}
+.ranking-table th,.ranking-table td {padding:14px 16px;border-bottom:1px solid var(--typing-border);white-space:nowrap;}
+.ranking-table th {font-size:13px;color:var(--typing-muted);font-weight:600;}
+.ranking-table tbody tr:nth-child(odd) {background:var(--typing-input);}
+.ranking-table .rank-mine {background:var(--typing-active);}
+.ranking-table .rank-speed {font-size:22px;font-weight:750;color:var(--typing-accent);}
+.rank-player {display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none;}
+a.rank-player:hover {color:var(--typing-accent);text-decoration:underline;}
+.rank-number {display:inline-flex;align-items:center;gap:4px;}
+.ranking-pagination {display:flex;justify-content:center;align-items:center;gap:18px;margin-top:24px;}
+.lesson-round {display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1;position:relative;}
+.lesson-round-done::after {content:'✓';position:absolute;right:2px;top:2px;font-size:8px;}
+.course-divider {display:none;}
+@media (min-width:1000px) {
+ .workspace:has(.course-layout) {width:min(1440px,calc(100% - 64px));padding-top:24px;padding-bottom:36px;}
+ .course-layout {display:grid;grid-template-columns:minmax(320px,var(--guide-width,38%)) 22px minmax(0,1fr);height:max(480px,calc(100dvh - 155px));align-items:stretch;}
+ .course-guidance,.course-content {min-width:0;min-height:0;}
+ .course-guidance .lesson-guide {height:100%;margin:0;overflow:auto;padding:18px;}
+ .course-guidance .lesson-guide-top {font-size:12px;gap:10px;}
+ .course-guidance .lesson-guide-top>span {order:3;width:100%;}
+ .course-guidance .lesson-guide p {font-size:12px;}
+ .course-guidance .finger-key text {font-size:14px;}
+ .course-guidance .finger-guide-scene {max-height:calc(100dvh - 355px);}
+ .course-content {display:flex;flex-direction:column;gap:12px;padding:20px;border:1px solid var(--typing-border);border-radius:14px;background:var(--typing-input);}
+ .course-content .status-row {margin:0;flex-wrap:wrap;gap:8px;font-size:14px;}
+ .course-content .status-row>span {padding:0 8px;gap:5px;}
+ .course-content .progress-row {margin:0;gap:12px;font-size:12px;flex-wrap:wrap;}
+ .course-content .typing-panel {margin:0;box-shadow:none;background:transparent;border:0;padding:0;flex:1;min-height:0;display:flex;flex-direction:column;}
+ .course-content .practice-heading {flex-wrap:wrap;gap:8px;flex-shrink:0;margin-bottom:12px;}
+ .course-content .practice-title h1 {font-size:20px;}
+ .course-content .practice-actions {flex-wrap:wrap;gap:8px;}
+ .course-content .practice-actions button {font-size:12px;padding:7px 10px;}
+ .course-content .line-progress {flex-shrink:0;}
+ .course-content .typing-panel .practice-lines {flex:1;min-height:0;max-height:none;display:block;}
+ .course-content .practice-line {margin-bottom:10px;}
+ .course-divider {display:block;align-self:stretch;cursor:col-resize;position:relative;touch-action:none;outline-offset:-4px;}
+ .course-divider::after {content:'';position:absolute;left:10px;top:calc(50% - 14px);width:2px;height:28px;border-radius:3px;background:var(--typing-muted);opacity:.45;}
+ .course-divider:hover::after,.course-divider:focus-visible::after,.course-divider.is-dragging::after {background:var(--typing-accent);opacity:1;}
+}
+@media(max-width:999px) {
+ .course-guidance .lesson-guide {margin-top:0;}
+ .course-guidance {position:relative;}
+ .course-guidance .lesson-next-key {position:fixed;right:16px;bottom:16px;z-index:4;background:var(--typing-row);border:1px solid var(--typing-border);border-radius:12px;padding:8px 12px;box-shadow:0 3px 16px #0002;pointer-events:none;}
+}
+@media(max-width:600px){.profile-stats,.profile-wallpapers{grid-template-columns:1fr;}.ranking-simple-filters{gap:12px;}.ranking-simple-filters>div{flex-wrap:wrap;}.ranking-table th,.ranking-table td{padding:12px 8px;}.rankings .feature-segments button{padding:8px 12px;}.ranking-table .rank-speed{font-size:18px;}.rank-player{gap:6px;}.rank-player .account-avatar-image{width:24px;height:24px;}}
+
+.room,[data-theme='dark'] .room {background-image:linear-gradient(#a9b9e633,#a9b9e633),url('/assets/lake-default.webp');background-size:cover;background-position:center;background-attachment:fixed;}
+[data-theme='dark'] .room {background-image:linear-gradient(#151b3d88,#151b3d88),url('/assets/lake-default.webp');}
+.room.room-custom,[data-theme='dark'] .room.room-custom {background-image:none;}
+.wallpaper-credit {position:absolute;bottom:12px;right:20px;font-size:11px;color:var(--typing-muted);text-decoration:none;background:var(--typing-input);padding:4px 8px;border-radius:6px;}
+
+@media(max-width:600px){.ranking-table th,.ranking-table td{padding:10px 5px;font-size:12px;}.ranking-table th{font-size:10px;}.ranking-table .rank-speed{font-size:17px;}.rank-player span{max-width:72px;overflow:hidden;text-overflow:ellipsis;}.rank-player{gap:4px;}.ranking-table .rank-number svg{width:12px;}.ranking-table .rank-number{gap:2px;}}

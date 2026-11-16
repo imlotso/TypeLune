@@ -6,10 +6,10 @@ import { AccountAvatar } from './AccountAvatar';
 
 type Props = {
   user: User; disabled: boolean; onAccount: () => void; onRecords: () => void; onData: () => void; onFeedback: () => void;
-  onLogout: () => void; onAdministration?: () => void;
+  onProfile?: () => void; onLogout: () => void; onAdministration?: () => void;
 };
 
-export function AccountMenu({ user, disabled, onAccount, onRecords, onData, onFeedback, onLogout, onAdministration }: Props) {
+export function AccountMenu({ user, disabled, onAccount, onRecords, onData, onFeedback, onLogout, onAdministration, onProfile }: Props) {
   const { t, locale } = useI18n();
 
   const [open, setOpen] = useState(false);
@@ -37,6 +37,7 @@ export function AccountMenu({ user, disabled, onAccount, onRecords, onData, onFe
         (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
       items[next]?.focus();
     }}>
+      {onProfile && <button role="menuitem" tabIndex={-1} onClick={() => choose(onProfile)}>{t("我的主页", "My profile")}</button>}
       <button role="menuitem" tabIndex={-1} onClick={() => choose(onAccount)}>{t("账号设置", "Account settings")}</button>
       <button role="menuitem" tabIndex={-1} onClick={() => choose(onRecords)}>{t("我的记录", "My history")}</button>
       <button role="menuitem" tabIndex={-1} onClick={() => choose(onData)}>{t("个人数据", "Personal data")}</button>

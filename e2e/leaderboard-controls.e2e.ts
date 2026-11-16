@@ -18,7 +18,7 @@ test('keeps board filters across browsers and lets an administrator review and c
   await expect(result.getByText('已提交，待复核。')).toBeVisible();
   await result.getByRole('button', { name: '排行榜', exact: true }).click();
   await expect(page.getByRole('button', { name: '游客榜', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByLabel('排行时段').selectOption('week');
+  await page.getByRole('button',{name:'近7天',exact:true}).click();
   await expect(page).toHaveURL(/board=guest/);
   await expect(page).toHaveURL(/period=week/);
 
@@ -26,7 +26,7 @@ test('keeps board filters across browsers and lets an administrator review and c
   const shared = new URL(page.url()); shared.pathname += '/';
   const other = await otherContext.newPage(); await other.goto(shared.toString());
   await expect(other.getByRole('button', { name: '游客榜', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(other.getByLabel('排行时段')).toHaveValue('week');
+  await expect(other.getByRole('button',{name:'近7天',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(other.getByText('visitor-浏览器')).toHaveCount(0);
 
   const adminContext = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
@@ -41,9 +41,9 @@ test('keeps board filters across browsers and lets an administrator review and c
   await approve.getByRole('button', { name: '确认通过' }).click();
   await expect(approve).toHaveCount(0);
   await other.reload();
-  const ranked = other.locator('.ranking-list li').filter({ hasText: 'visitor-浏览器' });
+  const ranked = other.locator('.ranking-table tbody tr').filter({ hasText: 'visitor-浏览器' });
   await expect(ranked).toBeVisible();
-  await expect(ranked.locator('time')).toBeVisible();
+  await expect(ranked.locator('.rank-speed')).toBeVisible();
   await other.getByRole('button', { name: '用户榜', exact: true }).click();
   await expect(other.getByText('visitor-浏览器')).toHaveCount(0);
   await other.getByRole('button', { name: '游客榜', exact: true }).click();
@@ -110,6 +110,6 @@ test('keeps board filters across browsers and lets an administrator review and c
   await expect(cleanup).toHaveCount(0);
   await other.reload();
   await expect(other.getByText('visitor-浏览器')).toHaveCount(0);
-  await expect(other.getByLabel('排行时段')).toHaveValue('week');
+  await expect(other.getByRole('button',{name:'近7天',exact:true})).toHaveAttribute('aria-pressed','true');
   await otherContext.close(); await adminContext.close(); await readerContext.close();
 });

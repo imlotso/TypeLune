@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AsyncDatabase } from './database/types.js';
 import { encodeEmail } from './database/email.js';
 import argon2 from 'argon2';
+import { normalizeAvatar, profileValue } from './profile.js';
 import { isValidDisplayName, isValidPassword, isValidUsername, passwordRule, usernameRule } from '../src/lib/account-validation.js';
 
 export type AccountUser = {
@@ -96,12 +97,16 @@ export function registerAccountRoutes(app: FastifyInstance, { db, userFor, accou
     const body = input(request);
     const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
     if (!isValidDisplayName(displayName) ||
-      !(body.avatar === null || ['cloud', 'star', 'moon'].includes(String(body.avatar)))) return fail(reply, '昵称或头像无效', 400);
+      (body.profilePublic !== undefined && typeof body.profilePublic !== 'boolean')) return fail(reply, '昵称或头像无效', 400);
+    let avatar: string | null;
+    try { const previous = profileValue(initial.avatar).avatar; avatar = body.avatar === previous ? previous : await normalizeAvatar(body.avatar); } catch { return fail(reply, '头像图片无效，请选择 JPG、PNG 或 WebP', 400); }
     const result = await db.transaction(async (): Promise<Result> => {
       const current = await stillAuthorized(request, initial);
       if (!current) return { error: '登录状态已失效，请重新登录', status: 401 };
-      await db.prepare('UPDATE users SET display_name=?,avatar=? WHERE id=?').run(displayName, body.avatar, current.id);
-      return { user: { ...current, display_name: displayName, avatar: body.avatar as string | null } };
+      const profilePublic = typeof body.profilePublic === 'boolean' ? body.profilePublic : profileValue(current.avatar).profilePublic;
+      const stored = JSON.stringify({ version: 1, avatar, profilePublic });
+      await db.prepare('UPDATE users SET display_name=?,avatar=? WHERE id=?').run(displayName, stored, current.id);
+      return { user: { ...current, display_name: displayName, avatar: stored } };
     }).immediate();
     if ('error' in result) return fail(reply, result.error, result.status);
     return { user: publicUser(result.user!) };

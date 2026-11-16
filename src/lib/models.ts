@@ -11,6 +11,7 @@ export const defaultPace: PaceSettings = { enabled: false, source: 'custom', cus
 export type PresetReading = { fontSize: number; lineHeight: number; visibleLines: number; showTimer: boolean; showSpeed: boolean; showAccuracy: boolean };
 export type PracticePreset = { id: string; name: string; language: Language; difficulty: Difficulty; mode: PracticeMode; minutes: number; strict: boolean; autoPause: boolean; pace?: PaceSettings; reading?: PresetReading };
 export type ReaderSettings = {
+  wallpapers?: { light?: 'off' | 'nature' | 'portrait'; dark?: 'off' | 'nature' | 'portrait' };
   uiLocale?: import('./ui-locale.js').UiLocalePreference;
   minutes: number;
   mode: PracticeMode;
@@ -95,7 +96,7 @@ export type WorkspaceItem = { kind: WorkspaceKind; id: string; updatedAt: number
   serverRevision?: number; baseRevision?: number; baseUpdatedAt?: number; clientGeneration?: number; localFallback?: boolean; localConflict?: boolean; localConflictBase?: string };
 export type SyncState = 'guest' | 'loading' | 'syncing' | 'synced' | 'error';
 export type MistakeEntry = { id: string; language: Language; expected: string; actual: string[]; count: number; lastSeen: number; contexts: string[] };
-export type RankingEntry = { nickname: string; speed: number; accuracy: number; guest: number; createdAt: number; attemptId: string; rank?: number; mine?: boolean; articleId?: string; mode?: PracticeMode; strict?: boolean };
+export type RankingEntry = { nickname: string; cpm?: number | null; userId?: string; avatar?: string | null; profilePublic?: boolean; speed: number; accuracy: number; guest: number; createdAt: number; attemptId: string; rank?: number; mine?: boolean; articleId?: string; mode?: PracticeMode; strict?: boolean };
 
 export function snapshotKey(article: ArticleSnapshot) {
   let hash = 2166136261;

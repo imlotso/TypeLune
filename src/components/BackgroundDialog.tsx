@@ -1,3 +1,5 @@
+import { api } from '../lib/api';
+import { isBackgroundConfig } from '../lib/background';
 import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
@@ -9,13 +11,16 @@ import { Dialog } from './Dialog';
 type Props = {
   theme: BackgroundTheme;
   value?: BackgroundConfig;
-  onSave: (value: BackgroundConfig | undefined) => Promise<void>;
+  autoMode?: 'off' | 'nature' | 'portrait';
+  onSave: (value: BackgroundConfig | undefined, autoMode?: 'off' | 'nature' | 'portrait') => Promise<void>;
   onClose: () => void;
 };
 
-export function BackgroundDialog({ theme, value, onSave, onClose }: Props) {
+export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'off' }: Props) {
   const { t, locale } = useI18n();
 
+  const [automatic, setAutomatic] = useState(autoMode);
+  const [pendingDaily, setPendingDaily] = useState<'nature' | 'portrait'>();
   const [draft, setDraft] = useState(value);
   const [dirty, setDirty] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -30,14 +35,19 @@ export function BackgroundDialog({ theme, value, onSave, onClose }: Props) {
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; generation.current++; operation.current?.abort(); };
+    const protectSaving = (event: BeforeUnloadEvent) => {
+      if (!savingRef.current) return;
+      event.preventDefault(); event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', protectSaving);
+    return () => { window.removeEventListener('beforeunload', protectSaving); mounted.current = false; generation.current++; operation.current?.abort(); };
   }, []);
   useEffect(() => { if (!dirty) setDraft(value); }, [value, dirty]);
 
   function cancelProcessing() {
     generation.current++;
     operation.current?.abort();
-    setProcessing(false);
+    setProcessing(false);setPendingDaily(undefined);
   }
   function close() {
     if (savingRef.current) return;
@@ -54,13 +64,23 @@ export function BackgroundDialog({ theme, value, onSave, onClose }: Props) {
     try {
       const image = await prepareBackgroundImage(file, controller.signal);
       if (!mounted.current || current !== generation.current) return;
-      setDraft((previous) => ({ ...previous ?? defaultBackground(theme, image), ...image }));
+      setAutomatic('off');
+      setDraft((previous) => { const next = { ...previous ?? defaultBackground(theme,image), ...image }; delete next.daily; return next; });
       setDirty(true);
     } catch (problem) {
       if (mounted.current && current === generation.current && !controller.signal.aborted) setError(problem instanceof Error ? problem.message : t("图片处理失败", "Could not process image"));
     } finally {
       if (mounted.current && current === generation.current) setProcessing(false);
     }
+  }
+  async function daily(kind: 'nature' | 'portrait') {
+    cancelProcessing(); const current=generation.current; const controller=new AbortController();operation.current=controller;
+    setError('');setProcessing(true);setPendingDaily(kind);
+    try {const result=await api<{background:BackgroundConfig}>(`/api/wallpapers/daily?kind=${kind}&theme=${theme}`,{signal:controller.signal});
+      if(!isBackgroundConfig(result.background))throw Error(t('壁纸数据无效','Invalid wallpaper data'));
+      if(mounted.current&&current===generation.current){setDraft(result.background);setAutomatic(kind);setDirty(true);}
+    }catch(e){if(mounted.current&&current===generation.current)setError(t('每日壁纸暂不可用，当前背景已保留','Daily wallpaper unavailable. Current background retained.'));}
+    finally{if(mounted.current&&current===generation.current){setProcessing(false);setPendingDaily(undefined);}}
   }
   function drop(event: DragEvent) {
     event.preventDefault(); setDragging(false);
@@ -76,7 +96,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose }: Props) {
     if (!dirty || processing || savingRef.current) return;
     savingRef.current = true; setSaving(true); setError('');
     try {
-      await onSave(draft);
+      await onSave(draft, automatic);
       if (mounted.current) onClose();
     } catch (problem) {
       if (mounted.current) setError(problem instanceof Error ? problem.message : t("背景保存失败", "Could not save background"));
@@ -94,11 +114,17 @@ export function BackgroundDialog({ theme, value, onSave, onClose }: Props) {
       <div className={`background-preview${dragging ? ' is-dragging' : ''}`} data-theme={theme}
         onDragOver={(event) => { event.preventDefault(); if (!saving) setDragging(true); }}
         onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }} onDrop={drop}>
-        <img alt={t("背景预览", "Background preview")} src={draft?.image ?? `/assets/cloud-room${theme === 'dark' ? '-night' : ''}.png`}
+        <img alt={t("背景预览", "Background preview")} src={draft?.image ?? '/assets/lake-default.webp'}
           style={{ objectFit: draft?.fit ?? 'cover', objectPosition: `${draft?.positionX ?? 50}% ${draft?.positionY ?? 50}%`, filter: `blur(${draft?.blur ?? 0}px)` }} />
         <div className="background-shade" style={{ opacity: (draft?.shade ?? 0) / 100 }} />
         <div className="background-preview-sample" aria-hidden="true"><span>TypeLune</span><i /><i /></div>
       </div>
+      <fieldset className="settings-group" disabled={saving||processing}><legend>Wallhaven</legend>
+        <label className="profile-visibility"><input type="checkbox" checked={automatic!=='off'||!!pendingDaily} onChange={event=>{if(event.target.checked)void daily('nature');else{setAutomatic('off');setDirty(true);}}}/>{t('每日自动更新壁纸','Update wallpaper daily')}</label>
+        <label>{t('图片偏好','Image preference')}<select value={pendingDaily??(automatic==='off'?'nature':automatic)} onChange={event=>void daily(event.target.value as 'nature'|'portrait')}><option value="nature">{t('自然风景','Natural landscapes')}</option><option value="portrait">{t('清新人像','Portraits')}</option></select></label>
+        <button type="button" className="outline-button" onClick={()=>void daily(automatic==='off'?'nature':automatic)}>{t('获取今日壁纸','Get today’s wallpaper')}</button>
+        {draft?.daily&&<a href={'https://wallhaven.cc/w/'+draft.daily.id} target="_blank" rel="noopener noreferrer">{t('图片来源：Wallhaven','Source: Wallhaven')} ↗</a>}
+      </fieldset>
       <div className="background-file-row" onDragOver={(event) => event.preventDefault()} onDrop={drop}>
         <input ref={input} hidden aria-label={t("背景图片", "Background image")} type="file" accept="image/jpeg,image/png,image/webp" disabled={saving}
           onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void choose(file); }} />
@@ -118,7 +144,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose }: Props) {
       </>}
       {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
       <div className="background-editor-actions">
-        <button type="button" className="text-button" disabled={saving || (!draft && !processing)} onClick={() => { cancelProcessing(); setDraft(undefined); setDirty(true); setError(''); }}><ArrowCounterClockwise size={17} aria-hidden="true" />{t("恢复默认", "Restore default")}</button>
+        <button type="button" className="text-button" disabled={saving || (!draft && !processing)} onClick={() => { cancelProcessing(); setDraft(undefined); setAutomatic('off'); setDirty(true); setError(''); }}><ArrowCounterClockwise size={17} aria-hidden="true" />{t("恢复默认", "Restore default")}</button>
         <div><button type="button" className="outline-button" disabled={saving} onClick={close}>{t("取消", "Cancel")}</button><button className="primary-button" disabled={!dirty || processing || saving}>{saving ? t("保存中…", "Saving…") : t("保存", "Save")}</button></div>
       </div>
     </form>

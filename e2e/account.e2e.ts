@@ -34,7 +34,7 @@ test('updates account identity and signs out all sessions after a password chang
   await expect(dialog.getByText('用户名已保存')).toBeVisible();
   await expect(page.getByRole('button', { name: username, exact: true })).toBeVisible();
   await dialog.getByLabel('公开昵称').fill('小星');
-  await dialog.getByLabel('头像').selectOption('star');
+  await dialog.getByRole('combobox',{name:'头像',exact:true}).selectOption('star');
   await dialog.getByRole('button', { name: '保存资料' }).click();
   await expect(dialog.getByText('资料已保存')).toBeVisible();
   await dialog.getByRole('button', { name: '关闭' }).click();
@@ -44,7 +44,7 @@ test('updates account identity and signs out all sessions after a password chang
   await page.getByRole('menuitem', { name: '账号设置' }).click();
   await dialog.locator('summary').filter({ hasText: '更改用户名' }).click();
   await expect(dialog.getByLabel('用户名', { exact: true })).toHaveValue('account_renamed');
-  await expect(dialog.getByLabel('头像')).toHaveValue('star');
+  await expect(dialog.getByRole('combobox',{name:'头像',exact:true})).toHaveValue('star');
   await dialog.locator('summary').filter({ hasText: '修改密码' }).click();
   await dialog.getByLabel('当前密码', { exact: true }).fill(password);
   await dialog.getByLabel('新密码', { exact: true }).fill('changed-password-456');

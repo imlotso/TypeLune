@@ -219,6 +219,8 @@ it('updates a username in the account center and signs out after a password chan
   fireEvent.click(profileSave);
   await within(profileForm).findByText('资料已保存');
   expect(screen.getByRole('button', { name: '小星' })).toBeTruthy();
+  const profileCall = vi.mocked(fetch).mock.calls.find(([path]) => path === '/api/account/profile');
+  expect(JSON.parse(String(profileCall?.[1]?.body))).not.toHaveProperty('profilePublic');
   fireEvent.click(within(dialog).getByText('修改密码', { selector: 'summary' }));
   fireEvent.change(within(dialog).getByLabelText('当前密码'), { target: { value: 'original-password' } });
   fireEvent.change(within(dialog).getByLabelText('新密码'), { target: { value: 'new-password-123' } });

@@ -13,7 +13,7 @@ it('reports an unreadable leaderboard and can retry without crashing the page', 
   expect(await screen.findByText('暂无成绩')).toBeTruthy();
 });
 
-it('keeps the selected board and practice filters in the link across remounts', async () => {
+it('keeps board, language and difficulty while removing obsolete practice filters across remounts', async () => {
   window.history.replaceState({ navigation: 1 }, '', '/rankings?board=guest&language=en&difficulty=advanced&duration=120&mode=timed&strict=false&period=week');
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ entries: [], self: null, total: 0 })));
   vi.stubGlobal('fetch', fetcher);
@@ -21,15 +21,17 @@ it('keeps the selected board and practice filters in the link across remounts', 
   const first = render(<RankingView {...props} />);
   expect(await screen.findByText('暂无成绩')).toBeTruthy();
   expect(screen.getByRole('button', { name: '游客榜' }).getAttribute('aria-pressed')).toBe('true');
-  expect((screen.getByLabelText('难度') as HTMLSelectElement).value).toBe('advanced');
-  expect((screen.getByLabelText('限时（分钟）') as HTMLInputElement).value).toBe('2');
+  expect(screen.getByRole('button', {name:'挑战'}).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.queryByLabelText('限时（分钟）')).toBeNull();
+  expect(new URLSearchParams(window.location.search).has('duration')).toBe(false);
   fireEvent.click(screen.getByRole('button', { name: '用户榜' }));
   expect(new URLSearchParams(window.location.search).get('board')).toBe('user');
   expect(new URLSearchParams(window.location.search).get('language')).toBe('en');
   first.unmount();
   render(<RankingView {...props} />);
   expect(screen.getByRole('button', { name: '用户榜' }).getAttribute('aria-pressed')).toBe('true');
-  expect((screen.getByLabelText('限时（分钟）') as HTMLInputElement).value).toBe('2');
+  expect(screen.queryByLabelText('限时（分钟）')).toBeNull();
+  expect(new URLSearchParams(window.location.search).has('duration')).toBe(false);
   expect(window.history.state).toEqual({ navigation: 1 });
 });
 
@@ -39,6 +41,7 @@ it('reads ranking filters from a shared address with a trailing slash', async ()
   render(<RankingView initial={{ language: 'zh', difficulty: 'beginner', duration: 300, mode: 'timed', strict: false }} articles={[]} isAdmin={false} ownerId={null} />);
   expect(await screen.findByText('暂无成绩')).toBeTruthy();
   expect(screen.getByRole('button', { name: '用户榜' }).getAttribute('aria-pressed')).toBe('true');
-  expect((screen.getByLabelText('难度') as HTMLSelectElement).value).toBe('advanced');
-  expect((screen.getByLabelText('限时（分钟）') as HTMLInputElement).value).toBe('2');
+  expect(screen.getByRole('button', {name:'挑战'}).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.queryByLabelText('限时（分钟）')).toBeNull();
+  expect(new URLSearchParams(window.location.search).has('duration')).toBe(false);
 });

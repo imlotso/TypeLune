@@ -37,7 +37,7 @@ describe('background editor', () => {
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-    expect(onSave).toHaveBeenLastCalledWith({ ...saved, shade: 60 });
+    expect(onSave).toHaveBeenLastCalledWith({ ...saved, shade: 60 }, 'off');
   });
 
   it('ignores an older upload finishing after the latest selected file', async () => {
@@ -50,7 +50,7 @@ describe('background editor', () => {
     await act(async () => first({ ...image, name: 'slow.png' }));
     expect(screen.queryByText('slow.png')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith(defaultBackground('light', { ...image, name: 'latest.png' })));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(defaultBackground('light', { ...image, name: 'latest.png' }), 'off'));
   });
 
   it('restores the default while an upload is pending without reviving the uploaded image', async () => {
@@ -61,9 +61,9 @@ describe('background editor', () => {
     upload('slow.png');
     fireEvent.click(screen.getByRole('button', { name: '恢复默认' }));
     await act(async () => resolve({ ...image, name: 'slow.png' }));
-    expect(screen.getByRole('img', { name: '背景预览' }).getAttribute('src')).toBe('/assets/cloud-room.png');
+    expect(screen.getByRole('img', { name: '背景预览' }).getAttribute('src')).toBe('/assets/lake-default.webp');
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith(undefined));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(undefined, 'off'));
   });
 
   it('preserves the previous draft when replacement fails and aborts processing on close', async () => {
@@ -82,8 +82,43 @@ describe('background editor', () => {
     expect(screen.getByRole('main').className).toContain('room-custom');
     fireEvent.error(screen.getByTestId('custom-background-image'));
     expect(screen.getByRole('main').className).not.toContain('room-custom');
-    expect(document.querySelector('.sleeping-cat')).toBeTruthy();
+    expect(document.querySelector('.sleeping-cat')).toBeNull();
     view.rerender(<RoomBackground theme="dark"><p>练习内容</p></RoomBackground>);
     expect(screen.getByRole('main').textContent).toContain('练习内容');
   });
+});
+
+it('previews a daily wallpaper, persists its automatic mode on save, and custom upload cancels automatic replacement',async()=>{
+  const daily={...saved,daily:{id:'ab12cd',day:'2026-11-16',kind:'nature' as const}};
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({background:daily}))));
+  const onSave=vi.fn().mockResolvedValue(undefined);const first=render(<BackgroundDialog theme="light" value={saved} onSave={onSave} onClose={()=>{}}/>);
+  fireEvent.click(screen.getByRole('checkbox',{name:'每日自动更新壁纸'}));
+  await screen.findByRole('link',{name:'图片来源：Wallhaven ↗'});
+  expect(onSave).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'保存'}));await waitFor(()=>expect(onSave).toHaveBeenCalledWith(daily,'nature'));first.unmount();
+  vi.mocked(prepareBackgroundImage).mockResolvedValue({...image,name:'own.png'});
+  render(<BackgroundDialog theme="light" value={daily} autoMode="nature" onSave={onSave} onClose={()=>{}}/>);upload('own.png');await screen.findByText('own.png');
+  expect(screen.queryByRole('link',{name:'图片来源：Wallhaven ↗'})).toBeNull();expect((screen.getByRole('checkbox',{name:'每日自动更新壁纸'}) as HTMLInputElement).checked).toBe(false);
+  fireEvent.click(screen.getByRole('button',{name:'保存'}));await waitFor(()=>expect(onSave).toHaveBeenLastCalledWith({...saved,name:'own.png'},'off'));vi.unstubAllGlobals();
+});
+it('retains the current wallpaper when the daily provider fails',async()=>{
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({error:'unavailable'}),{status:503})));
+  const onSave=vi.fn();render(<BackgroundDialog theme="light" value={saved} onSave={onSave} onClose={()=>{}}/>);
+  fireEvent.click(screen.getByRole('checkbox',{name:'每日自动更新壁纸'}));await screen.findByRole('alert');
+  expect((screen.getByRole('checkbox',{name:'每日自动更新壁纸'}) as HTMLInputElement).checked).toBe(false);
+  expect(screen.getByRole('img',{name:'背景预览'}).getAttribute('src')).toBe(saved.image);expect(onSave).not.toHaveBeenCalled();vi.unstubAllGlobals();
+});
+
+it('reflects the daily toggle immediately while a provider request is pending and cancel does not persist it',async()=>{
+ let resolve!:(value:Response)=>void;vi.stubGlobal('fetch',vi.fn(()=>new Promise<Response>(done=>{resolve=done;})));
+ const onSave=vi.fn();render(<BackgroundDialog theme="light" value={saved} onSave={onSave} onClose={()=>{}}/>);
+ fireEvent.click(screen.getByRole('checkbox',{name:'每日自动更新壁纸'}));expect((screen.getByRole('checkbox',{name:'每日自动更新壁纸'}) as HTMLInputElement).checked).toBe(true);
+ fireEvent.click(screen.getByRole('button',{name:'取消'}));await act(async()=>{resolve(new Response(JSON.stringify({background:{...saved,daily:{id:'ab12cd',day:'2026-11-16',kind:'nature'}}})));});expect(onSave).not.toHaveBeenCalled();vi.unstubAllGlobals();
+});
+
+it('protects an in-flight save from page unload until the persistent write completes',async()=>{
+ let finish!:()=>void;const onSave=vi.fn(()=>new Promise<void>(resolve=>{finish=resolve;}));
+ render(<BackgroundDialog theme="light" value={saved} onSave={onSave} onClose={()=>{}}/>);
+ fireEvent.change(screen.getByRole('slider',{name:'遮罩'}),{target:{value:35}});fireEvent.click(screen.getByRole('button',{name:'保存'}));
+ const pending=new Event('beforeunload',{cancelable:true});window.dispatchEvent(pending);expect(pending.defaultPrevented).toBe(true);
+ await act(async()=>finish());const completed=new Event('beforeunload',{cancelable:true});window.dispatchEvent(completed);expect(completed.defaultPrevented).toBe(false);
 });

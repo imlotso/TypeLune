@@ -156,7 +156,8 @@ export const PracticeLines = memo(function PracticeLines({ practice, title, read
       // A large requested row count can extend beyond the page viewport.
       // Follow the active input through both the inner scroller and the page.
       const inputBox = input?.getBoundingClientRect();
-      if (phase === 'running' && inputBox && inputBox.height > 0 && (inputBox.top < 0 || inputBox.bottom > window.innerHeight)) {
+      const pinnedCourse = container?.closest('.course-layout') && window.matchMedia?.('(min-width: 1000px)').matches;
+      if (!pinnedCourse && phase === 'running' && inputBox && inputBox.height > 0 && (inputBox.top < 0 || inputBox.bottom > window.innerHeight)) {
         row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       }
     }

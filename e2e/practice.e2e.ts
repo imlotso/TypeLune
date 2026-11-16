@@ -287,8 +287,8 @@ test('submits an online result, uses an admin account and publishes the reviewed
   await expect(page.getByRole('button', { name: '管理后台', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '排行榜', exact: true }).click();
   await page.getByRole('button', { name: '游客榜', exact: true }).click();
-  const ranked = page.locator('li').filter({ hasText: 'visitor-CI访客' });
-  await expect(ranked.locator('strong')).toHaveText(`${expectedSpeed} 字/分`);
+  const ranked = page.locator('.ranking-table tbody tr').filter({ hasText: 'visitor-CI访客' });
+  await expect(ranked.locator('.rank-speed')).toHaveText(String(expectedSpeed));
   await expect(ranked).toContainText('100%');
   await page.getByRole('button', { name: 'ci_admin', exact: true }).click();
   await page.getByRole('menuitem', { name: '返回后台' }).click();
