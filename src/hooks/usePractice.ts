@@ -378,6 +378,9 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   const initialPhase: PracticePhase = draft ? (draft.completed || (draft.id && !draft.offline) ? 'restoring' : 'paused') : 'ready';
   const [phase, setPhase] = useState<PracticePhase>(initialPhase);
   const phaseRef = useRef<PracticePhase>(initialPhase);
+  const [awaitingResumeInput, setAwaitingResumeInput] = useState(false);
+  const resumeArmed = useRef(false);
+  const resumeInput = useRef<{ value: string; deleting: boolean; backspaces: number } | null>(null);
   const [storedTarget, setTarget] = useState(draft?.target ?? config.text);
   const target = phase === 'ready' ? config.text : storedTarget;
   const targetCharacters = useRef<string[] | null>(null);
@@ -394,6 +397,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   const pendingStart = useRef<{ attempt: Attempt; promise: Promise<void> } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const composing = useRef(false);
+  const composingRaw = useRef<string | null>(null);
   const pendingSuspicious = useRef(false);
   const lastBackspaceKey = useRef(-Infinity);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -406,7 +410,11 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   const lastWorkspaceSave = useRef(-Infinity);
   const recorded = useRef(new Set<string>());
   const continuationRef = useRef<Attempt | null>(null);
-  const setCurrentPhase = (next: PracticePhase) => { phaseRef.current = next; setPhase(next); };
+  const setCurrentPhase = (next: PracticePhase) => {
+    if (next !== 'paused' && next !== 'resuming') { resumeArmed.current = false; setAwaitingResumeInput(false); }
+    if (next === 'ready' || next === 'finished') resumeInput.current = null;
+    phaseRef.current = next; setPhase(next);
+  };
   const clearTimer = () => { if (timerRef.current) clearInterval(timerRef.current); timerRef.current = null; };
   const isCurrent = (attempt: Attempt, expectedPhase: PracticePhase) => mounted.current && attemptRef.current === attempt && phaseRef.current === expectedPhase;
   const committed = () => committedCharacters.current ??= splitCharacters(typedRef.current);
@@ -827,7 +835,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       }
     }, 5000);
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!unsavedProgress.current) return;
+      if (!unsavedProgress.current && !resumeInput.current) return;
       event.preventDefault();
       event.returnValue = '';
     };
@@ -987,6 +995,9 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
 
   async function pause() {
     const attempt = attemptRef.current;
+    if (attempt && phaseRef.current === 'paused' && resumeArmed.current) {
+      resumeArmed.current = false; setAwaitingResumeInput(false); composing.current = false; composingRaw.current = null; setRaw(typedRef.current); return true;
+    }
     if (!attempt || phaseRef.current !== 'running') return false;
     const used = elapsedTime(attempt);
     if (used >= durationLimit(attempt)) { void finish(false); return false; }
@@ -998,7 +1009,33 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     return pauseOnline(attempt, 'pausing', false);
   }
 
-  async function resume() {
+  function resume() {
+    if (!attemptRef.current || phaseRef.current !== 'paused') return;
+    resumeArmed.current = true; setAwaitingResumeInput(true);
+    window.setTimeout(() => { if (resumeArmed.current) textareaRef.current?.focus(); }, 0);
+  }
+
+  // Keep both clocks paused until a real edit, not a focus/keydown or an IME candidate.
+  function resumeForEdit(value: string, deleting = false, backspace = false) {
+    if (!resumeArmed.current || !['paused', 'resuming'].includes(phaseRef.current)) return false;
+    setRaw(value);
+    if (phaseRef.current === 'paused' && value === typedRef.current) return true;
+    resumeInput.current = { value, deleting, backspaces: (resumeInput.current?.backspaces ?? 0) + (backspace ? 1 : 0) };
+    if (phaseRef.current === 'paused') void resumeFromInput();
+    return true;
+  }
+
+  function commitResumeInput() {
+    const input = resumeInput.current; resumeInput.current = null;
+    if (!input) return;
+    for (let index = 0; index < input.backspaces; index++) recordBackspace();
+    const candidate = composingRaw.current;
+    commit(input.value, input.deleting);
+    // A second IME composition may have started while the resume request was pending.
+    if (composing.current && candidate !== null) setRaw(candidate);
+  }
+
+  async function resumeFromInput() {
     const attempt = attemptRef.current;
     if (!attempt || phaseRef.current !== 'paused') return;
     parked.current = false;
@@ -1020,7 +1057,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
       } catch (error) {
         if (!isCurrent(attempt, 'resuming')) return;
         if (handleRecoveryConflict(attempt, error)) {
-          attempt.startedAt = performance.now(); setCurrentPhase('running'); beginClock(); return;
+          attempt.startedAt = performance.now(); setCurrentPhase('running'); beginClock(); commitResumeInput(); return;
         }
         attempt.offline = true;
         const recovered = await recoverOnline(attempt, 'resuming');
@@ -1041,7 +1078,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
     lastBackspaceKey.current = -Infinity;
     if (!attempt.processTrace) attempt.processTrace = initialProcessTrace(processPoint(attempt, typedRef.current, attempt.elapsedMs), true);
     attempt.startedAt = performance.now(); attempt.nextCheckpointMs = attempt.elapsedMs + 5000;
-    setCurrentPhase('running'); setRestored(false); persist(attempt, true); beginClock();
+    setCurrentPhase('running'); setRestored(false); persist(attempt, true); beginClock(); commitResumeInput();
     if (liveConfig.current.autoPause && document.visibilityState === 'hidden') void pause();
     window.setTimeout(() => { if (isCurrent(attempt, 'running')) textareaRef.current?.focus(); }, 0);
   }
@@ -1049,6 +1086,7 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   async function park(holdLease = false) {
     const attempt = attemptRef.current;
     if (!attempt || phaseRef.current === 'finished') return true;
+    resumeArmed.current = false; setAwaitingResumeInput(false); composing.current = false; setRaw(typedRef.current);
     if (parked.current) {
       if (!await persistForPark(attempt)) return false;
       if (!holdLease) releaseLease(attempt, ownerToken.current);
@@ -1211,37 +1249,45 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   }
   function onChange(event: ChangeEvent<HTMLTextAreaElement>, prefix = '') {
     if (phaseRef.current === 'ready' && event.target.value) startFromInput();
-    if (phaseRef.current !== 'running') return;
     const input = event.nativeEvent as InputEvent;
+    if (resumeArmed.current) {
+      const value = prefix + event.target.value;
+      if (composing.current || input.isComposing) { composingRaw.current = value; setRaw(value); return; }
+      if (resumeForEdit(value, input.inputType?.startsWith('delete'), input.inputType === 'deleteContentBackward')) return;
+    }
+    if (phaseRef.current !== 'running') return;
     if (attemptRef.current && elapsedTime(attemptRef.current) >= durationLimit(attemptRef.current)) { void finish(false); return; }
     if (input.inputType === 'deleteContentBackward' && !composing.current && !input.isComposing && performance.now() - lastBackspaceKey.current > 250) recordBackspace();
     const value = prefix + event.target.value;
     if (composing.current || input.isComposing) setRaw(value);
     else commit(value, input.inputType?.startsWith('delete'));
   }
-  function onCompositionStart() { if (phaseRef.current === 'running' || phaseRef.current === 'ready') composing.current = true; }
+  function onCompositionStart() { if (phaseRef.current === 'running' || phaseRef.current === 'ready' || resumeArmed.current) composing.current = true; }
   function onCompositionEnd(event: CompositionEvent<HTMLTextAreaElement>, prefix = '') {
     const wasComposing = composing.current;
-    composing.current = false;
+    composing.current = false; composingRaw.current = null;
     if (!wasComposing) { setRaw(typedRef.current); return; }
     if (phaseRef.current === 'ready' && event.currentTarget.value) startFromInput();
+    if (resumeForEdit(prefix + event.currentTarget.value)) return;
     if (phaseRef.current === 'running') commit(prefix + event.currentTarget.value);
   }
   function markSuspicious() {
     if (phaseRef.current === 'ready') pendingSuspicious.current = true;
-    if (attemptRef.current && phaseRef.current === 'running') {
+    if (attemptRef.current && (phaseRef.current === 'running' || resumeArmed.current)) {
       attemptRef.current.suspicious = true;
       persist(attemptRef.current);
     }
   }
   function deletePreviousCharacter() {
-    const characters = committed();
+    const characters = resumeInput.current ? splitCharacters(resumeInput.current.value) : committed();
     if (characters.length <= (attemptRef.current?.offset ?? 0)) return;
+    if (resumeForEdit(characters.slice(0, -1).join(''), true, true)) return;
     recordBackspace();
     commit(characters.slice(0, -1).join(''), true);
   }
   function updateTyped(value: string) {
     if (phaseRef.current === 'ready' && value) startFromInput();
+    if (resumeForEdit(value)) return;
     commit(value);
   }
 
@@ -1255,5 +1301,5 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
   const getClaimHeaders = () => attemptRef.current ? practiceClaim(attemptRef.current) : undefined;
   const describeResultRecovery = (draft: PracticeDraft) => resultRecoveryAvailability(draft, liveConfig.current.ownerId, ownerToken.current);
   const isStoredDraftLeased = (id: string) => { const local = storedDraft(id); return !!local && leaseTaken(local, ownerToken.current); };
-  return { phase, target, raw, typed, elapsedMs, backspaces, feedback, result, restored, mode, strict, duration, offset, describeResultRecovery, isStoredDraftLeased, paceTarget: attempt?.paceTarget, draftId, textareaRef, start, pause, resume, retryOnline, recoverForRanking, markRankSubmitted, getClaimHeaders, canRetryOnline, reset, finish, park, releaseParkedLease, loadSaved, loadCompletedSaved, loadLegacy, updateTyped, deletePreviousCharacter, onChange, onKeyDown, onCompositionStart, onCompositionEnd, markSuspicious };
+  return { phase, awaitingResumeInput, target, raw, typed, elapsedMs, backspaces, feedback, result, restored, mode, strict, duration, offset, describeResultRecovery, isStoredDraftLeased, paceTarget: attempt?.paceTarget, draftId, textareaRef, start, pause, resume, retryOnline, recoverForRanking, markRankSubmitted, getClaimHeaders, canRetryOnline, reset, finish, park, releaseParkedLease, loadSaved, loadCompletedSaved, loadLegacy, updateTyped, deletePreviousCharacter, onChange, onKeyDown, onCompositionStart, onCompositionEnd, markSuspicious };
 }

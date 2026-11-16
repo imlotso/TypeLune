@@ -140,6 +140,8 @@ test('keeps confirmed text, mistakes and backspaces across pause and reload', as
   await expect(page.getByTestId('remaining-time')).toHaveText(remaining!);
   const resumed = page.waitForResponse((response) => response.url().endsWith(`/api/tests/${id}/resume`) && response.request().method() === 'POST');
   await page.getByRole('button', { name: '继续练习' }).click();
+  await expect(input).toBeEnabled();
+  await input.pressSequentially('x');
   expect((await resumed).status()).toBe(200);
   await expect(input).toBeEnabled();
 });

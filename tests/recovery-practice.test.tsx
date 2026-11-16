@@ -94,6 +94,7 @@ it('keeps a guest practice local after the server disables new online practices'
 
   const second = renderHook(() => usePractice(config, saved));
   await act(() => second.result.current.resume());
+  await act(async () => second.result.current.updateTyped(second.result.current.typed + article.text[Array.from(second.result.current.typed).length]));
   now = 3000;
   await act(async () => second.result.current.updateTyped(article.text));
   await waitFor(() => expect(second.result.current.result).toMatchObject({ offline: true, score: { correct: 4 } }));
@@ -135,6 +136,7 @@ it('restores a timed-out online start and submits the same round after reconnect
   await waitFor(() => expect(second.result.current.phase).toBe('paused'));
   now = 100000;
   await act(() => second.result.current.resume());
+  await act(async () => second.result.current.updateTyped(second.result.current.typed + article.text[Array.from(second.result.current.typed).length]));
   expect(second.result.current.phase).toBe('running');
   expect(recovery).toMatchObject({ clientId: start?.clientId, recoveryKey: start?.recoveryKey, elapsedMs: 5000, target: article.text });
   now = 102000;
@@ -165,6 +167,7 @@ it('preserves the recovery credential when leaving before the start response', a
   const second = renderHook(() => usePractice(config, saved));
   await waitFor(() => expect(second.result.current.phase).toBe('paused'));
   await act(() => second.result.current.resume());
+  await act(async () => second.result.current.updateTyped(second.result.current.typed + article.text[Array.from(second.result.current.typed).length]));
   expect(second.result.current.phase).toBe('running');
   expect(recovery).toMatchObject({ clientId: start.clientId, recoveryKey: start.recoveryKey, elapsedMs: 2000 });
   await act(async () => resolveStart(response({ id: start.clientId, target: article.text })));
@@ -186,6 +189,7 @@ it('restores an account-synced online draft without resetting its elapsed time o
   await waitFor(() => expect(session.result.current.phase).toBe('paused'));
   expect(session.result.current).toMatchObject({ typed: '甲乙', elapsedMs: 9000, backspaces: 2, draftId: saved.id });
   await act(() => session.result.current.resume());
+  await act(async () => session.result.current.updateTyped(session.result.current.typed + article.text[Array.from(session.result.current.typed).length]));
   expect(recovered).toMatchObject({ clientId: recoveryId, recoveryKey: key, elapsedMs: 9000 });
 });
 
@@ -240,6 +244,7 @@ it('keeps a private article local and never sends it for ranked recovery', async
   now = 5000;
   await act(() => session.result.current.pause());
   await act(() => session.result.current.resume());
+  await act(async () => session.result.current.updateTyped(session.result.current.typed + article.text[Array.from(session.result.current.typed).length]));
   expect(calls).not.toContain('/api/tests/recover');
   expect(session.result.current.canRetryOnline).toBe(false);
 });
@@ -258,6 +263,7 @@ it('does not attach a second tab’s personal copy to the original ranked challe
   await act(() => session.result.current.loadSaved(saved));
   expect(session.result.current.phase).toBe('paused');
   await act(() => session.result.current.resume());
+  await act(async () => session.result.current.updateTyped(session.result.current.typed + article.text[Array.from(session.result.current.typed).length]));
   expect(session.result.current.phase).toBe('running');
   expect(calls).not.toContain('/api/tests/recover');
   expect(readDraft()?.recordId).not.toBe(id);
@@ -314,6 +320,7 @@ it('keeps the same recovery request across a lost response and resume', async ()
   await act(() => session.result.current.pause());
   expect(readDraft()?.recoveryRequestId).toBe(sent[0].recoveryRequestId);
   await act(() => session.result.current.resume());
+  await act(async () => session.result.current.updateTyped(session.result.current.typed + article.text[Array.from(session.result.current.typed).length]));
   expect(sent[1].recoveryRequestId).toBe(sent[0].recoveryRequestId);
   expect(readDraft()?.claimVersion).toBe(2);
 });
@@ -335,8 +342,9 @@ it('detaches a stale device instead of claiming or submitting the other device�
   now = 5000;
   await act(() => session.result.current.pause());
   await act(() => session.result.current.resume());
+  await act(async () => session.result.current.updateTyped(session.result.current.typed + article.text[Array.from(session.result.current.typed).length]));
   expect(session.result.current.phase).toBe('running');
-  expect(readDraft()).toMatchObject({ personalOnly: true, typed: '甲' });
+  expect(readDraft()).toMatchObject({ personalOnly: true, typed: '甲乙' });
   expect(readDraft()?.recordId).not.toBe(id);
   expect(calls).not.toContain('/api/tests/recover');
 });
@@ -403,6 +411,7 @@ it('continues syncing account progress while the recovery endpoint is unavailabl
   now = 4000;
   await act(() => session.result.current.pause());
   await act(() => session.result.current.resume());
+  await act(async () => session.result.current.updateTyped(session.result.current.typed + article.text[Array.from(session.result.current.typed).length]));
   now = 7000;
   act(() => session.result.current.updateTyped('甲乙丙'));
   await act(() => session.result.current.pause());
