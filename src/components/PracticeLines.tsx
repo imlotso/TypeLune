@@ -13,13 +13,13 @@ const fallbackMeasure = (character: string): number => /^[\x00-\x7f]$/.test(char
 const visibleText = (text: string) => text.replaceAll('\n', '↵');
 type RowProps = {
   line: PracticeLine; index: number; active: boolean; phase: PracticePhase;
-  typedValue: string; value: string; composing: boolean; blocked: boolean; inputStart: number;
+  awaitingResumeInput: boolean; typedValue: string; value: string; composing: boolean; blocked: boolean; inputStart: number;
   controller: RefObject<Practice>; currentIndex: RefObject<number>;
   activeRow: RefObject<HTMLDivElement | null>; canStart: boolean; onStart?: () => void;
   setComposing: (value: boolean) => void;
 };
 
-const PracticeRow = memo(function PracticeRow({ line, index, active, phase, typedValue, value, composing, blocked, inputStart, controller, currentIndex, activeRow, setComposing, canStart, onStart }: RowProps) {
+const PracticeRow = memo(function PracticeRow({ line, index, active, phase, typedValue, value, composing, blocked, inputStart, controller, currentIndex, activeRow, setComposing, canStart, onStart, awaitingResumeInput }: RowProps) {
  const {t}=useI18n();
   const actual = useMemo(() => splitCharacters(typedValue), [typedValue]);
   const completed = !blocked && actual.length === line.characters.length;
@@ -29,7 +29,7 @@ const PracticeRow = memo(function PracticeRow({ line, index, active, phase, type
   // Software keyboards may emit beforeinput without any keydown/change on an
   // empty field. Handle that native event so correction also works on phones.
   useEffect(() => {
-    if (!active || phase !== 'running') return;
+    if (!active || (phase !== 'running' && !controller.current.awaitingResumeInput)) return;
     const field = controller.current.textareaRef.current;
     const beforeInput = (event: InputEvent) => {
       if (event.inputType !== 'deleteContentBackward' || event.isComposing || composing || !field || field.value || line.start <= controller.current.offset) return;
@@ -38,7 +38,7 @@ const PracticeRow = memo(function PracticeRow({ line, index, active, phase, type
     };
     field?.addEventListener('beforeinput', beforeInput);
     return () => field?.removeEventListener('beforeinput', beforeInput);
-  }, [active, phase, composing, line.start, inputStart, controller]);
+  }, [active, phase, awaitingResumeInput, composing, line.start, inputStart, controller]);
 
   return <div ref={active ? activeRow : undefined} className={`practice-line${active ? ' line-active' : ''}${completed ? ' line-completed' : ''}`} data-active={active}>
     <div className="line-marker" aria-label={t(`第 ${index + 1} 行${completed ? '已完成' : active ? '当前行' : '待输入'}`, `Line ${index + 1}: ${completed ? 'complete' : active ? 'current' : 'pending'}`)}>
@@ -55,10 +55,10 @@ const PracticeRow = memo(function PracticeRow({ line, index, active, phase, type
         ref={active ? controller.current.textareaRef : undefined}
         id={active ? 'typing-input' : undefined}
         aria-label={active ? t("当前行输入","Current line input") : t(`第 ${index + 1} 行输入`, `Line ${index + 1} input`)}
-        value={value} disabled={!active || (phase !== 'running' && !(phase === 'ready' && canStart))}
+        value={value} disabled={!active || (phase !== 'running' && !controller.current.awaitingResumeInput && !(phase === 'ready' && canStart))}
         rows={1} wrap="off" spellCheck={false} autoComplete="off" autoCapitalize="off" autoCorrect="off"
         onChange={(event) => { if (index === currentIndex.current) { if (phase === 'ready' && event.target.value) onStart?.(); controller.current.onChange(event, prefix()); } }}
-        onCompositionStart={() => { if (index === currentIndex.current && (phase === 'running' || phase === 'ready')) { setComposing(true); controller.current.onCompositionStart(); } }}
+        onCompositionStart={() => { if (index === currentIndex.current && (phase === 'running' || phase === 'ready' || controller.current.awaitingResumeInput)) { setComposing(true); controller.current.onCompositionStart(); } }}
         onCompositionEnd={(event) => { if (index === currentIndex.current) { if (phase === 'ready' && event.currentTarget.value) onStart?.(); controller.current.onCompositionEnd(event, prefix()); setComposing(false); } }}
         onKeyDown={(event) => {
           const practice = controller.current;
@@ -108,7 +108,7 @@ export const PracticeLines = memo(function PracticeLines({ practice, title, read
   currentIndex.current = activeIndex;
 
   useLayoutEffect(() => {
-    if (composing && (phase === 'running' || phase === 'ready')) return;
+    if (composing && (phase === 'running' || phase === 'ready' || practice.awaitingResumeInput)) return;
     const container = viewport.current;
     if (!container) return;
     const measure = () => {
@@ -133,7 +133,7 @@ export const PracticeLines = memo(function PracticeLines({ practice, title, read
   }, [target, composing, phase, reader?.fontSize, reader?.lineHeight, reader?.visibleLines]);
 
   useEffect(() => {
-    if (phase !== 'running' && phase !== 'ready') setComposing(false);
+    if (phase !== 'running' && phase !== 'ready' && !practice.awaitingResumeInput) setComposing(false);
     if (phase === 'ready') {
       if (viewport.current) viewport.current.scrollTop = 0;
       return;
@@ -182,7 +182,7 @@ export const PracticeLines = memo(function PracticeLines({ practice, title, read
         const typedValue = typedCharacters.slice(line.start, line.end).join('');
         const inputStart = Math.max(line.start, offset);
         return <PracticeRow key={line.start} line={line} index={index} active={active} phase={phase}
-          inputStart={inputStart} typedValue={typedValue} value={active ? rawCharacters.slice(inputStart).join('') : typedCharacters.slice(inputStart, line.end).join('')}
+          awaitingResumeInput={practice.awaitingResumeInput} inputStart={inputStart} typedValue={typedValue} value={active ? rawCharacters.slice(inputStart).join('') : typedCharacters.slice(inputStart, line.end).join('')}
           blocked={active && wrong >= 0} composing={active && composing} controller={controller} currentIndex={currentIndex} activeRow={activeRow}
           setComposing={setComposing} canStart={canStart} onStart={onStart} />;
       })}
@@ -192,6 +192,6 @@ export const PracticeLines = memo(function PracticeLines({ practice, title, read
 // every character and input in a long article ten times per second.
 }, (before, after) => before.title === after.title &&
   before.practice.target === after.practice.target && before.practice.typed === after.practice.typed &&
-  before.practice.raw === after.practice.raw && before.practice.phase === after.practice.phase &&
+  before.practice.raw === after.practice.raw && before.practice.phase === after.practice.phase && before.practice.awaitingResumeInput === after.practice.awaitingResumeInput &&
   before.practice.strict === after.practice.strict && before.practice.offset === after.practice.offset && before.canStart === after.canStart &&
   before.reader?.fontSize === after.reader?.fontSize && before.reader?.lineHeight === after.reader?.lineHeight && before.reader?.visibleLines === after.reader?.visibleLines);

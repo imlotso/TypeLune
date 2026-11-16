@@ -260,6 +260,7 @@ describe('practice interface', () => {
     time = 50_000;
     expect(screen.getByTestId('remaining-time').textContent).toBe('04:50');
     fireEvent.click(screen.getByRole('button', { name: '继续练习' }));
+    fireEvent.change(screen.getByRole('textbox', { name: /当前行输入/ }), { target: { value: '你' } });
     await screen.findByRole('button', { name: '暂停练习' });
     time = 60_000;
     await waitFor(() => expect(screen.getByTestId('remaining-time').textContent).toBe('04:40'));
@@ -475,6 +476,7 @@ describe('practice interface', () => {
     const continueButton = await screen.findByRole('button', { name: '继续练习' });
     await waitFor(() => expect((continueButton as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(continueButton);
+    fireEvent.change(screen.getByRole('textbox', { name: /当前行输入/ }), { target: { value: '你好' } });
     await screen.findByRole('button', { name: '暂停练习' });
     fireEvent(window, new PageTransitionEvent('pagehide', { persisted: true }));
     const current = JSON.parse(localStorage.getItem('cloudtyping.practice.v2.shared') || 'null');

@@ -113,6 +113,7 @@ it('finishes a pending online start and pause before allowing resume', async () 
   fireEvent.click(screen.getByRole('button', { name: '暂停练习' }));
   await act(async () => resolveStart(response({ id, target: source.articles[0].content })));
   fireEvent.click(await screen.findByRole('button', { name: '继续练习' }));
+  fireEvent.change(screen.getByRole('textbox', { name: '当前行输入' }), { target: { value: '我与' } });
   await screen.findByRole('button', { name: '暂停练习' });
   expect(readDraft()?.offline).toBe(false);
   expect(readDraft()?.id).toBe(id);
@@ -242,8 +243,8 @@ it('releases a pending start on pagehide so the next page can restore and sync',
   first.unmount();
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: '继续练习' }));
-  await screen.findByRole('button', { name: '暂停练习' });
   fireEvent.change(screen.getByRole('textbox', { name: '当前行输入' }), { target: { value: '我与' } });
+  await screen.findByRole('button', { name: '暂停练习' });
   fireEvent.click(screen.getByRole('button', { name: '暂停练习' }));
   await screen.findByRole('button', { name: '继续练习' });
   await waitFor(async () => expect((await readWorkspace(null)).some((item) => item.kind === 'draft' && !item.deleted && (item.value as { typed?: string })?.typed === '我与')).toBe(true));

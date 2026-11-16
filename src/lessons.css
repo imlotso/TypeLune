@@ -54,3 +54,11 @@
 .lesson-training-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
 .lesson-training-panels .training-panel { margin: 0; }
 @media (max-width: 680px) { .lesson-training-panels { grid-template-columns: 1fr; gap: 12px; } }
+.lesson-rounds {margin-top:16px;font-size:11px;color:var(--typing-muted);display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+.lesson-rounds>div {display:flex;gap:7px;}
+.lesson-round {width:34px;height:30px;background:transparent;border:1px solid var(--typing-border);border-radius:7px;color:var(--typing-text);cursor:pointer;}
+.lesson-round:hover,.lesson-round:focus-visible {border-color:#8d9dc7;background:#8d9dc715;}
+.lesson-round-done {background:#8d9dc722;border-color:#8d9dc7;}
+.lesson-keyboard-wrap {flex-direction:column;gap:10px;}
+.lesson-next-key {flex-wrap:nowrap;}
+.lesson-next-key span {width:auto;margin:0 0 0 4px;}

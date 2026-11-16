@@ -1,3 +1,4 @@
+import { supportImageError } from '../../lib/support-image-error';
 import { useAdminEdits } from '../AdminNavigationGuard';
 import { SystemMessage } from '../SystemMessage';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -25,7 +26,7 @@ function SupportForm({ownerId,initial,reload}:AdminProps & {initial:SupportSnaps
  }
  async function save(e:FormEvent){e.preventDefault();if(pending.current||!dirty||conflict)return;pending.current=true;setBusy(true);setError('');setMessage('');
   try{const result=await adminWrite<SupportSnapshot>(ownerId,'/support',{settings,revision:saved.revision});if(mounted.current){setSaved(result);setSettings(result.settings);setMessage(t('已保存','Saved'));}}
-  catch(e){if(mounted.current){setConflict(e instanceof ApiError&&e.status===409);setError(e instanceof Error?e.message:t('保存失败','Save failed'));}}
+  catch(e){if(mounted.current){setConflict(e instanceof ApiError&&e.status===409);setError(e instanceof ApiError ? supportImageError(e.code,t) ?? e.message : e instanceof Error?e.message:t('保存失败','Save failed'));}}
   finally{pending.current=false;if(mounted.current)setBusy(false);}
  }
  return <form className="feature-form" onSubmit={save}>
@@ -36,7 +37,7 @@ function SupportForm({ownerId,initial,reload}:AdminProps & {initial:SupportSnaps
    <label>{key==='alipay'?t('支付宝收款码','Alipay QR code'):t('微信收款码','WeChat Pay QR code')}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const file=e.target.files?.[0];e.target.value='';void upload(key,file);}}/></label>
    {settings[key]&&<><img src={settings[key].dataUrl} alt={key==='alipay'?t('支付宝收款码预览','Alipay QR preview'):t('微信收款码预览','WeChat Pay QR preview')} style={{maxWidth:220,maxHeight:220,objectFit:'contain',background:'#fff'}}/><button type="button" className="outline-button" onClick={()=>{setMessage('');setSettings(old=>({...old,[key]:null}));}}>{t('移除','Remove')}</button></>}
   </div>)}</div>
-  <p>{t('PNG / JPG / WebP，单张不超过 1 MiB，最大 2048 × 2048 像素。','PNG / JPG / WebP, up to 1 MiB and 2048 × 2048 pixels per image.')}</p></fieldset>
+  <p>{t('PNG / JPG / WebP，单张不超过 1 MiB，单边最多 4096 像素、总像素最多 400 万。保留完整图片，不自动缩小或裁剪；保存后请扫码核验。','PNG / JPG / WebP, up to 1 MiB, 4096 pixels per edge and 4 million pixels total. No resizing or cropping. Verify scanning after saving.')}</p></fieldset>
   {error&&<p role="alert"><SystemMessage text={error}/></p>}{message&&<p role="status">{message}</p>}
   <button className="outline-button" disabled={!dirty||busy||conflict}>{busy?t('保存中','Saving'):t('保存','Save')}</button>
   {conflict&&<button type="button" className="outline-button" onClick={()=>{if(window.confirm(t('放弃未保存修改并重新加载？','Discard unsaved changes and reload?')))reload();}}>{t('重新加载','Reload')}</button>}

@@ -25,6 +25,7 @@
     "@noble/hashes": "1.8.0",
     "@phosphor-icons/react": "^2.1.10",
     "@vercel/functions": "^3.11.3",
+    "@vercel/speed-insights": "2.1.0",
     "argon2": "^0.45.2",
     "better-sqlite3": "^13.1.1",
     "fastify": "^5.12.8",

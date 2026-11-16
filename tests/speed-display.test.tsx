@@ -43,6 +43,7 @@ it('shows both English speeds in practice, based on correct characters and activ
   expect(speed.textContent).toMatch(/40\s*WPM/);
   expect(speed.textContent).toMatch(/200\s*字符\/分钟/);
   fireEvent.click(resume);
+  fireEvent.change(input, { target: { value: 'Hi, tXX' } });
   await screen.findByRole('button', { name: '暂停练习' });
   now = 19500;
   await waitFor(() => expect(speed.textContent).toMatch(/20\s*WPM/));

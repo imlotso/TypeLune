@@ -32,7 +32,7 @@ it('rejects unauthorized writes, stale versions and revocation atomically',async
  expect((await write(settings,7)).statusCode).toBe(409);expect((await app.inject({method:'POST',url:'/api/site/support',payload:{}})).statusCode).toBe(404);
 });
 it('rejects missing QR, SVG, remote URL, false MIME, malformed base64, oversized files and dimensions',async()=>{
- const invalid=['https://example.test/a.png','data:image/svg+xml;base64,PHN2Zy8+',code.replace('image/png','image/jpeg'),'data:image/png;base64,aaaa','data:image/png;base64,'+Buffer.alloc(1024*1024+1).toString('base64'),'data:image/png;base64,'+(await sharp({create:{width:2049,height:2,channels:3,background:'white'}}).png().toBuffer()).toString('base64')];
+ const invalid=['https://example.test/a.png','data:image/svg+xml;base64,PHN2Zy8+',code.replace('image/png','image/jpeg'),'data:image/png;base64,aaaa','data:image/png;base64,'+Buffer.alloc(1024*1024+1).toString('base64'),'data:image/png;base64,'+(await sharp({create:{width:4097,height:2,channels:3,background:'white'}}).png().toBuffer()).toString('base64')];
  expect((await write({enabled:true,alipay:null,wechat:null})).statusCode).toBe(400);
  for(const dataUrl of invalid)expect((await write({enabled:true,alipay:{dataUrl},wechat:null})).statusCode).toBe(400);
  expect((await store.read()).revision).toBe(0);
@@ -48,4 +48,11 @@ it('preserves a synthetic QR payload through upload, persistence and public resp
  const {data:pixels,info}=await sharp(Buffer.from(data.split(',')[1],'base64')).ensureAlpha().raw().toBuffer({resolveWithObject:true});
  expect(info.width).toBe(384);expect(info.height).toBe(384);
  expect(jsQR(new Uint8ClampedArray(pixels),info.width,info.height)?.data).toBe(payload);
+});
+
+it('identifies the failing channel and does not partially save either image',async()=>{
+ const large='data:image/png;base64,'+(await sharp({create:{width:4097,height:2,channels:3,background:'white'}}).png().toBuffer()).toString('base64');
+ const response=await write({enabled:true,alipay:{dataUrl:code},wechat:{dataUrl:large}});
+ expect(response.statusCode).toBe(400);expect(response.json().code).toBe('SUPPORT_IMAGE_WECHAT_DIMENSIONS');
+ expect((await store.read()).revision).toBe(0);expect((await app.inject('/api/site/support')).json()).toEqual({enabled:false});
 });

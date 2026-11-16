@@ -15,13 +15,15 @@ test('supports keyboard and searchable commands without interrupting IME or losi
   await page.keyboard.press('Alt+p');
   await expect(page.getByRole('button', { name: '继续练习' })).toBeVisible();
   await page.keyboard.press('Alt+p');
+  await expect(input).toBeEnabled();
+  await input.fill('甲乙丙');
   await expect(page.getByRole('button', { name: '暂停练习' })).toBeVisible();
   await page.keyboard.press('Alt+r');
   const confirm = page.getByRole('dialog', { name: '重新开始本次练习？' });
   await expect(confirm).toBeVisible();
   await confirm.getByRole('button', { name: '继续当前练习' }).click();
-  await expect(input).toHaveValue('甲乙');
-  await expect(page.getByRole('button', { name: '暂停练习' })).toBeVisible();
+  await expect(input).toHaveValue('甲乙丙');
+  await expect(input).toBeEnabled();
   await page.keyboard.press('Control+Shift+2');
   await expect(page.getByRole('heading', { name: '文章库' })).toBeVisible();
   await page.keyboard.press('Alt+k');
@@ -33,7 +35,7 @@ test('supports keyboard and searchable commands without interrupting IME or losi
   await page.getByRole('button', { name: '更多' }).click();
   await page.getByRole('button', { name: '草稿箱' }).click();
   await page.getByRole('button', { name: '继续《自定义文字》' }).click();
-  await expect(page.getByRole('textbox', { name: '当前行输入' })).toHaveValue('甲乙');
+  await expect(page.getByRole('textbox', { name: '当前行输入' })).toHaveValue('甲乙丙');
   await page.getByRole('button', { name: '更多' }).click();
   await page.getByRole('button', { name: '设置', exact: true }).click();
   const settings = page.getByRole('dialog', { name: '练习设置' });

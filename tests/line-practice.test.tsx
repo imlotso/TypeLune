@@ -210,7 +210,7 @@ describe('line-by-line practice', () => {
     const restart = await screen.findByRole('dialog', { name: '重新开始本次练习？' });
     time = 13000;
     fireEvent.click(within(restart).getByRole('button', { name: '继续当前练习' }));
-    await screen.findByRole('button', { name: '暂停练习' });
+    await screen.findByRole('button', { name: '继续练习' });
     expect(readDraft()?.typed).toBe('甲错');
     time = 15000;
     fireEvent.click(screen.getByRole('button', { name: '结束练习' }));
@@ -218,7 +218,7 @@ describe('line-by-line practice', () => {
     time = 25000;
     fireEvent.click(within(ending).getByRole('button', { name: '结束并查看成绩' }));
     const result = await screen.findByRole('dialog', { name: '练习成绩' });
-    expect(localHistory()[0].elapsedMs).toBe(5000);
+    expect(localHistory()[0].elapsedMs).toBe(3000);
     expect(localHistory()[0].errors).toBe(1);
     expect(result.textContent).toContain('错字回看');
     fireEvent.click(within(result).getByRole('button', { name: '关闭' }));

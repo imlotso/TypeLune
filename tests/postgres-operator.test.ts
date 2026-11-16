@@ -17,3 +17,9 @@ it('refuses a URL from a different endpoint even when database and schema names 
   expect(result.stderr).toMatch(/endpoint does not match/i);
   expect(result.stderr).not.toContain('private-test-password');
 });
+
+it('lists the explicit repair action for invalid commands without connection details', () => {
+ const result = spawnSync(process.execPath, ['--import','tsx','scripts/postgres-database.ts','not-an-action'],{encoding:'utf8'});
+ expect(result.status).not.toBe(0);
+ expect(result.stderr).toContain('repair-punctuation');
+});

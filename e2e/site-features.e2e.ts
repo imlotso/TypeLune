@@ -22,6 +22,7 @@ test('reflects public site switches while preserving a previously started guest 
     await expect(page.getByRole('button', { name: '继续练习' })).toBeVisible();
     const resumed = page.waitForResponse((response) => response.url().endsWith('/resume') && response.request().method() === 'POST');
     await page.getByRole('button', { name: '继续练习' }).click();
+    await input.fill('我与');
     expect((await resumed).status()).toBe(200);
     await page.waitForTimeout(1200);
     await page.getByRole('button', { name: '结束练习', exact: true }).click();

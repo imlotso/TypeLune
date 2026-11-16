@@ -6,6 +6,7 @@ import { assertPostgresTarget, migratePostgres } from '../server/postgres/migrat
 import { PostgresDatabase } from '../server/postgres/database';
 import { AsyncPostgres } from '../server/database/postgres';
 import { seedPostgresCatalog } from '../server/postgres/seed';
+import { repairCatalogPunctuation } from '../server/catalog-punctuation-repair';
 import { bootstrapPostgresAdmin } from '../server/postgres/bootstrap';
 
 async function readPassword() {
@@ -23,7 +24,7 @@ async function readPassword() {
 
 async function main() {
   const action = process.argv[2];
-  if (action !== 'migrate' && action !== 'import' && action !== 'export' && action !== 'seed' && action !== 'bootstrap' && action !== 'support') throw new Error('Use migrate, import, export, seed, bootstrap or support');
+  if (action !== 'migrate' && action !== 'import' && action !== 'export' && action !== 'seed' && action !== 'bootstrap' && action !== 'support' && action !== 'repair-punctuation') throw new Error('Use migrate, import, export, seed, bootstrap, support or repair-punctuation');
   const connectionString = process.env.DATABASE_URL;
   const database = process.env.DAZI_DATABASE_NAME;
   const schema = process.env.DAZI_DATABASE_SCHEMA;
@@ -65,7 +66,9 @@ async function main() {
       try {
         await databaseStore.verifySchema();
         const adapter = new AsyncPostgres(databaseStore);
-        if (action === 'seed') {
+        if (action === 'repair-punctuation') {
+          for (const result of await repairCatalogPunctuation(adapter)) console.log(`${result.id}: ${result.status}`);
+        } else if (action === 'seed') {
           const count = await seedPostgresCatalog(adapter);
           console.log(`Public articles initialized: ${count}`);
         } else {
@@ -81,7 +84,7 @@ main().catch((error: unknown) => {
   // Database drivers can include SQL parameters, hostnames, and credentials in
   // their diagnostics. Only print fixed, explicitly safe operator messages.
   const safe = error instanceof Error && [
-    'Use migrate, import, export, seed or bootstrap',
+    'Use migrate, import, export, seed, bootstrap, support or repair-punctuation',
     'DATABASE_URL and an explicitly confirmed target database/schema are required',
     'An explicit SQLite source path is required',
     'An explicit SQLite destination is required',

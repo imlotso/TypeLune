@@ -57,6 +57,7 @@ describe('article library', () => {
     try {
       render(<LibraryHarness />);
       fireEvent.click(screen.getByRole('button', { name: '新建文章' }));
+      fireEvent.click(screen.getByRole('button', { name: '我已知晓，继续创建' }));
       const dialog = screen.getByRole('dialog', { name: '新建文章' });
       fireEvent.change(within(dialog).getByRole('textbox', { name: '标题' }), { target: { value: '短笺' } });
       fireEvent.change(within(dialog).getByRole('textbox', { name: '正文' }), { target: { value: '山海' } });

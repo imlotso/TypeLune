@@ -36,6 +36,7 @@ it('marks a resumed legacy draft as missing earlier observations', async () => {
   const old = readDraft()!; delete old.processTrace; delete old.processErrorEvents;
   const resumed = renderHook(() => usePractice({ ...article, article, articleId: article.id, duration: 60, ownerId: null }, old));
   now = 10_000; await act(() => resumed.result.current.resume());
+  act(() => resumed.result.current.updateTyped('甲乙'));
   now = 15_000; await act(() => resumed.result.current.pause());
   expect(readDraft()?.processTrace?.missing).toBe(true);
   expect(readDraft()?.processTrace?.samples[0]).toMatchObject({ time: 5000, progress: 1, correct: 1 });

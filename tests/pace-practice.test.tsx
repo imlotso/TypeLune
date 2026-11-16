@@ -21,6 +21,6 @@ it('freezes the chosen target for a round and preserves it across pause and rest
   expect(resumed.result.current.elapsedMs).toBe(5000);
   now = 25_000; await act(() => resumed.result.current.resume());
   now = 28_000; await act(() => resumed.result.current.pause());
-  expect(resumed.result.current.elapsedMs).toBe(8000);
+  expect(resumed.result.current.elapsedMs).toBe(5000);
   expect(resumed.result.current.paceTarget).toBe(60);
 });

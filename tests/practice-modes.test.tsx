@@ -61,6 +61,7 @@ it('lets whole-article practice run past the timed duration and records active t
   await act(() => result.current.pause());
   time = 361_000;
   await act(() => result.current.resume());
+  act(() => result.current.updateTyped(result.current.typed + article.text[Array.from(result.current.typed).length]));
   time = 365_000;
   act(() => result.current.updateTyped(article.text));
   expect(result.current.phase).toBe('finished');
@@ -88,6 +89,7 @@ it('preserves an incomplete round and counts only newly typed characters in its 
   await act(() => result.current.loadSaved(continuation!));
   expect(result.current.phase).toBe('paused');
   await act(() => result.current.resume());
+  act(() => result.current.updateTyped(result.current.typed + article.text[Array.from(result.current.typed).length]));
   time = 8000;
   act(() => result.current.updateTyped('甲错\n丙丁'));
   expect(records).toHaveLength(2);
@@ -283,6 +285,7 @@ it('opens a cloud-only online draft as a fresh personal continuation', async () 
   expect(drafts[0].recordId).not.toBe(source.recordId);
   expect(drafts[0].id).not.toBe(source.id);
   await act(() => result.current.resume());
+  act(() => result.current.updateTyped(result.current.typed + article.text[Array.from(result.current.typed).length]));
   time = 3000;
   act(() => result.current.updateTyped('甲错\n丙丁'));
   expect(requests).not.toHaveBeenCalled();

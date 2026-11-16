@@ -42,6 +42,8 @@ for (const scenario of ['response-lost', 'request-not-delivered'] as const) {
     await expect(page.getByTestId('typed-count')).toHaveText('2');
     const recovery = page.waitForResponse((response) => response.url().endsWith('/api/tests/recover') && response.request().method() === 'POST');
     await page.getByRole('button', { name: '继续练习' }).click();
+    await expect(input).toBeEnabled();
+    await input.fill('我与父');
     const recovered = await recovery;
     expect(recovered.status()).toBe(200);
     expect((await recovered.json()).id).toBe(id);
@@ -94,8 +96,8 @@ test('recovers an account-synced online draft on a second device', async ({ page
   await page.getByRole('button', { name: '暂停练习' }).click();
   await expect(page.getByRole('button', { name: '继续练习' })).toBeEnabled();
   await page.getByRole('button', { name: '继续练习' }).click();
-  await expect(page.getByRole('button', { name: '暂停练习' })).toBeEnabled();
   await page.getByRole('textbox', { name: '当前行输入' }).fill('我与父');
+  await expect(page.getByRole('button', { name: '暂停练习' })).toBeEnabled();
   await page.getByRole('button', { name: '暂停练习' }).click();
   await expect(page.getByRole('button', { name: '继续练习' })).toBeEnabled();
   await expect.poll(async () => {
@@ -113,6 +115,7 @@ test('recovers an account-synced online draft on a second device', async ({ page
   await expect(reader.getByTestId('typed-count')).toHaveText('3');
   await expect(reader.getByTestId('remaining-time')).not.toHaveText('05:00');
   await reader.getByRole('button', { name: '继续练习' }).click();
+  await reader.getByRole('textbox', { name: '当前行输入' }).fill('我与父亲');
   await expect(reader.getByRole('button', { name: '暂停练习' })).toBeEnabled();
   const target = await reader.locator('.line-source').evaluateAll((lines) => lines.map((line) => line.getAttribute('data-text')).join(''));
   const finished = reader.waitForResponse((response) => /\/api\/tests\/[^/]+\/finish$/.test(response.url()) && response.request().method() === 'POST');
@@ -167,9 +170,10 @@ test('prevents two devices from submitting the same online round', async ({ page
   await reader.getByRole('button', { name: '继续《背影》' }).click();
   await expect(reader.getByRole('button', { name: '继续练习' })).toBeEnabled();
   await reader.getByRole('button', { name: '继续练习' }).click();
-  await expect(reader.getByRole('button', { name: '暂停练习' })).toBeEnabled();
   await reader.getByRole('textbox', { name: '当前行输入' }).fill('我与');
+  await expect(reader.getByRole('button', { name: '暂停练习' })).toBeEnabled();
   await page.getByRole('button', { name: '继续练习' }).click();
+  await page.getByRole('textbox', { name: '当前行输入' }).fill('我与');
   await expect(page.getByText('进度已在其他设备继续，当前练习已另存。')).toBeVisible();
   const target = await reader.locator('.line-source').evaluateAll((lines) => lines.map((line) => line.getAttribute('data-text')).join(''));
   const winner = reader.waitForResponse((response) => response.url().endsWith(`/api/tests/${id}/finish`) && response.status() === 200);

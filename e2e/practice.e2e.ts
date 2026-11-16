@@ -140,6 +140,8 @@ test('keeps confirmed text, mistakes and backspaces across pause and reload', as
   await expect(page.getByTestId('remaining-time')).toHaveText(remaining!);
   const resumed = page.waitForResponse((response) => response.url().endsWith(`/api/tests/${id}/resume`) && response.request().method() === 'POST');
   await page.getByRole('button', { name: '继续练习' }).click();
+  await expect(input).toBeEnabled();
+  await input.pressSequentially('x');
   expect((await resumed).status()).toBe(200);
   await expect(input).toBeEnabled();
 });
@@ -358,6 +360,9 @@ test('manages a live account and publishes a sourced article into the practice c
 
   await page.getByRole('button', { name: '文章', exact: true }).click();
   await page.getByRole('button', { name: '新建文章', exact: true }).click();
+  await page.getByRole('dialog').waitFor();
+  const guestNotice = page.getByRole('dialog', { name: '游客文章仅保存在本机' });
+  if (await guestNotice.isVisible()) await guestNotice.getByRole('button', { name: '我已知晓，继续创建' }).click();
   const editor = page.getByRole('dialog', { name: '新建文章' });
   const passage = articles.find((article) => article.id === 'zh-beginner-2')!;
   // Keep the published seed body distinct in the test database.
