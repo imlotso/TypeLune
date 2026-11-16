@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
+  define: { "import.meta.env.VITE_VERCEL_HOST": JSON.stringify(process.env.VERCEL ?? ""), "import.meta.env.VITE_VERCEL_ENV": JSON.stringify(process.env.VERCEL_ENV ?? "") },
   test: { setupFiles: ["./tests/browser-locale.ts"] },
   build: {
     outDir: "dist/client",
