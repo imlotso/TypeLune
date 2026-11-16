@@ -1,5 +1,6 @@
 import { useI18n } from '../lib/i18n';
 import { LanguageToggle } from './LanguageToggle';
+import { WorkspaceI18nProvider } from './WorkspaceI18nProvider';
 import { SystemMessage } from './SystemMessage';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowSquareOut } from '@phosphor-icons/react/ArrowSquareOut';
@@ -18,11 +19,13 @@ import { BrandLogo } from './BrandLogo';
 const catalogChanged = () => {};
 
 type Props = { user: User; onLogout: () => void; onPreview: () => void };
-export function AdminWorkspace(props: Props) { return <AdminNavigationGuard><AdminWorkspaceContent {...props} /></AdminNavigationGuard>; }
-function AdminWorkspaceContent({ user, onLogout, onPreview }: Props) {
+export function AdminWorkspace(props: Props) {
+  const workspace = useWorkspace(props.user.id);
+  return <WorkspaceI18nProvider ownerId={props.user.id} workspace={workspace}><AdminNavigationGuard><AdminWorkspaceContent {...props} workspace={workspace} /></AdminNavigationGuard></WorkspaceI18nProvider>;
+}
+function AdminWorkspaceContent({ user, onLogout, onPreview, workspace }: Props & { workspace: ReturnType<typeof useWorkspace> }) {
   const leave = useAdminNavigation();
   const { t } = useI18n();
-  const workspace = useWorkspace(user.id);
   const [pendingTheme, setPendingTheme] = useState<Theme>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

@@ -32,7 +32,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U typelune -d typelune"]
+      # The initialization-only server accepts a local socket before TCP is ready.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U typelune -d typelune"]
       interval: 5s
       timeout: 5s
       retries: 12

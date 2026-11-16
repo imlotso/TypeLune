@@ -1,4 +1,5 @@
 import { useI18n } from '../lib/i18n';
+import { InterfaceLanguageSettings } from './InterfaceLanguageSettings';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type User } from '../lib/api';
 import { isValidDisplayName, isValidPassword, isValidUsername, passwordRule, usernameRule } from '../lib/account-validation';
@@ -96,6 +97,7 @@ export function AccountDialog({ user, onClose, onUpdate, onSignedOut, onDelete, 
   return <Dialog title={confirmClose ? t("放弃未保存的修改？", "Discard unsaved changes?") : t("账号设置", "Account settings")} onClose={requestClose} dismissible={!busy}>
     {confirmClose && <div className="feature-form"><p>{t("未保存的账号资料将丢失。", "Unsaved account changes will be lost.")}</p><div className="feature-actions"><button ref={safeAction} type="button" className="outline-button" onClick={() => setConfirmClose(false)}>{t("继续编辑", "Keep editing")}</button><button type="button" className="primary-button" onClick={onClose}>{t("放弃修改", "Discard changes")}</button></div></div>}
     <div ref={content} hidden={confirmClose}>
+    <div className="feature-form"><InterfaceLanguageSettings disabled={busy} showSync /></div>
     <p className="account-email"><AccountAvatar avatar={user.avatar} size={32} /> <span>{t("用户名：", "Username: ")}{user.username}<br />{t("邮箱：", "Email: ")}{user.email}</span></p>
     <form className="auth-form" onSubmit={saveProfile}>
       <label>{t("公开昵称", "Public display name")}<input value={displayName} disabled={busy} required onChange={(event) => setDisplayName(event.target.value)} /></label>

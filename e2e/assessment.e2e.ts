@@ -2,6 +2,9 @@ import { test, expect } from './fixtures';
 import type { APIRequestContext } from '@playwright/test';
 import { assessmentArticle } from '../src/lib/assessment';
 import { mkdirSync } from 'node:fs';
+
+// Signed-in accounts without a preference follow the browser, not the guest key.
+test.use({ locale: 'en-US' });
 test('personal baseline and real mistake drill stay unranked',async({page})=>{
  await page.addInitScript(()=>localStorage.setItem('typelune.ui-locale.v1','en'));
  await page.goto('/lessons');

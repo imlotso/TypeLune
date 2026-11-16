@@ -1,6 +1,7 @@
 import { SystemMessage } from './components/SystemMessage';
 import { useI18n } from './lib/i18n';
 import { LanguageToggle } from './components/LanguageToggle';
+import { WorkspaceI18nProvider } from './components/WorkspaceI18nProvider';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { ArrowCounterClockwise } from '@phosphor-icons/react/ArrowCounterClockwise';
 import { ArrowRight } from '@phosphor-icons/react/ArrowRight';
@@ -209,12 +210,17 @@ export function App() {
     onUpdateUser={updateUser} onAdministration={user?.isAdmin ? () => setPreviewOwner(undefined) : undefined} />;
 }
 
-function PracticeApp({ user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, onWorkspaceReset, guestImportOffer, onDismissGuestImport, pendingCleanup, cleanupBusy, onRetryCleanup, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; onWorkspaceReset: () => void; guestImportOffer: boolean; onDismissGuestImport: () => void; pendingCleanup: number; cleanupBusy: boolean; onRetryCleanup: () => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
+function PracticeApp(props: Omit<Parameters<typeof PracticeAppContent>[0], 'workspace'>) {
+  const workspace = useWorkspace(props.user?.id ?? null, props.authReady);
+  return <WorkspaceI18nProvider ownerId={props.user?.id ?? null} workspace={workspace}><PracticeAppContent {...props} workspace={workspace} /></WorkspaceI18nProvider>;
+}
+
+function PracticeAppContent({ workspace, user, authReady, onUser, onUpdateUser, accountNotice, onAccountReauthentication, onSignedOutNotice, onWorkspaceReset, guestImportOffer, onDismissGuestImport, pendingCleanup, cleanupBusy, onRetryCleanup, feedbackResume, onFeedbackHandoff, onCancelFeedbackHandoff, onAdministration }: { workspace: ReturnType<typeof useWorkspace>; user: User | null; authReady: boolean; onUser: (user: User | null) => void; onUpdateUser: (user: User) => void; accountNotice: string; onAccountReauthentication: (message: string) => void; onSignedOutNotice: (message: string) => void; onWorkspaceReset: () => void; guestImportOffer: boolean; onDismissGuestImport: () => void; pendingCleanup: number; cleanupBusy: boolean; onRetryCleanup: () => void; feedbackResume?: FeedbackDraft; onFeedbackHandoff: (draft: FeedbackDraft) => void; onCancelFeedbackHandoff: () => void; onAdministration?: () => void }) {
   const { t, locale } = useI18n();
   const difficultyNames: Record<Difficulty, string> = { beginner: t("入门", "Beginner"), intermediate: t("进阶", "Intermediate"), advanced: t("挑战", "Advanced") };
 const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en: 'English' };
   const ownerId = user?.id ?? null;
-  const workspace = useWorkspace(ownerId, authReady);
+
   const site = useSiteFeatures();
   const [selection, setSelection] = useState(builtIns[0]);
   const [publicArticles, setPublicArticles] = useState(builtIns);

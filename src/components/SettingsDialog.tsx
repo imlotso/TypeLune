@@ -1,5 +1,6 @@
 import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
+import { InterfaceLanguageSettings } from './InterfaceLanguageSettings';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Language } from '../data/articles';
 import { defaultPace, type PaceSettings, type ReaderSettings, type SyncState } from '../lib/models';
@@ -118,6 +119,7 @@ const syncNames: Record<SyncState, string> = {
   return <Dialog title={t("练习设置", "Practice settings")} onClose={onClose}>
     <div className="feature-form settings">
       {saveError && <p className="form-error" role="alert">{saveError}</p>}
+      <InterfaceLanguageSettings />
       <fieldset className="settings-group">
         <legend>{t("规则", "Rules")}</legend>
         <div className="feature-form-pair">

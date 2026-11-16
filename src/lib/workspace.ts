@@ -115,6 +115,7 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
       (payload.article === undefined || isArticle(payload.article)) &&
       (payload.typed === undefined || typeof payload.typed === 'string');
     case 'settings': return Number.isInteger(payload.minutes) && isTheme(payload.theme) && isMode(payload.mode) &&
+      (payload.uiLocale === undefined || payload.uiLocale === 'auto' || payload.uiLocale === 'zh' || payload.uiLocale === 'en') &&
       typeof payload.autoPause === 'boolean' && typeof payload.strict === 'boolean' &&
       [payload.fontSize, payload.lineHeight, payload.visibleLines].every(isNumber) &&
       ['showTimer', 'showSpeed', 'showAccuracy', 'shortcutsEnabled'].every((key) => payload[key] === undefined || typeof payload[key] === 'boolean') &&
