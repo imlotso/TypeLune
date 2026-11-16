@@ -37,6 +37,9 @@ test('protects an unsaved article editor when the browser goes back', async ({ p
   await page.goto('/');
   await page.getByRole('button', { name: '文章库' }).click();
   await page.getByRole('button', { name: '新建文章' }).click();
+  await page.getByRole('dialog').waitFor();
+  const guestNotice = page.getByRole('dialog', { name: '游客文章仅保存在本机' });
+  if (await guestNotice.isVisible()) await guestNotice.getByRole('button', { name: '我已知晓，继续创建' }).click();
   const editor = page.getByRole('dialog', { name: '新建文章' });
   await editor.getByLabel('标题').fill('尚未保存');
   await page.goBack();

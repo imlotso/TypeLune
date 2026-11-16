@@ -4,6 +4,9 @@ test('protects private article edits and keeps the original draft snapshot after
   await page.goto('/');
   await page.getByRole('button', { name: '文章库' }).click();
   await page.getByRole('button', { name: '新建文章' }).click();
+  await page.getByRole('dialog').waitFor();
+  const guestNotice = page.getByRole('dialog', { name: '游客文章仅保存在本机' });
+  if (await guestNotice.isVisible()) await guestNotice.getByRole('button', { name: '我已知晓，继续创建' }).click();
   let editor = page.getByRole('dialog', { name: '新建文章' });
   await editor.getByLabel('标题').fill('私人练习');
   await editor.getByLabel('正文').fill('春山落雨，旧信仍在。');

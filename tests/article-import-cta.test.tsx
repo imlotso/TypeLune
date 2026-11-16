@@ -30,6 +30,7 @@ it('translates the guest card into English including empty search results', () =
 it('lets guests import locally without requiring an account', () => {
  render(<ArticleLibrary {...common} onLogin={() => {}} />);
  fireEvent.click(screen.getByRole('button', { name: '导入自己的文章' }));
+ fireEvent.click(screen.getByRole('button', { name: '我已知晓，继续创建' }));
  expect(screen.getByRole('dialog', { name: '新建文章' })).toBeTruthy();
  expect(screen.getByLabelText('导入 TXT')).toBeTruthy();
 });

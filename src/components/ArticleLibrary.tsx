@@ -58,8 +58,14 @@ function readTxt(file: File, t: (zh: string, en: string) => string) {
   });
 }
 
-function ArticleEditor({ article, initialLanguage, onSave, onClose }: {
+const guestArticleNoticeKey = 'typelune.guest-article-notice.v1';
+function hasGuestArticleAcknowledgement() {
+  try { return localStorage.getItem(guestArticleNoticeKey) === 'acknowledged'; } catch { return false; }
+}
+
+function ArticleEditor({ article, initialLanguage, onSave, onClose, notice }: {
   article: PrivateArticle | null;
+  notice?: string;
   initialLanguage: Language;
   onSave: (article: PrivateArticle) => Promise<void>;
   onClose: () => void;
@@ -144,6 +150,7 @@ const difficultyNames: Record<Difficulty, string> = { beginner: t("入门", "Beg
         <button type="button" className="primary-button" onClick={() => confirmation.type === 'discard' ? onClose() : applyImport(confirmation.text, confirmation.filename)}>{confirmation.type === 'discard' ? t("放弃修改", "Discard changes") : t("替换正文", "Replace text")}</button>
       </div>
     </div> : <form className="feature-form" onSubmit={submit}>
+      {notice && <p role="status">{notice}</p>}
       <label>{t("标题", "Title")}<input value={title} maxLength={200} disabled={busy} onChange={(event) => setTitle(event.target.value)} /></label>
       <div className="feature-form-pair">
         <label>{t("语言", "Article language")}<select value={language} disabled={busy} onChange={(event) => setLanguage(event.target.value as Language)}><option value="zh">{t("中文", "Chinese")}</option><option value="en">English</option></select></label>
@@ -178,6 +185,24 @@ const lengthRanges = [
   const [difficulty, setDifficulty] = useState('');
   const [length, setLength] = useState('');
   const [editor, setEditor] = useState<PrivateArticle | null>();
+  const [showGuestNotice, setShowGuestNotice] = useState(false);
+  const [rememberGuestNotice, setRememberGuestNotice] = useState(false);
+  const [guestNoticeStorageFailed, setGuestNoticeStorageFailed] = useState(false);
+  function createArticle() {
+    setGuestNoticeStorageFailed(false);
+    if (isSignedIn || hasGuestArticleAcknowledgement()) { setEditor(null); return; }
+    setRememberGuestNotice(false);
+    setShowGuestNotice(true);
+  }
+  function continueGuestArticle() {
+    if (rememberGuestNotice) {
+      try { localStorage.setItem(guestArticleNoticeKey, 'acknowledged'); }
+      catch { setGuestNoticeStorageFailed(true); }
+    }
+    setShowGuestNotice(false);
+    setEditor(null);
+  }
+  useEffect(() => { if (isSignedIn) setShowGuestNotice(false); }, [isSignedIn]);
   const [deleting, setDeleting] = useState<ArticleSnapshot>();
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
@@ -223,7 +248,7 @@ const lengthRanges = [
   return <section className="content-panel library feature-panel">
     <div className="content-heading">
       <h1><Books size={25} aria-hidden="true" /> {t("文章库", "Library")}</h1>
-      <button className="outline-button feature-action-button" onClick={() => setEditor(null)}><Plus size={16} aria-hidden="true" /> {t("新建文章", "New article")}</button>
+      <button className="outline-button feature-action-button" onClick={createArticle}><Plus size={16} aria-hidden="true" /> {t("新建文章", "New article")}</button>
     </div>
     <div className="feature-toolbar">
       <div className="segmented feature-segments" role="group" aria-label={t("文章语言", "Article language")}>
@@ -269,12 +294,24 @@ const lengthRanges = [
           <p>{isSignedIn ? t("导入喜欢的内容，开始自己的练习。", "Import something you love and make it your next practice.") : t("可直接导入，保存在此浏览器；登录后可导入账号并同步。", "Import locally in this browser. Sign in to copy your articles to your account and sync.")}</p>
         </div>
         <div className="library-import-actions">
-          <button type="button" className="outline-button" onClick={() => setEditor(null)}>{t("导入自己的文章", "Import your article")} <span aria-hidden="true">→</span></button>
+          <button type="button" className="outline-button" onClick={createArticle}>{t("导入自己的文章", "Import your article")} <span aria-hidden="true">→</span></button>
           {!isSignedIn && onLogin && <button type="button" className="text-button" onClick={onLogin}>{t("登录同步", "Sign in to sync")}</button>}
         </div>
       </div></li>
     </ul>
-    {editor !== undefined && <ArticleEditor article={editor} initialLanguage={language} onSave={saveArticle} onClose={() => setEditor(undefined)} />}
+    {showGuestNotice && <Dialog title={t("游客文章仅保存在本机", "Guest articles stay on this device")} onClose={() => setShowGuestNotice(false)}>
+      <div className="feature-form">
+        <p>{t("游客文章只保存在当前浏览器，不会上传服务器，也不会在其他设备显示。", "Guest articles stay in this browser. They are not uploaded to the server or available on other devices.")}</p>
+        <p>{t("清除浏览器数据或结束无痕浏览可能使文章丢失，请自行保留原文。", "Clearing browser data or ending a private-browsing session may remove your articles. Keep a copy of the original text.")}</p>
+        <p>{t("登录后新建的文章可保存并同步到账号；已有游客文章需手动导入账号。", "Articles created while signed in can sync to your account. Existing guest articles must be imported into your account separately.")}</p>
+        <label className="settings-check"><input type="checkbox" checked={rememberGuestNotice} onChange={event => setRememberGuestNotice(event.target.checked)} />{t("不再提醒", "Don't remind me again")}</label>
+        <div className="feature-actions">
+          {onLogin && <button type="button" className="outline-button" onClick={() => { setShowGuestNotice(false); onLogin(); }}>{t("登录后同步", "Sign in to sync")}</button>}
+          <button type="button" className="primary-button" onClick={continueGuestArticle}>{t("我已知晓，继续创建", "I understand, continue")}</button>
+        </div>
+      </div>
+    </Dialog>}
+    {editor !== undefined && <ArticleEditor notice={guestNoticeStorageFailed ? t("无法记住提醒设置，下次新建时仍会提醒。", "Couldn't remember this preference. You'll see this reminder next time.") : undefined} article={editor} initialLanguage={language} onSave={saveArticle} onClose={() => setEditor(undefined)} />}
     {deleting && <Dialog title={t(`删除《${deleting.title}》？`, `Delete ${deleting.title}?`)} onClose={() => { if (!deletePending) setDeleting(undefined); }}>
       <div className="feature-form">
         <p>{t("已有草稿和历史记录保留原文章快照。", "Existing drafts and history keep the original article snapshot.")}</p>
