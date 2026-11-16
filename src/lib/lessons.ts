@@ -146,12 +146,12 @@ export function lessonRecommendation(record: PracticeRecord): { kind: 'none' | '
 }
 
 const fingerGroups = [
-  { keys: 'qaz1', zh: '左手小指', en: 'Left little' }, { keys: 'wsx2', zh: '左手无名指', en: 'Left ring' },
+  { keys: '`qaz1', zh: '左手小指', en: 'Left little' }, { keys: 'wsx2', zh: '左手无名指', en: 'Left ring' },
   { keys: 'edc3', zh: '左手中指', en: 'Left middle' }, { keys: 'rfvtgb45', zh: '左手食指', en: 'Left index' },
   { keys: 'yhnujm67', zh: '右手食指', en: 'Right index' }, { keys: 'ik,8', zh: '右手中指', en: 'Right middle' },
   { keys: 'ol.9', zh: '右手无名指', en: 'Right ring' }, { keys: "p;/'[]\\-=0", zh: '右手小指', en: 'Right little' },
 ];
-const shifted: Record<string, string> = { '!': '1', '@': '2', '#': '3', '$': '4', '%': '5', '^': '6', '&': '7', '*': '8', '(': '9', ')': '0', ':': ';', '"': "'", '?': '/', '<': ',', '>': '.', '_': '-', '+': '=', '{': '[', '}': ']', '|': '\\' };
+const shifted: Record<string, string> = { '~': '`', '!': '1', '@': '2', '#': '3', '$': '4', '%': '5', '^': '6', '&': '7', '*': '8', '(': '9', ')': '0', ':': ';', '"': "'", '?': '/', '<': ',', '>': '.', '_': '-', '+': '=', '{': '[', '}': ']', '|': '\\' };
 export function keyHint(character: string | undefined, locale: UiLocale) {
   if (!character) return undefined;
   if (character === ' ') return { key: locale === 'zh' ? '空格' : 'Space', finger: locale === 'zh' ? '拇指' : 'Thumb', shift: false };

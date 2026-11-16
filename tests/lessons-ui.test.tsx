@@ -16,7 +16,7 @@ it('shows real progress and continues the first unfinished lesson', () => {
   expect(screen.getByText('1 / 8')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: '继续课程' }));
   expect(select).toHaveBeenCalledWith(lessonExercises(lessons[0])[1]);
-  expect(screen.getByText('本机进度')).toBeTruthy();
+  expect(screen.getByText('基础完成数')).toBeTruthy();
 });
 it('resumes a matching owned draft rather than replacing unfinished input', () => {
   const resume = vi.fn();

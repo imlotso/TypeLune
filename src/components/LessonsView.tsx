@@ -21,7 +21,7 @@ export function LessonsView({ records, drafts, ownerId, onSelect, onResume, onTr
   return <section className="content-panel feature-panel lessons-view">
     <div className="lessons-heading">
       <div><span className="lesson-eyebrow">{t('英文键盘基础', 'QWERTY BASICS')}</span><h1>{t('新手课程', 'Beginner course')}</h1></div>
-      <div className="lesson-progress"><span>{t('本机进度', 'Local progress')}</span><strong>{progress.completed.length} / {lessons.length}</strong><progress value={progress.completed.length} max={lessons.length} aria-label={t('课程进度', 'Course progress')} /></div>
+      <div className="lesson-progress"><span>{t('基础完成数', 'Basic lessons completed')}</span><strong>{progress.completed.length} / {lessons.length}</strong><progress value={progress.completed.length} max={lessons.length} aria-label={t('基础课程完成数', 'Basic lessons completed')} /></div>
     </div>
     {onTraining && <div className="lesson-training-panels"><AssessmentPanel records={records} ownerId={ownerId} onSelect={onTraining} /><WeakKeyPanel records={records} ownerId={ownerId} onSelect={onTraining} /></div>}
     <div className="lesson-start">

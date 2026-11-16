@@ -8,8 +8,12 @@ function row(chars:string, x:number,y:number) { [...chars].forEach((key,i)=>posi
 row('`1234567890-=',28,15); row('qwertyuiop[]\\',70,53); row("asdfghjkl;'",87,91); row('zxcvbnm,./',110,129);
 positions['shift-left']={x:28,y:129,w:76,label:'Shift'};positions['shift-right']={x:502,y:129,w:85,label:'Shift'};
 positions.enter={x:563,y:91,w:64,label:'Enter'}; positions.space={x:180,y:167,w:279,label:'Space'};
+const REDUCED_MOTION_KEY = 'typelune.lesson-reduced-motion.v1';
+function savedReducedMotion() {
+ try { return localStorage.getItem(REDUCED_MOTION_KEY) === 'true'; } catch { return false; }
+}
 export function FingerGuide({character}:{character?:string}) {
- const {t}=useI18n(); const uid=useId().replace(/:/g,''); const [hands,setHands]=useState(true); const [reduced,setReduced]=useState(false);const target=fingerTarget(character);
+ const {t}=useI18n(); const uid=useId().replace(/:/g,''); const [hands,setHands]=useState(true); const [reduced,setReduced]=useState(savedReducedMotion);const target=fingerTarget(character);
  const labels={left:t('左手','Left hand'),right:t('右手','Right hand')};
  return <div className={'finger-guide'+(reduced?' finger-guide-static':'')}>
   <svg className="finger-guide-scene" viewBox={hands?'0 0 660 380':'0 0 660 212'} aria-hidden="true">
@@ -31,7 +35,7 @@ export function FingerGuide({character}:{character?:string}) {
     }))}
    </g>}
   </svg>
-  <div className="finger-guide-controls"><label><input type="checkbox" checked={hands} onChange={e=>setHands(e.target.checked)}/>{t('手形','Hands')}</label><label><input type="checkbox" checked={reduced} onChange={e=>setReduced(e.target.checked)}/>{t('减少动态','Reduce motion')}</label>{target?.shift&&<span>{target.shift==='left'?t('左 Shift','Left Shift'):t('右 Shift','Right Shift')}</span>}</div>
+  <div className="finger-guide-controls"><label><input type="checkbox" checked={hands} onChange={e=>setHands(e.target.checked)}/>{t('手形','Hands')}</label><label><input type="checkbox" checked={reduced} onChange={e=>{const value=e.target.checked;setReduced(value);try{localStorage.setItem(REDUCED_MOTION_KEY,String(value));}catch{/* Keep the preference for this view when storage is unavailable. */}}}/>{t('减少动态','Reduce motion')}</label>{target?.shift&&<span>{target.shift==='left'?t('左 Shift','Left Shift'):t('右 Shift','Right Shift')}</span>}</div>
   <span className="finger-guide-caption">{t('建议指法 · 美式 QWERTY','Suggested fingering · US QWERTY')}{target&&` · ${labels[target.hand]}`}</span>
  </div>;
 }
