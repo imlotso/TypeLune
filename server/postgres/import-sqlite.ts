@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import {wallpaperSchema,wallpaperTables} from '../wallpaper-schema.js';
 import { createHash, type Hash } from 'node:crypto';
 import type { Client } from 'pg';
 import { assertPostgresTarget, type ExpectedTarget } from './migrate.js';
@@ -15,7 +16,7 @@ const optionalColumns: Record<string, string[]> = { users: ['display_name', 'ava
   challenges: ['public_review_message'], workspace_items: ['revision'] };
 const normalize = (row: Row, columns: Column[], table: string, postgres: boolean) => columns.map((column) => {
   const binaryTyped = table === 'challenges' && column.name === 'typed';
-  const binaryAttachment = (table === 'feedback_attachments' || table === 'feedback_upload_chunks') && column.name === 'bytes';
+  const binaryAttachment = (['feedback_attachments','feedback_upload_chunks','background_files','background_upload_chunks'].includes(table)) && column.name === 'bytes';
   const encodedEmail = (table === 'users' || table === 'email_codes') && column.name === 'email';
   const raw = row[column.name];
   const value = binaryTyped && Buffer.isBuffer(raw) ? raw.toString('utf8')
@@ -43,7 +44,7 @@ export async function importSqlite(client: Client, path: string, target: Expecte
       throw new Error('SQLite integrity or foreign-key validation failed');
     }
     const sourceTables = (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>).map(({ name }) => name);
-    const dataTables = [...baseDataTables, ...['support_settings', 'seo_settings'].filter(table => sourceTables.includes(table))];
+    const dataTables = [...baseDataTables, ...['support_settings', 'seo_settings', ...wallpaperTables].filter(table => sourceTables.includes(table))];
     const unknown = sourceTables.filter((name) => !dataTables.some((table) => table === name));
     if (unknown.length) throw new Error('SQLite source contains unsupported tables');
     for (const table of dataTables) {
@@ -59,6 +60,8 @@ export async function importSqlite(client: Client, path: string, target: Expecte
       if (sourceTables.includes(table)) await client.query(`CREATE TABLE IF NOT EXISTS ${table} (id BIGINT PRIMARY KEY CHECK(id=1), settings TEXT NOT NULL, revision BIGINT NOT NULL CHECK(revision>0))`);
       if (!dataTables.includes(table) && (await client.query('SELECT to_regclass($1) AS name', [table])).rows[0]?.name) dataTables.push(table);
     }
+    if(wallpaperTables.some(table=>sourceTables.includes(table)))await client.query(wallpaperSchema);
+    for(const table of wallpaperTables){if(!dataTables.includes(table)&&(await client.query('SELECT to_regclass($1) AS name',[table])).rows[0]?.name)dataTables.push(table);}
     await client.query(`LOCK TABLE ${[...dataTables, 'rate_limit_entries'].map(quote).join(',')} IN ACCESS EXCLUSIVE MODE`);
     for (const table of dataTables) {
       const result = await client.query(`SELECT 1 FROM ${quote(table)} LIMIT 1`);

@@ -1,9 +1,10 @@
+import * as accountWallpaper from '../src/lib/account-wallpaper';
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 import { readDraft } from '../src/hooks/usePractice';
-import { putWorkspaceValue, readWorkspace } from '../src/lib/workspace';
+import { putWorkspaceValue, readWorkspace, saveWallpaper } from '../src/lib/workspace';
 import { defaultBackground } from '../src/lib/background';
 import { defaultSettings } from '../src/lib/models';
 
@@ -39,12 +40,20 @@ function more(name: string) {
 
 it.each(['adjust', 'reset'])('keeps the edited background theme fixed when remote settings switch themes (%s)', async (action) => {
   const owner = 'background-theme-owner';
+  vi.spyOn(accountWallpaper,'saveAccountWallpaper').mockImplementation((owner,theme,background,automatic,adaptive,follow)=>saveWallpaper(owner,theme,background,automatic,adaptive,follow));
   const image = { name: 'day.png', width: 1, height: 1, image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jG3cAAAAASUVORK5CYII=' };
   const night = defaultBackground('dark', { ...image, name: 'night.png' });
   await putWorkspaceValue(owner, 'background', 'light', defaultBackground('light', image));
   await putWorkspaceValue(owner, 'background', 'dark', night);
   await putWorkspaceValue(owner, 'settings', 'preferences', { ...defaultSettings, theme: 'light' });
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url === '/api/me' ? { user: { id: owner, username: '背景账号' } } : { items: [], serverTime: Date.now() })));
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if(url.startsWith('/api/backgrounds/state')){
+      const items=await readWorkspace(owner);const settings=items.find(item=>item.kind==='settings'&&item.id==='preferences')?.value as any;
+      const day=items.find(item=>item.kind==='background'&&item.id==='light');
+      return response({background:day?.deleted?null:day?.value??null,automatic:settings.wallpapers?.light??'off',adaptive:settings.wallpaperAdaptive?.light!==false,presentation:settings.backgroundPresentation?.light??null});
+    }
+    return response(url === '/api/me' ? { user: { id: owner, username: '背景账号' } } : { items: [], serverTime: Date.now() });
+  }));
   render(<App />);
   await screen.findByRole('button', { name: /背景账号/ });
   await waitFor(() => expect((screen.getByRole('textbox', { name: '当前行输入' }) as HTMLTextAreaElement).disabled).toBe(false));

@@ -5,6 +5,7 @@ import { useState, type FormEvent } from 'react';
 import type { SiteSettings, SiteSettingsSnapshot } from '../../../server/site-settings';
 import { ApiError } from '../../lib/api';
 import { adminWrite, LoadState, SelectField, useAdminResource, type AdminProps } from './common';
+import { WallpaperSettingsPanel } from './WallpaperSettingsPanel';
 
 const settingsPath = '/settings/site';
 const availabilityFields = [
@@ -108,5 +109,5 @@ function SiteSettingsForm({ ownerId, initial, reload }: AdminProps & { initial: 
 export function SiteSettingsPanel({ ownerId }: AdminProps) {
 
   const { data, error, retry } = useAdminResource<SiteSettingsSnapshot>(ownerId, settingsPath);
-  return data ? <SiteSettingsForm ownerId={ownerId} initial={data} reload={retry} /> : <LoadState error={error} retry={retry} />;
+  return <>{data ? <SiteSettingsForm ownerId={ownerId} initial={data} reload={retry} /> : <LoadState error={error} retry={retry} />}<WallpaperSettingsPanel ownerId={ownerId}/></>;
 }

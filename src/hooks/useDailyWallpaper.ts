@@ -13,17 +13,18 @@ export function useDailyWallpaper(ownerId: string | null, theme: BackgroundTheme
  },[]);
  useEffect(()=>{const timer=window.setInterval(()=>setTick(n=>n+1),3600000);return()=>clearInterval(timer);},[]);
  useEffect(()=>{
-  if(!ready||kind==='off'||(background&&!background.daily))return;
+  const migrating=!!background?.daily&&background.image.startsWith('data:');
+  if(!ready||(!migrating&&kind==='off')||(background&&!background.daily))return;
   const day=new Date().toISOString().slice(0,10);
   const resolution=`${display.width}x${display.height}`;
-  if(background?.daily?.day===day&&background.daily.kind===kind&&(!adaptive||background.daily.resolution===resolution))return;
+  if(!migrating&&background?.daily?.day===day&&background.daily.kind===kind&&(!adaptive||background.daily.resolution===resolution))return;
   const controller=new AbortController();
-  fetchDailyWallpaper(kind,theme,controller.signal,{display:adaptive?display:undefined}).then(async result=>{
+  fetchDailyWallpaper(migrating?background!.daily!.kind:kind==='off'?'nature':kind,theme,controller.signal,{display:adaptive?display:undefined,...(migrating&&{id:background!.daily!.id})}).then(async result=>{
    if(controller.signal.aborted)return;
    await mutateWorkspaceValue(ownerId,'background',theme,(current,items)=>{
     const saved=workspaceSettings(items);
-    if(controller.signal.aborted||saved.wallpapers?.[theme]!==kind||(saved.wallpaperAdaptive?.[theme]!==false)!==adaptive||current?.image!==background?.image)return current;
-    return {...result,...(current?{fit:current.fit,positionX:current.positionX,positionY:current.positionY,blur:current.blur,shade:current.shade}:{})};
+    if(controller.signal.aborted||(saved.wallpapers?.[theme]??'off')!==kind||(saved.wallpaperAdaptive?.[theme]!==false)!==adaptive||current?.image!==background?.image)return current;
+    return {...result,...(migrating&&current?.daily&&{daily:{...result.daily!,day:current.daily.day}}),...(current?{fit:current.fit,positionX:current.positionX,positionY:current.positionY,blur:current.blur,shade:current.shade,...(current.panelOpacity!==undefined&&{panelOpacity:current.panelOpacity}),...(current.workspaceOpacity!==undefined&&{workspaceOpacity:current.workspaceOpacity}),...(current.panelBlur!==undefined&&{panelBlur:current.panelBlur}),...(current.borderOpacity!==undefined&&{borderOpacity:current.borderOpacity})}:{})};
    });
   }).catch(()=>{/* Retain the current image and retry next hour. Manual retry is available in settings. */});
   return()=>controller.abort();

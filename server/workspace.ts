@@ -2,7 +2,8 @@ import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import { difficulties } from '../src/data/articles.js';
 import type { PaceSettings, PracticePreset, WorkspaceItem, WorkspaceKind } from '../src/lib/models.js';
-import { isBackgroundConfig, type BackgroundConfig } from '../src/lib/background.js';
+import { isBackgroundConfig, isBackgroundPresentation, type BackgroundPresentation, type BackgroundConfig } from '../src/lib/background.js';
+import { wallpaperStyleNames } from '../src/lib/wallpaper-policy.js';
 import { isPresetList } from '../src/lib/practice-settings.js';
 import { isPaceSettings } from '../src/lib/pace.js';
 import { isStatisticsTimeZone } from '../src/lib/long-term-stats.js';
@@ -73,8 +74,9 @@ const schemas = {
   }),
   settings: z.object({
     uiLocale: z.enum(['auto', 'zh', 'en']).optional(),
-    wallpapers: z.object({ light: z.enum(['off','nature','portrait']).optional(), dark: z.enum(['off','nature','portrait']).optional() }).optional(),
+    wallpapers: z.object({ light: z.enum(['off',...wallpaperStyleNames]).optional(), dark: z.enum(['off',...wallpaperStyleNames]).optional() }).optional(),
     wallpaperAdaptive: z.object({ light: z.boolean().optional(), dark: z.boolean().optional() }).optional(),
+    backgroundPresentation: z.object({light:z.custom<BackgroundPresentation>(isBackgroundPresentation).optional(),dark:z.custom<BackgroundPresentation>(isBackgroundPresentation).optional()}).optional(),
     minutes: z.number().int().min(1).max(60), mode, strict: z.boolean(), autoPause: z.boolean(),
     fontSize: z.number().min(12).max(40), lineHeight: z.number().min(1).max(3),
     visibleLines: z.number().int().min(1).max(12), theme: z.enum(['light', 'dark']),

@@ -8,6 +8,7 @@ import { PostgresDatabase } from '../server/postgres/database';
 import { AsyncPostgres } from '../server/database/postgres';
 import { migratePostgres } from '../server/postgres/migrate';
 import { seedPostgresCatalog } from '../server/postgres/seed';
+import { wallpaperSchema } from '../server/wallpaper-schema';
 
 // Test-only server: real app and an isolated database, with an in-memory mailbox.
 const directory = mkdtempSync(join(tmpdir(), 'dazi-e2e-'));
@@ -30,6 +31,7 @@ if (postgresUrl) {
   // uniquely named, loopback-only disposable browser-test schema.
   await setup.query(readFileSync(new URL('../server/postgres/support-settings.sql', import.meta.url), 'utf8'));
   await setup.query(readFileSync(new URL('../server/postgres/seo-settings.sql', import.meta.url), 'utf8'));
+  await setup.query(wallpaperSchema);
   const database = new PostgresDatabase(postgresUrl, schema);
   try { await seedPostgresCatalog(new AsyncPostgres(database)); } finally { await database.close(); }
 }

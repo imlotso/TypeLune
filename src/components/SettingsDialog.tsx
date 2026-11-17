@@ -114,9 +114,10 @@ const syncNames: Record<SyncState, string> = {
     }
   }
 
-  return <Dialog title={t("练习设置", "Practice settings")} onClose={onClose}>
+  return <Dialog title={t("练习设置", "Practice settings")} onClose={onClose} className="practice-settings-dialog">
     <div className="feature-form settings">
-      {saveError && <p className="form-error" role="alert">{saveError}</p>}
+      {saveError && <p className="form-error settings-save-error" role="alert">{saveError}</p>}
+      <div className="settings-column">
       <InterfaceLanguageSettings />
       <fieldset className="settings-group">
         <legend>{t("规则", "Rules")}</legend>
@@ -135,6 +136,20 @@ const syncNames: Record<SyncState, string> = {
         <label className="settings-check"><input type="checkbox" checked={pendingIndicators.showSpeed?.value ?? (settings.showSpeed !== false)} onChange={(event) => changeIndicator('showSpeed', event.target.checked)} />{t("显示速度", "Show speed")}</label>
         <label className="settings-check"><input type="checkbox" checked={pendingIndicators.showAccuracy?.value ?? (settings.showAccuracy !== false)} onChange={(event) => changeIndicator('showAccuracy', event.target.checked)} />{t("显示准确率", "Show accuracy")}</label>
       </fieldset>
+      <fieldset className="settings-group">
+        <legend>{t("同步", "Sync")}</legend>
+        <div className="settings-sync">
+          <span role="status">{syncNames[syncState]}</span>
+          {isSignedIn && (recoveryReason ? <button className="outline-button feature-action-button" onClick={onRecovery}>{t("处理同步冲突", "Resolve sync conflict")}</button> :
+            <button className="outline-button feature-action-button" disabled={syncState === 'loading' || syncState === 'syncing'} onClick={onSync}>{t("立即同步", "Sync now")}</button>)}
+        </div>
+        {syncState === 'error' && syncError && <p className="form-error" role="alert">{<SystemMessage text={syncError} />}</p>}
+        {pendingCount != null && pendingCount > 0 && <p className="feature-muted">{t("未同步：", "Pending: ")}{pendingCount} {t("项", " items")}</p>}
+        {cloudCount != null && <p className="feature-muted">{t("上次读取云端：", "Last cloud count: ")}{cloudCount} {t("项", " items")}</p>}
+        {lastSyncedAt != null && <p className="feature-muted">{t("最近成功同步：", "Last synced: ")}{new Date(lastSyncedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}</p>}
+      </fieldset>
+      </div>
+      <div className="settings-column">
       <fieldset className="settings-group">
         <legend>{t("目标配速", "Target pace")}</legend>
         <label className="settings-check"><input type="checkbox" checked={pace.enabled} onChange={(event) => changePace({ enabled: event.target.checked })} />{t("启用目标配速", "Enable target pace")}</label>
@@ -159,18 +174,7 @@ const syncNames: Record<SyncState, string> = {
           <button className="outline-button feature-action-button" onClick={onFocus}>{focused ? t("退出专注", "Exit focus") : t("进入专注", "Enter focus")}</button>
         </div>
       </fieldset>
-      <fieldset className="settings-group">
-        <legend>{t("同步", "Sync")}</legend>
-        <div className="settings-sync">
-          <span role="status">{syncNames[syncState]}</span>
-          {isSignedIn && (recoveryReason ? <button className="outline-button feature-action-button" onClick={onRecovery}>{t("处理同步冲突", "Resolve sync conflict")}</button> :
-            <button className="outline-button feature-action-button" disabled={syncState === 'loading' || syncState === 'syncing'} onClick={onSync}>{t("立即同步", "Sync now")}</button>)}
-        </div>
-        {syncState === 'error' && syncError && <p className="form-error" role="alert">{<SystemMessage text={syncError} />}</p>}
-        {pendingCount != null && pendingCount > 0 && <p className="feature-muted">{t("未同步：", "Pending: ")}{pendingCount} {t("项", " items")}</p>}
-        {cloudCount != null && <p className="feature-muted">{t("上次读取云端：", "Last cloud count: ")}{cloudCount} {t("项", " items")}</p>}
-        {lastSyncedAt != null && <p className="feature-muted">{t("最近成功同步：", "Last synced: ")}{new Date(lastSyncedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}</p>}
-      </fieldset>
+      </div>
     </div>
   </Dialog>;
 }

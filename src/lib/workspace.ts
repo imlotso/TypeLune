@@ -1,6 +1,7 @@
 import { defaultPace, defaultSettings, sameDraftSnapshot, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models.js';
 import { themeStorageKey } from './theme.js';
-import { isBackgroundConfig } from './background.js';
+import { isBackgroundConfig, isBackgroundPresentation, backgroundPresentation } from './background.js';
+import { isWallpaperStyle, type WallpaperStyle } from './wallpaper-policy.js';
 import { isPresetList } from './practice-settings.js';
 import { isPaceSettings } from './pace.js';
 import { isStatisticsTimeZone } from './long-term-stats.js';
@@ -115,8 +116,9 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
       (payload.article === undefined || isArticle(payload.article)) &&
       (payload.typed === undefined || typeof payload.typed === 'string');
     case 'settings': return Number.isInteger(payload.minutes) && isTheme(payload.theme) && isMode(payload.mode) &&
-      (payload.wallpapers === undefined || (isObject(payload.wallpapers) && Object.entries(payload.wallpapers).every(([key, value]) => ['light','dark'].includes(key) && ['off','nature','portrait'].includes(String(value))))) &&
+      (payload.wallpapers === undefined || (isObject(payload.wallpapers) && Object.entries(payload.wallpapers).every(([key, value]) => ['light','dark'].includes(key) && (value === 'off' || isWallpaperStyle(value))))) &&
       (payload.wallpaperAdaptive === undefined || (isObject(payload.wallpaperAdaptive) && Object.entries(payload.wallpaperAdaptive).every(([key, value]) => ['light', 'dark'].includes(key) && typeof value === 'boolean'))) &&
+      (payload.backgroundPresentation === undefined || (isObject(payload.backgroundPresentation) && Object.entries(payload.backgroundPresentation).every(([key,value])=>['light','dark'].includes(key)&&isBackgroundPresentation(value)))) &&
       (payload.uiLocale === undefined || payload.uiLocale === 'auto' || payload.uiLocale === 'zh' || payload.uiLocale === 'en') &&
       typeof payload.autoPause === 'boolean' && typeof payload.strict === 'boolean' &&
       [payload.fontSize, payload.lineHeight, payload.visibleLines].every(isNumber) &&
@@ -693,22 +695,25 @@ export function importWorkspaceValue(ownerId: string, kind: WorkspaceKind, id: s
   }, true).then(() => outcome);
 }
 
-/** Persist the image and its update preference in one local workspace transaction. */
-export function saveWallpaper(ownerId: string | null, theme: 'light' | 'dark', background: WorkspaceValues['background'] | undefined, automatic: 'off' | 'nature' | 'portrait', adaptive?: boolean) {
-  return editWorkspace(ownerId, (items) => {
+/** Build one atomic background and preference update for either storage path. */
+export function wallpaperUpdates(items:WorkspaceItem[],ownerId: string | null, theme: 'light' | 'dark', background: WorkspaceValues['background'] | undefined, automatic: 'off' | WallpaperStyle, adaptive?: boolean, followSite=false,serverTime=estimatedServerTime(ownerId),generation=ownerId?readWorkspaceGeneration(ownerId):null) {
     const settings = workspaceSettings(items);
+    const presentation={...settings.backgroundPresentation};if(followSite&&background)presentation[theme]=backgroundPresentation(background);else delete presentation[theme];
     const changes: { kind: 'settings' | 'background'; id: string; value: unknown }[] = [
-      { kind: 'background', id: theme, value: background },
-      { kind: 'settings', id: 'preferences', value: { ...settings, wallpapers: { ...settings.wallpapers, [theme]: automatic }, ...(adaptive !== undefined && { wallpaperAdaptive: { ...settings.wallpaperAdaptive, [theme]: adaptive } }) } },
+      { kind: 'background', id: theme, value: followSite?undefined:background },
+      { kind: 'settings', id: 'preferences', value: { ...settings, backgroundPresentation:presentation, wallpapers: { ...settings.wallpapers, [theme]: automatic }, ...(adaptive !== undefined && { wallpaperAdaptive: { ...settings.wallpaperAdaptive, [theme]: adaptive } }) } },
     ];
-    const generation = ownerId ? readWorkspaceGeneration(ownerId) : null;
     const updates = changes.map(({ kind, id, value }): WorkspaceItem => {
       const old = items.find(item => item.kind === kind && item.id === id);
-      const updatedAt = Math.max(estimatedServerTime(ownerId), (old?.updatedAt ?? -1) + 1);
+      const updatedAt = Math.max(serverTime, (old?.updatedAt ?? -1) + 1);
       const base = { ...(old?.serverRevision === undefined ? {} : { serverRevision: old.serverRevision, baseUpdatedAt: old.baseUpdatedAt ?? old.updatedAt }), ...(old?.localFallback && { localFallback: true }),
         ...((old?.clientGeneration ?? (!old ? generation : null)) ? { clientGeneration: old?.clientGeneration ?? generation! } : {}) };
       return { kind, id, updatedAt, ...base, ...(value === undefined ? { deleted: true } : { value }) };
     });
-    return mergeWorkspaceItems(items, updates);
-  }, true).then(() => {});
+    return updates;
+}
+
+/** Persist visitor settings in one local transaction. */
+export function saveWallpaper(ownerId:string|null,theme:'light'|'dark',background:WorkspaceValues['background']|undefined,automatic:'off'|WallpaperStyle,adaptive?:boolean,followSite=false){
+  return editWorkspace(ownerId,items=>mergeWorkspaceItems(items,wallpaperUpdates(items,ownerId,theme,background,automatic,adaptive,followSite)),true).then(()=>{});
 }
