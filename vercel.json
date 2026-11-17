@@ -12,129 +12,123 @@
       "includeFiles": "dist/client/app.html"
     }
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/handler?__dazi_path=:path"
+      "src": "^(?:/(.*))$",
+      "headers": {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Content-Security-Policy": "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
+        "Cache-Control": "no-cache"
+      },
+      "continue": true
     },
     {
-      "source": "/",
-      "destination": "/api/handler?__dazi_page=/"
+      "src": "^/assets(?:/(.+-[A-Za-z0-9_-]{8,}\\.[^/]+))$",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
     },
     {
-      "source": "/lessons",
-      "destination": "/api/handler?__dazi_page=/lessons"
+      "src": "^/api(?:/(.*))$",
+      "headers": {
+        "Cache-Control": "no-store"
+      },
+      "continue": true
     },
     {
-      "source": "/library",
-      "destination": "/api/handler?__dazi_page=/library"
+      "src": "^/seo(?:/(.*))$",
+      "headers": {
+        "X-Robots-Tag": "noindex, follow"
+      },
+      "continue": true
     },
     {
-      "source": "/rankings",
-      "destination": "/api/handler?__dazi_page=/rankings"
+      "src": "^/index\\.html$",
+      "headers": {
+        "X-Robots-Tag": "noindex, follow"
+      },
+      "continue": true
     },
     {
-      "source": "/help",
-      "destination": "/api/handler?__dazi_page=/help"
+      "src": "^/api/handler$",
+      "dest": "/api/handler"
     },
     {
-      "source": "/about",
-      "destination": "/api/handler?__dazi_page=/about"
+      "src": "^/api(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?$",
+      "dest": "/api/handler?__dazi_path=$1&path=$1",
+      "check": true
     },
     {
-      "source": "/privacy",
-      "destination": "/api/handler?__dazi_page=/privacy"
+      "src": "^/$",
+      "dest": "/api/handler?__dazi_page=%2F",
+      "check": true
     },
     {
-      "source": "/terms",
-      "destination": "/api/handler?__dazi_page=/terms"
+      "src": "^/lessons$",
+      "dest": "/api/handler?__dazi_page=%2Flessons",
+      "check": true
     },
     {
-      "source": "/articles/:id",
-      "destination": "/api/handler?__dazi_page=/articles/:id"
+      "src": "^/library$",
+      "dest": "/api/handler?__dazi_page=%2Flibrary",
+      "check": true
     },
     {
-      "source": "/sitemap.xml",
-      "destination": "/api/handler?__dazi_page=/sitemap.xml"
+      "src": "^/rankings$",
+      "dest": "/api/handler?__dazi_page=%2Frankings",
+      "check": true
     },
     {
-      "source": "/robots.txt",
-      "destination": "/api/handler?__dazi_page=/robots.txt"
+      "src": "^/help$",
+      "dest": "/api/handler?__dazi_page=%2Fhelp",
+      "check": true
     },
     {
-      "source": "/sitemap-:part.xml",
-      "destination": "/api/handler?__dazi_page=/sitemap-:part.xml"
+      "src": "^/about$",
+      "dest": "/api/handler?__dazi_page=%2Fabout",
+      "check": true
     },
     {
-      "source": "/(.*)",
-      "destination": "/app.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=(), microphone=(), geolocation=()"
-        },
-        {
-          "key": "Content-Security-Policy",
-          "value": "base-uri 'self'; object-src 'none'; frame-ancestors 'none'"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "no-cache"
-        }
-      ]
+      "src": "^/privacy$",
+      "dest": "/api/handler?__dazi_page=%2Fprivacy",
+      "check": true
     },
     {
-      "source": "/assets/:file(.+-[A-Za-z0-9_-]{8,}\\.[^/]+)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
+      "src": "^/terms$",
+      "dest": "/api/handler?__dazi_page=%2Fterms",
+      "check": true
     },
     {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store"
-        }
-      ]
+      "src": "^/articles(?:/([^/]+?))$",
+      "dest": "/api/handler?__dazi_page=%2Farticles%2F$1&id=$1",
+      "check": true
     },
     {
-      "source": "/seo/(.*)",
-      "headers": [
-        {
-          "key": "X-Robots-Tag",
-          "value": "noindex, follow"
-        }
-      ]
+      "src": "^/sitemap\\.xml$",
+      "dest": "/api/handler?__dazi_page=%2Fsitemap.xml",
+      "check": true
     },
     {
-      "source": "/index.html",
-      "headers": [
-        {
-          "key": "X-Robots-Tag",
-          "value": "noindex, follow"
-        }
-      ]
+      "src": "^/robots\\.txt$",
+      "dest": "/api/handler?__dazi_page=%2Frobots.txt",
+      "check": true
+    },
+    {
+      "src": "^/sitemap-([^/]+?)\\.xml$",
+      "dest": "/api/handler?__dazi_page=%2Fsitemap-$1.xml&part=$1",
+      "check": true
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "^(?:/(.*))$",
+      "dest": "/app.html",
+      "check": true
     }
   ]
 }

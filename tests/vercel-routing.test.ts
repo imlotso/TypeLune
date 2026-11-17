@@ -10,6 +10,11 @@ it('maps every nested API path to an existing Vercel Function using Vercel routi
   const result = getTransformedRoutes(config);
   expect(result.error).toBeNull();
   const routes = result.routes ?? [];
+  const filesystem = routes.findIndex(route => 'handle' in route && route.handle === 'filesystem');
+  const homepage = routes.findIndex(route => 'src' in route && route.src === '^/$' && 'dest' in route);
+  expect(homepage).toBeGreaterThanOrEqual(0);
+  expect(filesystem).toBeGreaterThan(homepage);
+
   for (const path of ['/api', '/api/health', '/api/auth/login', '/api/workspace/sync', '/api/tests/example/pause', '/api/not-found']) {
     const matched = routes.find((route) => 'dest' in route && 'src' in route && route.src && new RegExp(route.src).test(path));
     expect(matched).toBeDefined();
