@@ -28,7 +28,7 @@ Two component recovery checks missed their short waits under concurrent test loa
 
 The original-scope PostgreSQL integration suite passed 41 tests, covering Node and Vercel HTTP paths. Production dependencies reported zero known advisories in `npm audit --omit=dev`. This dependency result is not a claim that the application has no security weaknesses.
 
-Expanded SEO checks pass for managed bilingual server HTML, public-article visibility, admin authentication, uploads, revisions, sitemap controls and preview noindex. Actual PostgreSQL Node/Vercel integration and SQLite↔PostgreSQL SEO transfer checks pass. Three new browser flows and two offline/chunk-failure flows pass. Final all-suite unit/integration rerun: **169 test files passed, 787 tests passed, 4 optional tests skipped** with the disposable PostgreSQL database enabled. Type checking, production build, Sites packaging (4 tests), and emitted Vercel NodeNext module loading pass. Full final browser reruns are recorded below when complete.
+Expanded SEO checks pass for managed bilingual server HTML, public-article visibility, admin authentication, uploads, revisions, sitemap controls and preview noindex. Actual PostgreSQL Node/Vercel integration and SQLite↔PostgreSQL SEO transfer checks pass. Three new browser flows and two offline/chunk-failure flows pass. Final all-suite unit/integration rerun: **169 test files passed, 792 tests passed, 4 optional tests skipped** with the disposable PostgreSQL database enabled. Type checking, production build, Sites packaging (4 tests), and emitted Vercel NodeNext module loading pass. Full final browser reruns are recorded below when complete.
 
 Five English UI checks initially failed because earlier cases left `?tl=zh-CN` in browser history after switching languages. Fresh-visit URL isolation fixes preserve every English assertion. All 48 related locale checks pass, including actual PostgreSQL locale API checks.
 
@@ -63,3 +63,9 @@ Docker production image checks passed for both SQLite and PostgreSQL 18.7, inclu
 An isolated, sequential Lighthouse run measured performance 68→75, SEO 92→100, LCP 11.3s→6.1s, TBT 250ms→180ms, and CLS 0 for both versions. These are direct Node lab measurements, not CDN or field Core Web Vitals results.
 
 Remote verification caught Vercel's static-file priority serving Chinese `index.html` for `?tl=en`. Explicit public SSR routes now run before the filesystem handler; static assets and the private SPA fallback remain available. A build-time runtime/schema check prevents publishing a function whose selected database schema cannot start the application. Preview configuration and final remote results are recorded after verification.
+
+### Final remote preview
+
+The isolated Vercel preview is `https://dazi-k49ory2vl-bobos-projects-2c04df89.vercel.app`. Direct server responses return `lang=en` / `lang=zh-CN`, matching titles and Content-Language, reciprocal hreflang and canonical URLs, and full currently published article text. API health returns 200. Preview HTML is noindex; robots disallows crawling and sitemap returns 404. The dedicated preview schema contains only the 42 reusable public articles; production accounts and private data were not copied. The one-time preview initialization switch was disabled after successful verification.
+
+Final actual PostgreSQL browser retest passed all 24 language/navigation/SEO/offline cases. Final complete unit/API run passed 169 files / 792 tests, with 4 optional tests skipped.
