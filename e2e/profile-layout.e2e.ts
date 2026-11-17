@@ -16,7 +16,12 @@ test('course guide stays alongside the active input and can be resized in a low-
  await input.fill('fj fj jf jf ff jj fj jf\n');await expect(page.getByTestId('typed-count')).not.toHaveText('0');
  expect(await page.evaluate(()=>window.scrollY)).toBeLessThan(10);await expect(page.getByRole('textbox',{name:'当前行输入'})).toBeInViewport();
  await page.screenshot({path:screenshots+'/course-desktop.png',fullPage:true});
- await chooseTheme(page, 'dark');await page.screenshot({path:screenshots+'/course-desktop-dark.png',fullPage:true});
+ await chooseTheme(page, 'dark');
+ // Appearance parks the round; resume before checking active-input following.
+ await page.getByRole('button',{name:'继续练习',exact:true}).click();
+ await input.fill('j');
+ await expect(page.getByRole('button',{name:'暂停练习',exact:true})).toBeVisible();
+ await page.screenshot({path:screenshots+'/course-desktop-dark.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await expect(page.getByRole('textbox',{name:'当前行输入'})).toBeInViewport();
  await page.screenshot({path:screenshots+'/course-mobile.png',fullPage:true});

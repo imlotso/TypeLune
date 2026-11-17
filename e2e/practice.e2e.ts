@@ -391,7 +391,7 @@ test('manages a live account and publishes a sourced article into the practice c
   expect(challenge.status()).toBe(200);
   expect((await challenge.json()).target).toBe(body.trim());
 
-  await chooseTheme(page, 'dark');
+  await page.getByRole('button', { name: '切换至夜间模式' }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: '预览网站', exact: true })).toBeInViewport();
   await page.getByRole('button', { name: '操作日志', exact: true }).click();

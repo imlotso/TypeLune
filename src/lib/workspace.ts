@@ -618,11 +618,11 @@ export function deleteWorkspaceDrafts(ownerId: string | null, drafts: SavedPract
     const selected = new Map(drafts.map(draft => [draft.id, draft]));
     const stored = new Map(items.filter(item => item.kind === 'draft').map(item => [item.id, item]));
     for (const draft of selected.values()) {
-      if (draft.ownerId !== ownerId) throw new Error('草稿所属账号已变化，请刷新后重试');
+      if ((draft.ownerId ?? null) !== ownerId) throw new Error('草稿所属账号已变化，请刷新后重试');
       const current = stored.get(draft.id);
       if (!current || current.deleted) continue;
       const value = current.value as SavedPractice;
-      if (value.ownerId !== ownerId || value.recordId !== draft.recordId || value.article.id !== draft.article.id || value.article.text !== draft.article.text || !sameDraftSnapshot(value, draft)) throw new Error('草稿已更新，请重新选择后删除');
+      if ((value.ownerId ?? null) !== ownerId || value.recordId !== draft.recordId || value.article.id !== draft.article.id || value.article.text !== draft.article.text || !sameDraftSnapshot(value, draft)) throw new Error('草稿已更新，请重新选择后删除');
     }
     preflight();
     const generation = ownerId ? readWorkspaceGeneration(ownerId) : null;

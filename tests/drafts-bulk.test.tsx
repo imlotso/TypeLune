@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { DraftsView } from '../src/components/DraftsView';
-import { canDiscardSavedDraft } from '../src/hooks/usePractice';
+import { canDiscardSavedDraft, discardSavedDraft } from '../src/hooks/usePractice';
 import { deleteWorkspaceDrafts, putWorkspaceValue, readWorkspace, workspaceValue } from '../src/lib/workspace';
 import type { SavedPractice } from '../src/lib/models';
 
@@ -67,4 +67,14 @@ it('rejects changed or foreign snapshots and persists all valid tombstones toget
   expect((await readWorkspace(null)).some(item => item.deleted)).toBe(false);
   await deleteWorkspaceDrafts(null, selected, () => {});
   expect((await readWorkspace(null)).filter(item => item.kind === 'draft' && item.deleted)).toHaveLength(2);
+});
+
+it('keeps older guest drafts without an explicit owner compatible with batch deletion', async()=>{
+ const legacy=draft('legacy'); delete (legacy as Partial<SavedPractice>).ownerId;
+ await putWorkspaceValue(null,'draft',legacy.id,legacy);
+ localStorage.setItem('cloudtyping.practice.v2.legacy',JSON.stringify({articleId:legacy.article.id,target:legacy.article.text}));
+ expect(canDiscardSavedDraft(legacy)).toBe(true);
+ await deleteWorkspaceDrafts(null,[legacy],()=>{if(!canDiscardSavedDraft(legacy))throw new Error('occupied');});
+ expect(workspaceValue(await readWorkspace(null),'draft',legacy.id)).toBeUndefined();
+ expect(discardSavedDraft(legacy)).toBe(true);expect(localStorage.getItem('cloudtyping.practice.v2.legacy')).toBeNull();
 });

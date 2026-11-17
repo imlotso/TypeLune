@@ -14,9 +14,10 @@ The prior [wallpaper timeout fix](2026-11-17-daily-wallpaper-fix.md) is included
 ## Verification
 
 - Full unit/API suite with actual disposable PostgreSQL: **813 passed**, four optional cases skipped.
+- Compatibility follow-up: 45 related draft/workspace/application checks passed, including older guest drafts without an explicit owner. The five batch-deletion checks were also rerun after the final cleanup assertion.
 - TypeScript, production build, four Sites packaging checks and the Vercel NodeNext emitted-function import check passed.
 - New browser cases cover confirmed batch deletion, deselection/cancel, deleting the remaining active draft, reload and another independent account device; Appearance/theme grouping; native 4K requests; excluding the current image; persisted adaptation-off preference; English phone layout. Related existing background and delayed 13-second retrieval cases also pass.
-- Full SQLite browser regression and PostgreSQL browser regression: final results recorded in the PR after completion.
+- Full SQLite browser regression covered 157 cases: 155 passed initially; two theme/navigation test fixtures were updated for the new Appearance entry and paused-until-input behavior, and both passed on rerun. PostgreSQL browser regression results are recorded in the PR after completion.
 - Real Wallhaven requests through the updated server returned valid 3840×2160 nature, another different nature image and portrait backgrounds, all HTTP 200 and within the stored image limit.
 
 Screenshots use synthetic test accounts and an existing local landscape image for the deterministic wallpaper UI fixture. Actual provider retrieval was separately verified above.
