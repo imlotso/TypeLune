@@ -1,3 +1,4 @@
+import { chooseTheme } from './appearance';
 import { expect, test } from './fixtures';
 
 test('opens type-specific cleanup and propagates changes to another device', async ({ page, browser, baseURL, clientIp }, testInfo) => {
@@ -22,7 +23,7 @@ test('opens type-specific cleanup and propagates changes to another device', asy
   await page.getByRole('menuitem', { name: '个人数据' }).click();
   await expect(page.getByRole('button', { name: '管理收藏' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('capacity-types-desktop.png') });
-  await page.getByRole('button', { name: '切换至夜间模式' }).click();
+  await chooseTheme(page, 'dark');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('heading', { name: '云工作区容量' }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath('capacity-types-mobile.png') });

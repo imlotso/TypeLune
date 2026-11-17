@@ -37,7 +37,7 @@ describe('background editor', () => {
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-    expect(onSave).toHaveBeenLastCalledWith({ ...saved, shade: 60 }, 'off');
+    expect(onSave).toHaveBeenLastCalledWith({ ...saved, shade: 60 }, 'off', true);
   });
 
   it('ignores an older upload finishing after the latest selected file', async () => {
@@ -50,7 +50,7 @@ describe('background editor', () => {
     await act(async () => first({ ...image, name: 'slow.png' }));
     expect(screen.queryByText('slow.png')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith(defaultBackground('light', { ...image, name: 'latest.png' }), 'off'));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(defaultBackground('light', { ...image, name: 'latest.png' }), 'off', true));
   });
 
   it('restores the default while an upload is pending without reviving the uploaded image', async () => {
@@ -63,7 +63,7 @@ describe('background editor', () => {
     await act(async () => resolve({ ...image, name: 'slow.png' }));
     expect(screen.getByRole('img', { name: '背景预览' }).getAttribute('src')).toBe('/assets/lake-default.webp');
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith(undefined, 'off'));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(undefined, 'off', true));
   });
 
   it('preserves the previous draft when replacement fails and aborts processing on close', async () => {
@@ -94,11 +94,11 @@ it('previews a daily wallpaper, persists its automatic mode on save, and custom 
   const onSave=vi.fn().mockResolvedValue(undefined);const first=render(<BackgroundDialog theme="light" value={saved} onSave={onSave} onClose={()=>{}}/>);
   fireEvent.click(screen.getByRole('checkbox',{name:'每日自动更新壁纸'}));
   await screen.findByRole('link',{name:'图片来源：Wallhaven ↗'});
-  expect(onSave).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'保存'}));await waitFor(()=>expect(onSave).toHaveBeenCalledWith(daily,'nature'));first.unmount();
+  expect(onSave).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'保存'}));await waitFor(()=>expect(onSave).toHaveBeenCalledWith(daily,'nature',true));first.unmount();
   vi.mocked(prepareBackgroundImage).mockResolvedValue({...image,name:'own.png'});
   render(<BackgroundDialog theme="light" value={daily} autoMode="nature" onSave={onSave} onClose={()=>{}}/>);upload('own.png');await screen.findByText('own.png');
   expect(screen.queryByRole('link',{name:'图片来源：Wallhaven ↗'})).toBeNull();expect((screen.getByRole('checkbox',{name:'每日自动更新壁纸'}) as HTMLInputElement).checked).toBe(false);
-  fireEvent.click(screen.getByRole('button',{name:'保存'}));await waitFor(()=>expect(onSave).toHaveBeenLastCalledWith({...saved,name:'own.png'},'off'));vi.unstubAllGlobals();
+  fireEvent.click(screen.getByRole('button',{name:'保存'}));await waitFor(()=>expect(onSave).toHaveBeenLastCalledWith({...saved,name:'own.png'},'off',true));vi.unstubAllGlobals();
 });
 it('retains the current wallpaper when the daily provider fails',async()=>{
   vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({error:'unavailable'}),{status:503})));

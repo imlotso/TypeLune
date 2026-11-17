@@ -12,6 +12,7 @@ export type PresetReading = { fontSize: number; lineHeight: number; visibleLines
 export type PracticePreset = { id: string; name: string; language: Language; difficulty: Difficulty; mode: PracticeMode; minutes: number; strict: boolean; autoPause: boolean; pace?: PaceSettings; reading?: PresetReading };
 export type ReaderSettings = {
   wallpapers?: { light?: 'off' | 'nature' | 'portrait'; dark?: 'off' | 'nature' | 'portrait' };
+  wallpaperAdaptive?: { light?: boolean; dark?: boolean };
   uiLocale?: import('./ui-locale.js').UiLocalePreference;
   minutes: number;
   mode: PracticeMode;

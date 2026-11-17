@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import sharp from 'sharp';
-import { registerWallpapers } from '../server/wallpapers';
+import { registerWallpapers, validWallpaper } from '../server/wallpapers';
 import { isBackgroundConfig } from '../src/lib/background';
 afterEach(()=>vi.unstubAllGlobals());
 it('uses only SFW accepted host images, transforms pixels, shares cached requests and validates preferences',async()=>{
@@ -20,4 +20,71 @@ it('rejects inappropriate portraits and leaves no unsafe background in the respo
  const row={id:'ab12cd',purity:'sfw',category:'people',dimension_x:1920,dimension_y:1080,path:'https://w.wallhaven.cc/full/ab/a.jpg',tags:[{name:'portrait'},{name:'bikini'}]};
  const fetcher=vi.fn(async(url:any)=>new Response(JSON.stringify(url.includes('/search?')?{data:[row]}:{data:row})));vi.stubGlobal('fetch',fetcher);
  const response=await app.inject('/api/wallpapers/daily?kind=portrait');expect(response.statusCode).toBe(503);expect(response.json().background).toBeUndefined();expect(fetcher.mock.calls.some(([url])=>url.startsWith('https://w.'))).toBe(false);await app.close();
+});
+it.each(['detail', 'download', 'decode'])('continues to another candidate after a %s failure', async failure => {
+ const app=Fastify();registerWallpapers(app);
+ const image=await sharp({create:{width:1920,height:1080,channels:3,background:'#60758d'}}).png().toBuffer();
+ let details=0; let images=0;
+ const fetcher=vi.fn(async(url:string)=>{
+  if(url.includes('/search?'))return new Response(JSON.stringify({data:[{id:'aaaaaa'},{id:'bbbbbb'}]}));
+  if(url.includes('/api/v1/w/')) {
+   if(++details===1&&failure==='detail')return new Response('unavailable',{status:503});
+   return new Response(JSON.stringify({data:{id:url.split('/').pop(),purity:'sfw',category:'general',dimension_x:1920,dimension_y:1080,path:'https://w.wallhaven.cc/full/ab/image.png',tags:[{name:'landscape'}]}}));
+  }
+  images++;
+  if(images===1&&failure==='download')return new Response('unavailable',{status:503});
+  if(images===1&&failure==='decode')return new Response('damaged image');
+  return new Response(image);
+ });vi.stubGlobal('fetch',fetcher);
+ const response=await app.inject('/api/wallpapers/daily?kind=nature');
+ expect(response.statusCode).toBe(200);expect(details).toBe(2);expect(images).toBe(failure==='detail'?1:2);expect(isBackgroundConfig(response.json().background)).toBe(true);await app.close();
+});
+it('allows an immediate manual retry after the provider recovers', async()=>{
+ const app=Fastify();registerWallpapers(app);
+ const image=await sharp({create:{width:1920,height:1080,channels:3,background:'#60758d'}}).png().toBuffer();
+ const row={id:'ab12cd',purity:'sfw',category:'general',dimension_x:1920,dimension_y:1080,path:'https://w.wallhaven.cc/full/ab/image.png',tags:[{name:'landscape'}]};
+ let searches=0;
+ vi.stubGlobal('fetch',vi.fn(async(url:string)=>{
+  if(url.includes('/search?'))return ++searches===1?new Response('unavailable',{status:503}):new Response(JSON.stringify({data:[row]}));
+  return url.includes('/api/v1/w/')?new Response(JSON.stringify({data:row})):new Response(image);
+ }));
+ expect((await app.inject('/api/wallpapers/daily?kind=nature')).statusCode).toBe(503);
+ expect((await app.inject('/api/wallpapers/daily?kind=nature')).statusCode).toBe(200);
+ expect(searches).toBe(2);await app.close();
+});
+it('rejects malformed destinations and unsafe tags without throwing out the whole candidate list',()=>{
+ const row={id:'ab12cd',purity:'sfw',category:'general',dimension_x:1920,dimension_y:1080,path:'not-a-url',tags:[]};
+ expect(validWallpaper(row,'nature')).toBe(false);
+ expect(validWallpaper({...row,path:'http://w.wallhaven.cc/image.png'},'nature')).toBe(false);
+ expect(validWallpaper({...row,path:'https://w.wallhaven.cc/image.png',tags:{}},'nature')).toBe(false);
+ expect(validWallpaper({...row,path:'https://w.wallhaven.cc/image.png',category:'people',tags:[{name:'faces'},{name:'bikini'}]},'portrait')).toBe(false);
+});
+
+it('gets a different safe image without replacing the cached daily default', async () => {
+ const app=Fastify();registerWallpapers(app);
+ const image=await sharp({create:{width:1920,height:1080,channels:3,background:'#60758d'}}).png().toBuffer();
+ const fetcher=vi.fn(async(url:string)=>url.includes('/search?')?new Response(JSON.stringify({data:[{id:'aaaaaa'},{id:'bbbbbb'}]})):url.includes('/api/v1/w/')?new Response(JSON.stringify({data:{id:url.split('/').pop(),purity:'sfw',category:'general',dimension_x:1920,dimension_y:1080,path:'https://w.wallhaven.cc/full/ab/image.png',tags:[]}})):new Response(image));vi.stubGlobal('fetch',fetcher);
+ const first=(await app.inject('/api/wallpapers/daily?kind=nature')).json().background;
+ const changed=await app.inject('/api/wallpapers/daily?kind=nature&exclude='+first.daily.id);
+ expect(changed.statusCode).toBe(200);expect(changed.json().background.daily.id).not.toBe(first.daily.id);
+ expect((await app.inject('/api/wallpapers/daily?kind=nature')).json().background.daily.id).toBe(first.daily.id);
+ await app.close();
+});
+
+it('returns native 4K dimensions and keeps display resolutions in separate caches', async()=>{
+ const app=Fastify();registerWallpapers(app);
+ const image=await sharp({create:{width:3840,height:2160,channels:3,background:'#60758d'}}).png().toBuffer();
+ const row={id:'ab12cd',purity:'sfw',category:'general',dimension_x:3840,dimension_y:2160,path:'https://w.wallhaven.cc/full/ab/image.png',tags:[]};
+ const fetcher=vi.fn(async(url:string)=>url.includes('/search?')?new Response(JSON.stringify({data:[row]})):url.includes('/api/v1/w/')?new Response(JSON.stringify({data:row})):new Response(image));vi.stubGlobal('fetch',fetcher);
+ const large=await app.inject('/api/wallpapers/daily?kind=nature&width=3840&height=2160');
+ expect(large.statusCode).toBe(200);expect(large.json().background).toMatchObject({width:3840,height:2160,daily:{resolution:'3840x2160'}});expect(isBackgroundConfig(large.json().background)).toBe(true);
+ const small=await app.inject('/api/wallpapers/daily?kind=nature&width=1920&height=1080');expect(small.json().background).toMatchObject({width:1920,height:1080,daily:{resolution:'1920x1080'}});
+ const calls=fetcher.mock.calls.length;await app.inject('/api/wallpapers/daily?kind=nature&width=3840&height=2160');expect(fetcher).toHaveBeenCalledTimes(calls);
+ expect(fetcher.mock.calls[0][0]).toContain('atleast=3840x2160');
+ await app.close();
+});
+
+it.each(['width=9999&height=2160','width=3840','width=5120&height=5120','width=NaN&height=1080','exclude=bad','exclude=aaaaaa,../../secret'])('rejects invalid retrieval options before fetching (%s)',async(query)=>{
+ const app=Fastify();registerWallpapers(app);const fetcher=vi.fn();vi.stubGlobal('fetch',fetcher);
+ expect((await app.inject('/api/wallpapers/daily?'+query)).statusCode).toBe(400);expect(fetcher).not.toHaveBeenCalled();await app.close();
 });

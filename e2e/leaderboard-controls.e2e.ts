@@ -1,3 +1,4 @@
+import { chooseTheme } from './appearance';
 import { ensureAdmin, expect, test } from './fixtures';
 
 test('keeps board filters across browsers and lets an administrator review and clear a date range', async ({ page, browser, baseURL, clientIp }, testInfo) => {
@@ -50,7 +51,7 @@ test('keeps board filters across browsers and lets an administrator review and c
   await expect(ranked).toBeVisible();
   await other.screenshot({ path: testInfo.outputPath('typeflow-ranking-desktop-light.png') });
   await other.setViewportSize({ width: 390, height: 844 });
-  await other.getByRole('button', { name: '切换至夜间模式' }).click();
+  await chooseTheme(other, 'dark');
   await expect(other.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(await other.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await other.screenshot({ path: testInfo.outputPath('typeflow-ranking-mobile-dark.png') });

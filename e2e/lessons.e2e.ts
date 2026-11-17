@@ -1,3 +1,4 @@
+import { chooseTheme } from './appearance';
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 const shots='docs/qa/screenshots/2026-11-16-lessons';
@@ -38,7 +39,7 @@ test('mobile English course and practice remain within the viewport in night mod
   await page.setViewportSize({width:390,height:844});
   await page.addInitScript(()=>localStorage.setItem('typelune.ui-locale.v1','en'));
   await page.goto('/lessons');
-  await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
+  await chooseTheme(page, 'dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await expect(page.getByRole('heading',{name:'Beginner course',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);

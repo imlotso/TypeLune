@@ -22,8 +22,6 @@ type Props = {
   onRecovery?: () => void;
   onSync: () => void;
   isSignedIn: boolean;
-  onBackground?: (theme?: 'light' | 'dark') => void;
-  hasBackground?: boolean;
   onPresets?: () => void;
   onSettingsTransfer?: () => void;
   onCommands?: () => void;
@@ -31,7 +29,7 @@ type Props = {
 };
 
 
-export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, syncError, pendingCount, cloudCount, lastSyncedAt, recoveryReason, onRecovery, onSync, isSignedIn, onBackground, hasBackground, onPresets, onSettingsTransfer, onCommands, language = 'zh' }: Props) {
+export function SettingsDialog({ settings, onChange, locked, onClose, onFocus, focused, syncState, syncError, pendingCount, cloudCount, lastSyncedAt, recoveryReason, onRecovery, onSync, isSignedIn, onPresets, onSettingsTransfer, onCommands, language = 'zh' }: Props) {
   const { t, locale } = useI18n();
 const syncNames: Record<SyncState, string> = {
   guest: t("仅本机", "Local only"), loading: t("正在读取", "Loading"), syncing: t("同步中", "Syncing"), synced: t("已同步", "Synced"), error: t("同步失败", "Sync failed"),
@@ -160,10 +158,6 @@ const syncNames: Record<SyncState, string> = {
         <div className="feature-actions">
           <button className="outline-button feature-action-button" onClick={onFocus}>{focused ? t("退出专注", "Exit focus") : t("进入专注", "Enter focus")}</button>
         </div>
-      </fieldset>
-      <fieldset className="settings-group">
-        <legend>{t("外观", "Appearance")}</legend>
-        <div className="settings-sync"><span className="feature-muted">{hasBackground ? t("自定义背景", "Custom background") : t("默认背景", "Default background")}</span><button className="outline-button feature-action-button" onClick={() => onBackground?.('light')}>{t("日间背景图", "Light background")}</button><button className="outline-button feature-action-button" onClick={() => onBackground?.('dark')}>{t("夜间背景图", "Dark background")}</button></div>
       </fieldset>
       <fieldset className="settings-group">
         <legend>{t("同步", "Sync")}</legend>

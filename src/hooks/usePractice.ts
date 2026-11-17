@@ -246,18 +246,27 @@ function clearDraft(attempt: Attempt | null, owner: string) {
   try { if (sessionStorage.getItem(currentDraftKey) === attempt.recordId) sessionStorage.removeItem(currentDraftKey); } catch { /* Storage is optional. */ }
   return true;
 }
+export function canDiscardSavedDraft(saved: SavedPractice): boolean {
+  try {
+    const current = storedDraft(saved.recordId);
+    if (current) return (current.ownerId ?? null) === (saved.ownerId ?? null) && current.articleId === saved.article.id && current.target === saved.article.text && !leaseTaken(current, '');
+    let legacy: PracticeDraft | null = null;
+    try { legacy = JSON.parse(localStorage.getItem(legacyDraftKey) || 'null') as PracticeDraft | null; } catch { return true; }
+    return !legacy || legacy.version !== 1 || legacyRecordId(legacy) !== saved.recordId || ((legacy.ownerId ?? null) === (saved.ownerId ?? null) && legacy.articleId === saved.article.id && legacy.target === saved.article.text && !leaseTaken(legacy, ''));
+  } catch { return false; }
+}
 export function discardSavedDraft(saved: SavedPractice): boolean {
   try {
     const key = draftPrefix + saved.recordId;
     const current = storedDraft(saved.recordId);
     if (current) {
-      if ((current.ownerId ?? null) !== saved.ownerId || current.articleId !== saved.article.id || current.target !== saved.article.text || leaseTaken(current, '')) return false;
+      if ((current.ownerId ?? null) !== (saved.ownerId ?? null) || current.articleId !== saved.article.id || current.target !== saved.article.text || leaseTaken(current, '')) return false;
       localStorage.removeItem(key);
     } else {
       let legacy: PracticeDraft | null = null;
       try { legacy = JSON.parse(localStorage.getItem(legacyDraftKey) || 'null') as PracticeDraft | null; } catch { /* An unrelated invalid legacy draft does not block deletion. */ }
       if (legacy?.version === 1 && legacyRecordId(legacy) === saved.recordId) {
-        if ((legacy.ownerId ?? null) !== saved.ownerId || legacy.articleId !== saved.article.id || legacy.target !== saved.article.text || leaseTaken(legacy, '')) return false;
+        if ((legacy.ownerId ?? null) !== (saved.ownerId ?? null) || legacy.articleId !== saved.article.id || legacy.target !== saved.article.text || leaseTaken(legacy, '')) return false;
         localStorage.removeItem(legacyDraftKey);
       }
     }

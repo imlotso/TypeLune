@@ -102,7 +102,7 @@ describe('personal progress views', () => {
     function DraftHarness() {
       const [drafts, setDrafts] = useState([draft]);
       const [continued, setContinued] = useState('');
-      return <><DraftsView drafts={drafts} onResume={(value) => setContinued(value.typed)} onDelete={(id) => setDrafts((all) => all.filter((value) => value.id !== id))} /><output>{continued}</output></>;
+      return <><DraftsView drafts={drafts} onResume={(value) => setContinued(value.typed)} onDelete={async (selected) => setDrafts((all) => all.filter((value) => !selected.some(draft => draft.id === value.id)))} /><output>{continued}</output></>;
     }
     render(<DraftHarness />);
     fireEvent.click(screen.getByRole('button', { name: '继续《春日》' }));
