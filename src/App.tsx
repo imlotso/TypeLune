@@ -746,10 +746,12 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       const next = mainRoute(nextPath);
       setShowMore(false); setShowResult(false); setFeedback('');
       if (focused && next !== 'practice') exitFocus();
-      setView(next); setRouteProfileId(profileIdFromPath(window.location.pathname)); setRouteArticleId(articleIdFromPath(nextPath)); setRouteRecordId(recordIdFromPath(nextPath)); setRouteFeedbackId(feedbackIdFromPath(nextPath)); currentPath.current = nextAddress;
+      setView(next); setRouteProfileId(profileIdFromPath(window.location.pathname)); setRouteArticleId(articleIdFromPath(nextPath)); setRouteRecordId(recordIdFromPath(nextPath)); setRouteFeedbackId(feedbackIdFromPath(nextPath));
+      const settledAddress = window.location.pathname + window.location.search + window.location.hash;
+      currentPath.current = settledAddress;
       currentEntryIndex.current = targetEntryIndex;
       if (targetIndex !== undefined) currentHistoryIndex.current = targetIndex;
-      else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', nextAddress);
+      else window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', settledAddress);
       applied = true;
     }).finally(() => { if (!applied && live.current) restoreAddress(); });
   };
@@ -758,8 +760,10 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
     currentEntryIndex.current = navigationEntryIndex();
     if (navigationIndex(window.history.state) === undefined) window.history.replaceState(navigationState(window.history.state, currentHistoryIndex.current), '', window.location.href);
     const pop = () => popRoute.current();
+    const syncLocaleAddress = () => { currentPath.current = window.location.pathname + window.location.search + window.location.hash; };
     window.addEventListener('popstate', pop);
-    return () => window.removeEventListener('popstate', pop);
+    window.addEventListener('typelune:locale-url', syncLocaleAddress);
+    return () => { window.removeEventListener('popstate', pop); window.removeEventListener('typelune:locale-url', syncLocaleAddress); };
   }, []);
 
   function openSettings() {

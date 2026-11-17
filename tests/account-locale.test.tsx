@@ -183,3 +183,78 @@ it('does not undo navigation when an account language save fails later', async (
   expect(window.location.search).toBe('?tl=en&filter=keep');
   expect(window.location.hash).toBe('#section');
 });
+
+it('keeps a guest-generated language URL out of newly authenticated identities and restores the guest preference', () => {
+  window.history.replaceState({ __typingNavigationIndex: 7, retained: 'keep' }, '', '/');
+  const oldSave = vi.fn(async () => {}), newSave = vi.fn(async () => {});
+  const branch = (value?: ReturnType<typeof account>) => <I18nProvider>{value ? <I18nProvider account={value}><Probe /></I18nProvider> : <Probe />}</I18nProvider>;
+  const { rerender } = render(branch());
+  fireEvent.click(screen.getByRole('button'));
+  expect(screen.getByText('Current English')).toBeTruthy();
+  expect(window.location.search).toBe('?tl=en');
+  expect(window.history.state).toMatchObject({ __typingNavigationIndex: 7, retained: 'keep' });
+  rerender(branch(account('old-owner', 'en', oldSave)));
+  expect(screen.getByText('Current English')).toBeTruthy();
+  rerender(branch(account('new-owner', undefined, newSave)));
+  expect(screen.getByText('当前中文')).toBeTruthy();
+  expect(window.location.search).toBe('');
+  expect(newSave).not.toHaveBeenCalled(); expect(oldSave).not.toHaveBeenCalled();
+  rerender(branch());
+  expect(screen.getByText('Current English')).toBeTruthy();
+  expect(localStorage.getItem(localeStorageKey)).toBe('en');
+  expect(window.history.state).toMatchObject({ __typingNavigationIndex: 7, retained: 'keep' });
+});
+
+it('clears an account-generated language URL on logout without changing the separate guest preference', async () => {
+  localStorage.setItem(localeStorageKey, 'en');
+  let resolve!: () => void;
+  const save = vi.fn(() => new Promise<void>(done => { resolve = done; }));
+  const branch = (value?: ReturnType<typeof account>) => <I18nProvider>{value ? <I18nProvider account={value}><Probe /></I18nProvider> : <Probe />}</I18nProvider>;
+  const { rerender } = render(branch(account('alice', 'en', save)));
+  fireEvent.click(screen.getByRole('button'));
+  rerender(branch(account('alice', 'zh', save)));
+  await act(async () => resolve());
+  expect(screen.getByText('当前中文')).toBeTruthy(); expect(window.location.search).toBe('?tl=zh-CN');
+  rerender(branch()); await act(async () => {});
+  expect(screen.getByText('Current English')).toBeTruthy(); expect(window.location.search).toBe('');
+  expect(localStorage.getItem(localeStorageKey)).toBe('en');
+});
+
+it('retains a genuine incoming language link across identity changes without writing any preference', async () => {
+  window.history.replaceState({ __typingNavigationIndex: 3, retained: 'incoming' }, '', '/library?tl=en');
+  localStorage.setItem(localeStorageKey, 'zh');
+  const save = vi.fn(async () => {});
+  const branch = (value?: ReturnType<typeof account>) => <I18nProvider>{value ? <I18nProvider account={value}><Probe /></I18nProvider> : <Probe />}</I18nProvider>;
+  const { rerender } = render(branch(account('alice', 'zh', save)));
+  expect(screen.getByText('Current English')).toBeTruthy();
+  rerender(branch(account('bob', undefined, save, false)));
+  expect(screen.getByText('Current English')).toBeTruthy();
+  rerender(branch()); await act(async () => {});
+  expect(screen.getByText('Current English')).toBeTruthy(); expect(window.location.search).toBe('?tl=en');
+  expect(localStorage.getItem(localeStorageKey)).toBe('zh'); expect(save).not.toHaveBeenCalled();
+  expect(window.history.state).toEqual({ __typingNavigationIndex: 3, retained: 'incoming' });
+});
+
+it('does not restore another identity’s generated language when navigating back to its history entry', () => {
+  const branch = (value?: ReturnType<typeof account>) => <I18nProvider>{value ? <I18nProvider account={value}><Probe /></I18nProvider> : <Probe />}</I18nProvider>;
+  const { rerender } = render(branch());
+  fireEvent.click(screen.getByRole('button'));
+  const guestEntry = window.history.state;
+  rerender(branch(account('alice', 'zh')));
+  window.history.pushState({ ...guestEntry, __typingNavigationIndex: 9 }, '', '/library?tl=en');
+  act(() => window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state })));
+  expect(screen.getByText('当前中文')).toBeTruthy();
+  expect(window.location.pathname).toBe('/library'); expect(window.location.search).toBe('');
+  expect(window.history.state.__typingNavigationIndex).toBe(9);
+});
+
+it('removes its generated language URL when a known account preference is reset to browser detection', async () => {
+  const save = vi.fn(async () => {});
+  const { rerender } = render(<I18nProvider account={account('alice', 'zh', save)}><Probe /></I18nProvider>);
+  fireEvent.click(screen.getByRole('button'));
+  rerender(<I18nProvider account={account('alice', 'en', save)}><Probe /></I18nProvider>); await act(async () => {});
+  expect(window.location.search).toBe('?tl=en');
+  rerender(<I18nProvider account={account('alice', undefined, save)}><Probe /></I18nProvider>);
+  expect(screen.getByText('当前中文')).toBeTruthy(); expect(window.location.search).toBe('');
+  expect(save).toHaveBeenCalledTimes(1);
+});

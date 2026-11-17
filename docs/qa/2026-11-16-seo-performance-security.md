@@ -53,3 +53,13 @@ The verified existing Vercel project is `dazi`, connected to `imlotso/TypeLune`,
 SEO settings use an independent optional `seo_settings` table with revision checks, audit records and PostgreSQL transaction locking. PostgreSQL requires the explicit `seo` operator action documented in the deployment guides; normal application startup performs no PostgreSQL DDL. Without the extension, public pages use defaults and admin writes explicitly return 503. Immutable schema migrations and operational settings are unchanged, allowing an old binary to roll back safely. No production database or production deployment has been changed during local verification.
 
 Lighthouse must be rerun without concurrent browser/unit workloads before quoting a performance comparison. Earlier concurrent local runs are retained only in the workspace and are not valid evidence of speed improvement. Production field Core Web Vitals cannot be inferred from a local lab run.
+
+### Final browser and image verification
+
+The final complete SQLite browser suite passed 150/151 initially and found a genuine identity-boundary issue: a guest-generated language URL could affect a later account. Generated language URLs now carry an owner marker in existing history state, while real incoming language links remain explicit overrides. The original failure plus all account-language/navigation/SEO/offline cases passed in a fresh 24-case browser run; 54 related unit/API cases also passed. No original browser assertion was weakened.
+
+Docker production image checks passed for both SQLite and PostgreSQL 18.7, including explicit extension installation, authentication, image sanitization, persistence, volume replacement and backup restoration. The build used the workspace's trusted CA as a temporary BuildKit secret for dependency downloads; TLS verification was not disabled and the CA is not added to the product image. The PostgreSQL smoke runner now refreshes Docker's dynamically assigned host port after restart (verified that Docker reassigns it), and waits for TCP readiness.
+
+An isolated, sequential Lighthouse run measured performance 68→75, SEO 92→100, LCP 11.3s→6.1s, TBT 250ms→180ms, and CLS 0 for both versions. These are direct Node lab measurements, not CDN or field Core Web Vitals results.
+
+Remote verification caught Vercel's static-file priority serving Chinese `index.html` for `?tl=en`. Explicit public SSR routes now run before the filesystem handler; static assets and the private SPA fallback remain available. A build-time runtime/schema check prevents publishing a function whose selected database schema cannot start the application. Preview configuration and final remote results are recorded after verification.

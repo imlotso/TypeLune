@@ -107,3 +107,9 @@ npm run db:postgres -- export /安全路径/新回滚快照.sqlite
 本轮候选的具体记录见[双 PostgreSQL 路线验证](qa/2026-11-16-dual-postgres.md)和[最终集成记录](qa/2026-11-16-nightly-integration.md)：真实本地 PG18.7 + Node 22 的 Vercel handler 专项通过，并非一次新的 Vercel Preview 部署。后续 Docker + PG18.7 与 SQLite 容器路线已在独立环境真实验收，见[Docker 实机记录](qa/2026-11-16-docker-runtime.md)；不将宿主 Node + PG 结果当作 Docker 结果。
 
 本地隔离 PostgreSQL 覆盖注册和验证码并发、权限撤销、配置冲突、成绩去重、恢复练习、多实例限流、32 MiB 配额并发、超过 4.5 MB 的分页、SQLite 往返迁移、备份恢复、冷启动和连接恢复；现有浏览器用例也分别在 SQLite 和 PostgreSQL 上运行。本机 SMTP 测试使用临时服务验证 TLS 和 STARTTLS 握手、接收验证码以及连接测试不发信。实际 Neon、Vercel Preview、Vercel 至 Neon 延迟、公网 SMTP 连接/送达和实体设备输入法仍需在隔离环境验证。运行 `npm run test:vercel-esm` 可检查 Node 22 对函数入口和其模块图的原生导入；这不能替代真实 Preview。
+
+### 部署前验证和隔离预览
+
+Vercel 构建会执行 `scripts/vercel-runtime-check.ts`，先验证当前数据库结构和应用启动，再发布函数；不会在正常请求或启动时执行 DDL。`TYPELUNE_INSTALL_SEO=production`（或 `preview`）是一次性的显式 SEO 表安装开关，只允许与当前 Vercel 环境相同的值，安装成功后应移除。
+
+需要新建隔离预览时，将分支级 `DAZI_DATABASE_SCHEMA` 设置为 `typelune_preview_` 前缀的专用名称，同时显式设置 `TYPELUNE_INIT_PREVIEW` 为同一名称。此操作仅允许在 Preview 环境创建该命名空间、执行现有迁移、安装扩展并初始化公共文章；不复制生产账户、记录或私有数据。初始化成功后移除 `TYPELUNE_INIT_PREVIEW`，保留分支的 schema 设置。该开关不能用于生产或 `public` schema。
