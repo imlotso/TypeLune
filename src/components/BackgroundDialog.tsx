@@ -1,5 +1,4 @@
-import { api } from '../lib/api';
-import { isBackgroundConfig } from '../lib/background';
+import { fetchDailyWallpaper } from '../lib/daily-wallpaper';
 import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
@@ -76,9 +75,8 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
   async function daily(kind: 'nature' | 'portrait') {
     cancelProcessing(); const current=generation.current; const controller=new AbortController();operation.current=controller;
     setError('');setProcessing(true);setPendingDaily(kind);
-    try {const result=await api<{background:BackgroundConfig}>(`/api/wallpapers/daily?kind=${kind}&theme=${theme}`,{signal:controller.signal});
-      if(!isBackgroundConfig(result.background))throw Error(t('壁纸数据无效','Invalid wallpaper data'));
-      if(mounted.current&&current===generation.current){setDraft(result.background);setAutomatic(kind);setDirty(true);}
+    try {const background=await fetchDailyWallpaper(kind,theme,controller.signal);
+      if(mounted.current&&current===generation.current){setDraft(background);setAutomatic(kind);setDirty(true);}
     }catch(e){if(mounted.current&&current===generation.current)setError(t('每日壁纸暂不可用，当前背景已保留','Daily wallpaper unavailable. Current background retained.'));}
     finally{if(mounted.current&&current===generation.current){setProcessing(false);setPendingDaily(undefined);}}
   }
@@ -131,7 +129,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
         <button type="button" className="outline-button" disabled={saving} onClick={() => input.current?.click()}><ImageSquare size={18} aria-hidden="true" />{draft ? t("更换图片", "Replace image") : t("选择图片", "Choose image")}</button>
         <span className="feature-muted">JPG / PNG / WebP · 10 MB</span>
       </div>
-      {processing && <p className="feature-muted" role="status">{t("正在处理图片…", "Processing image…")}</p>}
+      {processing && <p className="feature-muted" role="status">{pendingDaily ? t("正在获取壁纸…", "Fetching wallpaper…") : t("正在处理图片…", "Processing image…")}</p>}
       {draft && <>
         <div className="background-file-info"><span>{draft.name}</span><span>{draft.width} × {draft.height}</span></div>
         <fieldset className="background-controls" disabled={saving || processing}>
