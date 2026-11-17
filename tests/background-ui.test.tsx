@@ -122,3 +122,11 @@ it('protects an in-flight save from page unload until the persistent write compl
  const pending=new Event('beforeunload',{cancelable:true});window.dispatchEvent(pending);expect(pending.defaultPrevented).toBe(true);
  await act(async()=>finish());const completed=new Event('beforeunload',{cancelable:true});window.dispatchEvent(completed);expect(completed.defaultPrevented).toBe(false);
 });
+it('requires explicit opt-out before uploads and returns to the built-in fallback when the shared image is unavailable',async()=>{
+ const onSave=vi.fn().mockResolvedValue(undefined);vi.mocked(prepareBackgroundImage).mockResolvedValue({...image,name:'own.png'});
+ render(<BackgroundDialog theme="light" value={saved} useSiteDefault onSave={onSave} onClose={()=>{}}/>);
+ expect((screen.getByRole('checkbox',{name:'跟随全站壁纸刷新'}) as HTMLInputElement).checked).toBe(true);upload('blocked.png');expect(prepareBackgroundImage).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('checkbox',{name:'跟随全站壁纸刷新'}));upload('own.png');await screen.findByText('own.png');
+ fireEvent.click(screen.getByRole('checkbox',{name:'跟随全站壁纸刷新'}));expect(screen.getByRole('img',{name:'背景预览'}).getAttribute('src')).toBe('/assets/lake-default.webp');fireEvent.click(screen.getByRole('button',{name:'保存',exact:true}));
+ await waitFor(()=>expect(onSave).toHaveBeenCalledWith(expect.objectContaining({image:'/assets/lake-default.webp'}),'off',true,true));
+});

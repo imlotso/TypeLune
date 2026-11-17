@@ -1,3 +1,4 @@
+import {isSurfaceAppearance,type SurfaceAppearance} from '../src/lib/surface-appearance.js';
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import { difficulties } from '../src/data/articles.js';
@@ -73,6 +74,8 @@ const schemas = {
     mode: mode.optional(), strict: z.boolean().optional(), mistakes, mistakesTruncated: z.boolean().optional(), paceTarget: z.number().positive().max(18_000_000).optional(), processTrace: z.custom<ProcessTrace>(isProcessTrace).optional(),
   }),
   settings: z.object({
+    wallpaperFollowSite:z.object({light:z.boolean().optional(),dark:z.boolean().optional()}).optional(),
+    surfaceAppearance:z.object({light:z.custom<SurfaceAppearance>(isSurfaceAppearance).optional(),dark:z.custom<SurfaceAppearance>(isSurfaceAppearance).optional()}).optional(),
     uiLocale: z.enum(['auto', 'zh', 'en']).optional(),
     wallpapers: z.object({ light: z.enum(['off',...wallpaperStyleNames]).optional(), dark: z.enum(['off',...wallpaperStyleNames]).optional() }).optional(),
     wallpaperAdaptive: z.object({ light: z.boolean().optional(), dark: z.boolean().optional() }).optional(),

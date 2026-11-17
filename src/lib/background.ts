@@ -4,24 +4,24 @@ export type BackgroundTheme = 'light' | 'dark';
 export type BackgroundImage = { image: string; name: string; width: number; height: number };
 export type BackgroundConfig = BackgroundImage & {
   daily?: { id: string; day: string; kind: WallpaperStyle; resolution?: string };
-  panelOpacity?: number; workspaceOpacity?: number; panelBlur?: number; borderOpacity?: number;
+  panelOpacity?: number; workspaceOpacity?: number; panelBlur?: number; borderOpacity?: number; headerOpacity?:number;
   fit: 'cover' | 'contain'; positionX: number; positionY: number; blur: number; shade: number;
 };
-export type BackgroundPresentation = Pick<BackgroundConfig,'fit'|'positionX'|'positionY'|'blur'|'shade'|'panelOpacity'|'workspaceOpacity'|'panelBlur'|'borderOpacity'>;
+export type BackgroundPresentation = Pick<BackgroundConfig,'fit'|'positionX'|'positionY'|'blur'|'shade'|'panelOpacity'|'workspaceOpacity'|'panelBlur'|'borderOpacity'|'headerOpacity'>;
 export function backgroundPresentation(value:BackgroundConfig):BackgroundPresentation{
   return{fit:value.fit,positionX:value.positionX,positionY:value.positionY,blur:value.blur,shade:value.shade,
-    ...(value.panelOpacity!==undefined&&{panelOpacity:value.panelOpacity}),...(value.workspaceOpacity!==undefined&&{workspaceOpacity:value.workspaceOpacity}),...(value.panelBlur!==undefined&&{panelBlur:value.panelBlur}),...(value.borderOpacity!==undefined&&{borderOpacity:value.borderOpacity})};
+    ...(value.headerOpacity!==undefined&&{headerOpacity:value.headerOpacity}),...(value.panelOpacity!==undefined&&{panelOpacity:value.panelOpacity}),...(value.workspaceOpacity!==undefined&&{workspaceOpacity:value.workspaceOpacity}),...(value.panelBlur!==undefined&&{panelBlur:value.panelBlur}),...(value.borderOpacity!==undefined&&{borderOpacity:value.borderOpacity})};
 }
 export function isBackgroundPresentation(value:unknown):value is BackgroundPresentation{
   if(!value||typeof value!=='object'||Array.isArray(value))return false;const item=value as Record<string,unknown>;
-  const allowed=['fit','positionX','positionY','blur','shade','panelOpacity','workspaceOpacity','panelBlur','borderOpacity'];
-  return Object.keys(item).every(key=>allowed.includes(key))&&(item.fit==='cover'||item.fit==='contain')&&inRange(item.positionX,0,100)&&inRange(item.positionY,0,100)&&inRange(item.blur,0,12)&&inRange(item.shade,0,80)&&['panelOpacity','workspaceOpacity','borderOpacity'].every(key=>item[key]===undefined||inRange(item[key],0,100))&&(item.panelBlur===undefined||inRange(item.panelBlur,0,24));
+  const allowed=['fit','positionX','positionY','blur','shade','panelOpacity','workspaceOpacity','panelBlur','borderOpacity','headerOpacity'];
+  return Object.keys(item).every(key=>allowed.includes(key))&&(item.fit==='cover'||item.fit==='contain')&&inRange(item.positionX,0,100)&&inRange(item.positionY,0,100)&&inRange(item.blur,0,12)&&inRange(item.shade,0,80)&&['panelOpacity','workspaceOpacity','borderOpacity','headerOpacity'].every(key=>item[key]===undefined||inRange(item[key],0,100))&&(item.panelBlur===undefined||inRange(item.panelBlur,0,24));
 }
 
 export const maxBackgroundBytes = 768 * 1024;
 export const backgroundFileId = (value: unknown): string | undefined => typeof value === 'string' ? /^\/api\/backgrounds\/files\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/.exec(value)?.[1] : undefined;
 const maxDataLength = Math.ceil(maxBackgroundBytes / 3) * 4;
-const fields = ['image', 'name', 'width', 'height', 'fit', 'positionX', 'positionY', 'blur', 'shade', 'daily', 'panelOpacity', 'workspaceOpacity', 'panelBlur', 'borderOpacity'];
+const fields = ['image', 'name', 'width', 'height', 'fit', 'positionX', 'positionY', 'blur', 'shade', 'daily', 'panelOpacity', 'workspaceOpacity', 'panelBlur', 'borderOpacity', 'headerOpacity'];
 const inRange = (value: unknown, min: number, max: number) => typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
 
 function rasterDimensions(value: unknown): { width: number; height: number } | undefined {
@@ -100,7 +100,7 @@ export function isBackgroundConfig(value: unknown): value is BackgroundConfig {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const item = value as Record<string, unknown>;
   const size = rasterDimensions(item.image);
-  const remote = isWallhavenImageUrl(item.image) || !!backgroundFileId(item.image);
+  const remote = isWallhavenImageUrl(item.image) || !!backgroundFileId(item.image) || item.image==='/assets/lake-default.webp';
   const daily = item.daily as BackgroundConfig['daily'];
   if (daily !== undefined && (!daily || Object.keys(daily).some(key => !['id', 'day', 'kind', 'resolution'].includes(key)) || !/^[a-z0-9]{6}$/.test(daily.id) || !/^\d{4}-\d{2}-\d{2}$/.test(daily.day) || !isWallpaperStyle(daily.kind) || (daily.resolution !== undefined && (typeof daily.resolution !== 'string' || !/^\d{3,4}x\d{3,4}$/.test(daily.resolution))))) return false;
   if (isWallhavenImageUrl(item.image) && daily && !isWallhavenImageUrl(item.image, daily.id)) return false;
@@ -110,7 +110,7 @@ export function isBackgroundConfig(value: unknown): value is BackgroundConfig {
     Number.isInteger(item.width) && inRange(item.width, 1, remote ? 12_000 : 5120) && Number.isInteger(item.height) && inRange(item.height, 1, remote ? 12_000 : 5120) && Number(item.width) * Number(item.height) <= (remote ? 40_000_000 : 16_000_000) &&
     (item.fit === 'cover' || item.fit === 'contain') && inRange(item.positionX, 0, 100) && inRange(item.positionY, 0, 100) &&
     inRange(item.blur, 0, 12) && inRange(item.shade, 0, 80) &&
-    ['panelOpacity', 'workspaceOpacity', 'borderOpacity'].every(key => item[key] === undefined || inRange(item[key], 0, 100)) && (item.panelBlur === undefined || inRange(item.panelBlur, 0, 24));
+    ['panelOpacity', 'workspaceOpacity', 'borderOpacity', 'headerOpacity'].every(key => item[key] === undefined || inRange(item[key], 0, 100)) && (item.panelBlur === undefined || inRange(item.panelBlur, 0, 24));
 }
 
 export function defaultBackground(theme: BackgroundTheme, image: BackgroundImage): BackgroundConfig {

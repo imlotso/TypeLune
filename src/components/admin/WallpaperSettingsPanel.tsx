@@ -1,3 +1,4 @@
+import {wallpaperImageSource,wallpaperImageSet} from '../../lib/wallpaper-image';
 import { useState, type FormEvent } from 'react';
 import { useI18n } from '../../lib/i18n';
 import { ApiError } from '../../lib/api';
@@ -29,7 +30,7 @@ function WallpaperSettingsForm({ ownerId, initial, reload }: AdminProps & { init
       <label className="settings-check"><input type="checkbox" checked={settings.enabled} onChange={event=>{setSettings(current=>({...current,enabled:event.target.checked}));setSaved(false);}}/>{t('每 12 小时自动更换','Change automatically every 12 hours')}</label>
       <div className="wallpaper-style-grid" role="group" aria-label={t('壁纸风格','Wallpaper styles')}>{wallpaperStyleNames.map(style=><label className="settings-check" key={style}><input type="checkbox" checked={settings.styles.includes(style)} onChange={event=>{const checked=event.target.checked;setSettings(current=>({...current,styles:checked?[...current.styles,style]:current.styles.filter(value=>value!==style)}));setSaved(false);}}/>{t(wallpaperStyles[style].zh,wallpaperStyles[style].en)}</label>)}</div>
       {!settings.styles.length&&<p className="form-error" role="alert">{t('至少选择一种风格','Select at least one style')}</p>}
-      {snapshot.background&&<div className="site-wallpaper-preview"><img src={snapshot.background.image} alt={t('全站壁纸预览','Site wallpaper preview')} referrerPolicy="no-referrer"/><a href={'https://wallhaven.cc/w/'+snapshot.background.daily?.id} target="_blank" rel="noopener noreferrer">Wallhaven ↗</a></div>}
+      {snapshot.background&&<div className="site-wallpaper-preview"><img src={wallpaperImageSource(snapshot.background.image)} srcSet={wallpaperImageSet(snapshot.background.image)} sizes="(max-width: 800px) 100vw, 800px" alt={t('全站壁纸预览','Site wallpaper preview')} referrerPolicy="no-referrer"/><a href={'https://wallhaven.cc/w/'+snapshot.background.daily?.id} target="_blank" rel="noopener noreferrer">Wallhaven ↗</a></div>}
       {snapshot.updatedAt&&<p className="feature-muted">{t('上次更换：','Last changed: ')}{time(snapshot.updatedAt)}</p>}
       {snapshot.nextChangeAt&&<p className="feature-muted">{t('下次更换：','Next change: ')}{time(snapshot.nextChangeAt)}</p>}
     </fieldset>

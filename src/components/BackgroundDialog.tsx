@@ -1,3 +1,6 @@
+import {SurfaceControls} from './SurfaceControls';
+import {effectiveSurface,type SurfaceAppearance} from '../lib/surface-appearance';
+import {wallpaperImageSource,wallpaperImageSet} from '../lib/wallpaper-image';
 import { fetchDailyWallpaper, wallpaperDisplay } from '../lib/daily-wallpaper';
 import { wallpaperStyles, wallpaperStyleNames, type WallpaperStyle } from '../lib/wallpaper-policy';
 import { SystemMessage } from './SystemMessage';
@@ -5,7 +8,7 @@ import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { ImageSquare } from '@phosphor-icons/react/ImageSquare';
 import { ArrowCounterClockwise } from '@phosphor-icons/react/ArrowCounterClockwise';
-import { defaultBackground, prepareBackgroundImage, prepareBackgroundUploadPreview, type BackgroundConfig, type BackgroundTheme, type BackgroundImage } from '../lib/background';
+import { defaultBackground, backgroundPresentation, prepareBackgroundImage, prepareBackgroundUploadPreview, type BackgroundConfig, type BackgroundTheme, type BackgroundImage } from '../lib/background';
 import { uploadBackground, discardBackgroundUpload } from '../lib/background-upload';
 import { Dialog } from './Dialog';
 
@@ -18,10 +21,11 @@ type Props = {
   useSiteDefault?: boolean;
   siteDefaultValue?: BackgroundConfig;
   onSave: (value: BackgroundConfig | undefined, autoMode?: 'off' | WallpaperStyle, adaptive?: boolean, followSite?:boolean) => Promise<void>;
+  onPreview?: (value:SurfaceAppearance|undefined)=>void;
   onClose: () => void;
 };
 
-export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'off', adaptive = true, ownerId, useSiteDefault, siteDefaultValue }: Props) {
+export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'off', adaptive = true, ownerId, useSiteDefault, siteDefaultValue,onPreview }: Props) {
   const { t, locale } = useI18n();
 
   const [automatic, setAutomatic] = useState(autoMode);
@@ -31,6 +35,8 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
   const seen = useRef<string[]>([]);
   const [pendingDaily, setPendingDaily] = useState<WallpaperStyle>();
   const [draft, setDraft] = useState(value);
+  const previewCallback=useRef(onPreview);previewCallback.current=onPreview;
+  useEffect(()=>{previewCallback.current?.(draft);},[draft]);
   const [dirty, setDirty] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -73,7 +79,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
     onClose();
   }
   async function choose(file?: File) {
-    if (!file || savingRef.current) return;
+    if (!file || savingRef.current || followingSite) return;
     cancelProcessing();
     const current = generation.current;
     const controller = new AbortController();
@@ -95,6 +101,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
     }
   }
   async function daily(kind: WallpaperStyle, another = false) {
+    if(followingSite)return;
     cancelProcessing(); const current=generation.current; const controller=new AbortController();operation.current=controller;
     setError('');setProcessing(true);setPendingDaily(kind);
     try {const background=await fetchDailyWallpaper(kind,theme,controller.signal,{ display: adaptDisplay ? display : undefined, exclude: another && draft?.daily ? [draft.daily.id, ...seen.current] : undefined });
@@ -104,7 +111,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
   }
   function drop(event: DragEvent) {
     event.preventDefault(); setDragging(false);
-    if (savingRef.current) return;
+    if (savingRef.current||followingSite) return;
     if (event.dataTransfer.files.length !== 1) { setError(t("一次选择一张图片", "Choose one image at a time")); return; }
     void choose(event.dataTransfer.files[0]);
   }
@@ -142,14 +149,15 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
     <form className="background-editor" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <div className="background-editor-content">
       <div className={`background-preview${dragging ? ' is-dragging' : ''}`} data-theme={theme}
-        onDragOver={(event) => { event.preventDefault(); if (!saving) setDragging(true); }}
+        onDragOver={(event) => { event.preventDefault(); if (!saving&&!followingSite) setDragging(true); }}
         onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }} onDrop={drop}>
-        <img alt={t("背景预览", "Background preview")} referrerPolicy="no-referrer" src={draft?.image ?? siteDefaultValue?.image ?? '/assets/lake-default.webp'}
+        <img alt={t("背景预览", "Background preview")} referrerPolicy="no-referrer" src={wallpaperImageSource(draft?.image ?? siteDefaultValue?.image ?? '/assets/lake-default.webp')} srcSet={wallpaperImageSet(draft?.image??siteDefaultValue?.image??'',adaptDisplay)} sizes="(max-width: 800px) 100vw, 800px"
           style={{ objectFit: draft?.fit ?? 'cover', objectPosition: `${draft?.positionX ?? 50}% ${draft?.positionY ?? 50}%`, filter: `blur(${draft?.blur ?? 0}px)` }} />
         <div className="background-shade" style={{ opacity: (draft?.shade ?? 0) / 100 }} />
         <div className="background-preview-sample" aria-hidden="true" style={{background:theme==='dark'?`rgba(32,37,58,${(draft?.panelOpacity??95)/100})`:`rgba(255,255,255,${(draft?.panelOpacity??97)/100})`,backdropFilter:`blur(${draft?.panelBlur??0}px)`,borderColor:`color-mix(in srgb,var(--typing-border) ${draft?.borderOpacity??100}%,transparent)`}}><span>TypeLune</span><i /><i /></div>
       </div>
-      <fieldset className="settings-group wallpaper-options" disabled={saving||processing}><legend>Wallhaven</legend>
+      {useSiteDefault!==undefined&&<label className="settings-check follow-site-wallpaper"><input type="checkbox" checked={followingSite} disabled={saving||processing} onChange={event=>{cancelProcessing();discardStaged();setUploadFile(undefined);const follow=event.target.checked;setFollowingSite(follow);setAutomatic('off');setDraft(previous=>{const shared=siteDefaultValue??defaultBackground(theme,{image:'/assets/lake-default.webp',name:'TypeLune',width:2560,height:1440});return follow?{...shared,...(previous?backgroundPresentation(previous):{})}:previous??shared;});setDirty(true);}}/>{t('跟随全站壁纸刷新','Follow site wallpaper updates')}</label>}
+      <fieldset className="settings-group wallpaper-options" disabled={saving||processing||followingSite}><legend>Wallhaven</legend>
         <label className="profile-visibility"><input type="checkbox" checked={automatic!=='off'||!!pendingDaily} onChange={event=>{if(event.target.checked)void daily('nature');else{setAutomatic('off');setDirty(true);}}}/>{t('每日自动更新壁纸','Update wallpaper daily')}</label>
         <label>{t('图片偏好','Image preference')}<select value={pendingDaily??(automatic==='off'?'nature':automatic)} onChange={event=>void daily(event.target.value as WallpaperStyle)}>{wallpaperStyleNames.map(style=><option key={style} value={style}>{t(wallpaperStyles[style].zh,wallpaperStyles[style].en)}</option>)}</select></label>
         <label className="settings-check"><input type="checkbox" checked={adaptDisplay} onChange={event=>{setAdaptDisplay(event.target.checked);setDirty(true);}} />{t('显示器自适应','Adapt to display')}<small>{adaptDisplay ? `${display.width} × ${display.height}` : t('固定尺寸','Fixed size')}</small></label>
@@ -158,9 +166,9 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
         {draft?.daily&&<a href={'https://wallhaven.cc/w/'+draft.daily.id} target="_blank" rel="noopener noreferrer">{t('图片来源：Wallhaven','Source: Wallhaven')} ↗</a>}
       </fieldset>
       <div className="background-file-row" onDragOver={(event) => event.preventDefault()} onDrop={drop}>
-        <input ref={input} hidden aria-label={t("背景图片", "Background image")} type="file" accept="image/jpeg,image/png,image/webp" disabled={saving}
+        <input ref={input} hidden aria-label={t("背景图片", "Background image")} type="file" accept="image/jpeg,image/png,image/webp" disabled={saving||followingSite}
           onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void choose(file); }} />
-        <button type="button" className="outline-button" disabled={saving} onClick={() => input.current?.click()}><ImageSquare size={18} aria-hidden="true" />{t("上传图片", "Upload image")}</button>
+        <button type="button" className="outline-button" disabled={saving||followingSite} onClick={() => input.current?.click()}><ImageSquare size={18} aria-hidden="true" />{t("上传图片", "Upload image")}</button>
         <span className="feature-muted">JPG / PNG / WebP · 10 MB</span>
       </div>
       {processing && <p className="feature-muted" role="status">{pendingDaily ? t("正在获取壁纸…", "Fetching wallpaper…") : t("正在处理图片…", "Processing image…")}</p>}
@@ -172,23 +180,13 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
           <div className="background-ranges">{sliders.map(([key, label, max, unit]) => <label className="settings-range" key={key}>
             <span>{label}</span><input type="range" aria-label={label} min={0} max={max} step={1} value={draft[key]} onChange={(event) => change({ [key]: event.target.valueAsNumber })} /><span aria-hidden="true">{draft[key]}{unit}</span>
           </label>)}</div>
-          <div className="background-ranges background-surface-controls">
-            {([
-              ['panelOpacity', t('容器透明度','Panel transparency'), 100, theme==='dark'?95:97],
-              ['workspaceOpacity', t('工作区透明度','Workspace transparency'), 100, theme==='dark'?95:92],
-              ['panelBlur', t('容器毛玻璃','Panel blur'), 24, 0],
-              ['borderOpacity', t('边框强度','Border strength'), 100, 100],
-            ] as const).map(([key,label,max,fallback])=>{
-              const opacity=key==='panelOpacity'||key==='workspaceOpacity';const value=draft[key]??fallback;const shown=opacity?100-value:value;
-              return <label className="settings-range" key={key}><span>{label}</span><input type="range" aria-label={label} min={0} max={max} step={1} value={shown} onChange={event=>change({[key]:opacity?100-event.target.valueAsNumber:event.target.valueAsNumber})}/><span aria-hidden="true">{shown}{key==='panelBlur'?'px':'%'}</span></label>;
-            })}
-          </div>
+          <SurfaceControls value={effectiveSurface(theme,draft)} onChange={change} onReset={()=>change(effectiveSurface(theme))}/>
         </fieldset>
       </>}
       {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
       </div>
       <div className="background-editor-actions">
-        <button type="button" className="text-button" disabled={saving || (!draft && !processing)} onClick={() => { cancelProcessing();discardStaged();setUploadFile(undefined);setFollowingSite(true);setDraft(undefined); setAutomatic('off'); setDirty(true); setError(''); }}><ArrowCounterClockwise size={17} aria-hidden="true" />{t("恢复默认", "Restore default")}</button>
+        <button type="button" className="text-button" disabled={saving || (!draft && !processing)} onClick={() => { cancelProcessing();discardStaged();setUploadFile(undefined);setFollowingSite(true);setDraft(useSiteDefault===undefined?undefined:{...defaultBackground(theme,{image:'/assets/lake-default.webp',name:'TypeLune',width:2560,height:1440}),...siteDefaultValue,...effectiveSurface(theme)}); setAutomatic('off'); setDirty(true); setError(''); }}><ArrowCounterClockwise size={17} aria-hidden="true" />{t("恢复默认", "Restore default")}</button>
         <div><button type="button" className="outline-button" disabled={saving} onClick={close}>{t("取消", "Cancel")}</button><button className="primary-button" disabled={!dirty || processing || saving}>{saving ? t("保存中…", "Saving…") : t("保存", "Save")}</button></div>
       </div>
     </form>

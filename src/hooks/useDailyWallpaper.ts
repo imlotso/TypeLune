@@ -14,7 +14,7 @@ export function useDailyWallpaper(ownerId: string | null, theme: BackgroundTheme
  useEffect(()=>{const timer=window.setInterval(()=>setTick(n=>n+1),3600000);return()=>clearInterval(timer);},[]);
  useEffect(()=>{
   const migrating=!!background?.daily&&background.image.startsWith('data:');
-  if(!ready||(!migrating&&kind==='off')||(background&&!background.daily))return;
+  if(settings.wallpaperFollowSite?.[theme]!==false||!ready||(!migrating&&kind==='off')||(background&&!background.daily))return;
   const day=new Date().toISOString().slice(0,10);
   const resolution=`${display.width}x${display.height}`;
   if(!migrating&&background?.daily?.day===day&&background.daily.kind===kind&&(!adaptive||background.daily.resolution===resolution))return;
@@ -28,5 +28,5 @@ export function useDailyWallpaper(ownerId: string | null, theme: BackgroundTheme
    });
   }).catch(()=>{/* Retain the current image and retry next hour. Manual retry is available in settings. */});
   return()=>controller.abort();
- },[ownerId,theme,kind,background?.image,ready,tick,adaptive,display.width,display.height]);
+ },[ownerId,theme,settings.wallpaperFollowSite?.[theme],kind,background?.image,ready,tick,adaptive,display.width,display.height]);
 }

@@ -1,3 +1,5 @@
+import {saveSurfaceAppearance} from './lib/workspace';
+import {effectiveSurface,surfaceStyle,type SurfaceAppearance} from './lib/surface-appearance';
 import {saveAccountWallpaper} from './lib/account-wallpaper';
 import { StatsView } from './components/StatsView';
 import { RecordsView } from './components/RecordsView';
@@ -327,6 +329,13 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
   const duration = validDuration ? minutes * 60 : workspace.settings.minutes * 60;
   const theme = user ? pendingTheme ?? workspace.settings.theme : guestTheme;
   const siteWallpaper = useSiteWallpaper(theme,authReady);
+  const [surfacePreview,setSurfacePreview]=useState<{theme:'light'|'dark';value:SurfaceAppearance}>();
+  const followsSite=(mode:'light'|'dark')=>workspace.settings.wallpaperFollowSite?.[mode]!==false;
+  const siteBackground=(mode:'light'|'dark')=>siteWallpaper?{...siteWallpaper,shade:mode==='dark'?45:25}:undefined;
+  const backgroundFor=(mode:'light'|'dark')=>followsSite(mode)?(siteWallpaper?{...siteBackground(mode)!,...workspace.settings.backgroundPresentation?.[mode]}:undefined):workspace.backgrounds[mode]??siteBackground(mode);
+  const editorBackground=(mode:'light'|'dark')=>({...backgroundFor(mode)??{image:'/assets/lake-default.webp',name:'TypeLune',width:2560,height:1440,fit:'cover' as const,positionX:50,positionY:50,blur:0,shade:mode==='dark'?40:20},...effectiveSurface(mode,workspace.settings.surfaceAppearance?.[mode],backgroundFor(mode))});
+  const editorValue=useMemo(()=>showBackground?editorBackground(showBackground):undefined,[showBackground,siteWallpaper,workspace.backgrounds.light,workspace.backgrounds.dark,workspace.settings.surfaceAppearance,workspace.settings.backgroundPresentation,workspace.settings.wallpaperFollowSite]);
+  const activeSurface=effectiveSurface(theme,surfacePreview?.theme===theme?surfacePreview.value:workspace.settings.surfaceAppearance?.[theme],backgroundFor(theme));
   useDailyWallpaper(ownerId, theme, workspace.settings, workspace.backgrounds[theme], authReady && workspace.ready && (!ownerId || workspace.cloudLoaded) && !showBackground);
   const ready = authReady && workspace.ready;
   const adminLogin = directAdmin && authReady && !user && !adminLoginDismissed;
@@ -1094,7 +1103,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
     ...(['practice', 'library', 'rankings', 'history'] as const).map((id) => ({ id, label: actionNames[id], shortcut: shortcutNames[id], disabled: !canCommand, run: () => { dispatchShortcut(id); } })),
   ];
 
-  return <div className={`app-shell${focused ? ' app-focused' : ''}`} ref={focusRoot}>
+  return <div className={`app-shell${focused ? ' app-focused' : ''}`} ref={focusRoot} style={surfaceStyle(activeSurface)}>
     {!focused && <header className="site-header">
       <button className="brand" onClick={() => navigate('practice')} aria-label={t("TypeLune 首页", "TypeLune home")}><BrandLogo /></button>
       <nav aria-label={t("主要导航", "Main navigation")}>
@@ -1113,7 +1122,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
           onLogout={() => void changeAccount()} onAdministration={onAdministration ? () => void afterPark(onAdministration) : undefined} /> : <button className="account-button" disabled={!canChangeAccount} onClick={() => void changeAccount()}>{t("登录", "Sign in")}</button>}
       </nav>
     </header>}
-    <RoomBackground theme={theme} background={workspace.backgrounds[theme]??(siteWallpaper?{...siteWallpaper,...workspace.settings.backgroundPresentation?.[theme]}:undefined)}>
+    <RoomBackground theme={theme} background={backgroundFor(theme)} adaptive={workspace.settings.wallpaperAdaptive?.[theme]!==false}>
       <div className="workspace">
         {!user && pendingCleanup > 0 && <div className="cleanup-warning" role="alert"><span>{t("本机账号缓存清理未完成。", "Local account cleanup is incomplete.")}</span><button className="outline-button" disabled={cleanupBusy} onClick={onRetryCleanup}>{t("重试清理", "Retry cleanup")}</button></div>}
         {user && guestImportOffer && hasGuestData && view !== 'data' && <div className="cleanup-warning" role="status"><span>{t("有游客资料可导入。", "Guest data is available to import.")}</span><button className="outline-button" onClick={() => void afterPark(() => setShowGuestImport(true))}>{t("导入游客资料", "Import guest data")}</button><button className="text-button" onClick={onDismissGuestImport}>{t("稍后", "Later")}</button></div>}
@@ -1217,8 +1226,8 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       setShowGuestImport(false);
       void collectGuestImport(user.id).then((plan) => setHasGuestData(plan.items.length > 0)).catch(() => setHasGuestData(true));
     }} onRecovery={workspace.recoveryReason ? () => { setShowGuestImport(false); setShowRecovery(workspace.recoveryReason!); } : undefined} />}
-    {showAppearance && <AppearanceDialog theme={theme} onTheme={changeTheme} onClose={() => setShowAppearance(false)} onBackground={backgroundTheme => { setShowAppearance(false); setShowBackground(backgroundTheme); }} />}
-    {showBackground && <BackgroundDialog ownerId={ownerId} useSiteDefault={!workspace.backgrounds[showBackground]} siteDefaultValue={siteWallpaper?{...siteWallpaper,shade:showBackground==='dark'?45:25}:undefined} autoMode={workspace.settings.wallpapers?.[showBackground]} adaptive={workspace.settings.wallpaperAdaptive?.[showBackground]} theme={showBackground} value={workspace.backgrounds[showBackground]??(siteWallpaper?{...siteWallpaper,shade:showBackground==='dark'?45:25,...workspace.settings.backgroundPresentation?.[showBackground]}:undefined)} onClose={() => setShowBackground(undefined)} onSave={async (background, automatic, adaptive,followSite) => {
+    {showAppearance && <AppearanceDialog theme={theme} surface={activeSurface} disabled={!workspace.settingsReady} onSurface={patch=>{void saveSurfaceAppearance(ownerId,theme,patch).catch(reportSaveError);}} onResetSurface={()=>{void saveSurfaceAppearance(ownerId,theme,effectiveSurface(theme)).catch(reportSaveError);}} onTheme={changeTheme} onClose={() => setShowAppearance(false)} onBackground={backgroundTheme => { setShowAppearance(false); setShowBackground(backgroundTheme); }} />}
+    {showBackground && <BackgroundDialog ownerId={ownerId} useSiteDefault={followsSite(showBackground)} siteDefaultValue={siteBackground(showBackground)} autoMode={workspace.settings.wallpapers?.[showBackground]} adaptive={workspace.settings.wallpaperAdaptive?.[showBackground]} theme={showBackground} value={editorValue} onPreview={value=>setSurfacePreview({theme:showBackground,value:value??effectiveSurface(showBackground)})} onClose={()=>{setShowBackground(undefined);setSurfacePreview(undefined);}} onSave={async (background, automatic, adaptive,followSite) => {
       if(ownerId && !workspace.cloudLoaded && !workspace.hasSavedSettings) throw new Error(t('请先同步账号设置','Sync account settings first'));
       if(ownerId)await saveAccountWallpaper(ownerId,showBackground,background,automatic??'off',adaptive,followSite,workspace.sync);
       else await saveWallpaper(null,showBackground,background,automatic??'off',adaptive,followSite);

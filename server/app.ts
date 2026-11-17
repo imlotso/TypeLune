@@ -5,6 +5,7 @@ import { verifyLoginPassword } from './login-password.js';
 import seoPages from '../src/data/seo.json' with { type: 'json' };
 import { createSupportSettings, registerSupportAdminRoutes, registerSupportPublicRoutes } from './support-settings.js';
 import { profileValue, registerPublicProfiles } from './profile.js';
+import {registerWallpaperImages} from './wallpaper-images.js';
 import { registerWallpapers } from './wallpapers.js';
 import { createSiteWallpapers, registerSiteWallpaperAdmin, registerSiteWallpaperPublic } from './site-wallpapers.js';
 import { createBackgroundFiles, registerBackgroundFiles, BackgroundFileError } from './background-files.js';
@@ -310,9 +311,10 @@ export async function createApp(options: AppOptions) {
   const expectedAccount = (request: FastifyRequest) => request.headers['x-workspace-owner'];
   const accountMatches = (request: FastifyRequest, user: User) =>
     expectedAccount(request) === undefined || expectedAccount(request) === user.id;
-  registerPublicProfiles(app, db, userFor);
+  registerPublicProfiles(app, db, userFor,async()=>{const value=await siteWallpapers.read();return value.settings.enabled?value.background:undefined;});
   registerBackgroundFiles(app,{db,store:backgroundFiles,userFor,accountMatches});
   registerWallpapers(app);
+  registerWallpaperImages(app);
   const publicUser = (user: User) => ({ id: user.id, username: user.username, email: user.email, isAdmin: user.role === 'admin', displayName: user.display_name || user.username, ...profileValue(user.avatar) });
   const clearAccountSession = (request: FastifyRequest, reply: FastifyReply) => {
     if (expectedAccount(request) === undefined) reply.clearCookie('session', cookieOptions);
@@ -566,8 +568,14 @@ export async function createApp(options: AppOptions) {
   const pagedWorkspace = (request: FastifyRequest) =>
     (request.query as { paged?: string }).paged === '1' || request.headers['x-workspace-paged'] === '1';
 
-  const isReferenceImage = (value: unknown) => !!value && typeof value==='object' && (isWallhavenImageUrl((value as {image?:unknown}).image)||!!backgroundFileId((value as {image?:unknown}).image));
+  const isReferenceImage = (value: unknown) => !!value && typeof value==='object' && (isWallhavenImageUrl((value as {image?:unknown}).image)||!!backgroundFileId((value as {image?:unknown}).image)||(value as {image?:unknown}).image==='/assets/lake-default.webp');
   const backgroundClientNeedsUpdate = async(request:FastifyRequest,owner:string,incoming:WorkspaceItem[]=[]) => {
+    if(request.headers['x-workspace-appearance']!=='2'){
+      const modern=(value:unknown)=>!!value&&typeof value==='object'&&['wallpaperFollowSite','surfaceAppearance','headerOpacity'].some(key=>Object.hasOwn(value,key));
+      if(incoming.some(item=>!item.deleted&&(item.kind==='settings'||item.kind==='background')&&modern(item.value)))return true;
+      const rows=await db.prepare("SELECT value FROM workspace_items WHERE user_id=? AND (kind='background' OR (kind='settings' AND item_id='preferences')) AND value IS NOT NULL").all(owner);
+      if(rows.some(row=>{try{return modern(JSON.parse(row.value));}catch{return false;}}))return true;
+    }
     if(request.headers['x-workspace-background-references']==='1')return false;
     if(incoming.some(item=>item.kind==='background'&&!item.deleted&&isReferenceImage(item.value)))return true;
     const rows=await db.prepare("SELECT value FROM workspace_items WHERE user_id=? AND kind='background' AND value IS NOT NULL").all(owner);
