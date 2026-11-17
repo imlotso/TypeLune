@@ -116,6 +116,7 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
       (payload.typed === undefined || typeof payload.typed === 'string');
     case 'settings': return Number.isInteger(payload.minutes) && isTheme(payload.theme) && isMode(payload.mode) &&
       (payload.wallpapers === undefined || (isObject(payload.wallpapers) && Object.entries(payload.wallpapers).every(([key, value]) => ['light','dark'].includes(key) && ['off','nature','portrait'].includes(String(value))))) &&
+      (payload.wallpaperAdaptive === undefined || (isObject(payload.wallpaperAdaptive) && Object.entries(payload.wallpaperAdaptive).every(([key, value]) => ['light', 'dark'].includes(key) && typeof value === 'boolean'))) &&
       (payload.uiLocale === undefined || payload.uiLocale === 'auto' || payload.uiLocale === 'zh' || payload.uiLocale === 'en') &&
       typeof payload.autoPause === 'boolean' && typeof payload.strict === 'boolean' &&
       [payload.fontSize, payload.lineHeight, payload.visibleLines].every(isNumber) &&
@@ -611,6 +612,32 @@ export function deleteWorkspaceValue(ownerId: string | null, kind: WorkspaceKind
   return mutateWorkspaceValue(ownerId, kind, id, () => undefined);
 }
 
+/** Validate the whole selection, then persist its deletion markers together. */
+export function deleteWorkspaceDrafts(ownerId: string | null, drafts: SavedPractice[], preflight: () => void): Promise<void> {
+  return editWorkspace(ownerId, items => {
+    const selected = new Map(drafts.map(draft => [draft.id, draft]));
+    const stored = new Map(items.filter(item => item.kind === 'draft').map(item => [item.id, item]));
+    for (const draft of selected.values()) {
+      if (draft.ownerId !== ownerId) throw new Error('草稿所属账号已变化，请刷新后重试');
+      const current = stored.get(draft.id);
+      if (!current || current.deleted) continue;
+      const value = current.value as SavedPractice;
+      if (value.ownerId !== ownerId || value.recordId !== draft.recordId || value.article.id !== draft.article.id || value.article.text !== draft.article.text || !sameDraftSnapshot(value, draft)) throw new Error('草稿已更新，请重新选择后删除');
+    }
+    preflight();
+    const generation = ownerId ? readWorkspaceGeneration(ownerId) : null;
+    const tombstones: WorkspaceItem[] = [...selected.keys()].flatMap(id => {
+      const old = stored.get(id);
+      if (old?.deleted) return [];
+      return [{ kind: 'draft', id, deleted: true, updatedAt: Math.max(estimatedServerTime(ownerId), (old?.updatedAt ?? -1) + 1),
+        ...(old?.serverRevision !== undefined && { serverRevision: old.serverRevision, baseUpdatedAt: old.baseUpdatedAt ?? old.updatedAt }),
+        ...(old?.localFallback && { localFallback: true }),
+        ...((old?.clientGeneration ?? (!old ? generation : null)) && { clientGeneration: old?.clientGeneration ?? generation! }) }];
+    });
+    return tombstones.length ? mergeWorkspaceItems(items, tombstones) : items;
+  }, true).then(() => {});
+}
+
 // Validate all selected identities before changing any of them. A second tab
 // can otherwise occupy an alias or marker between reading and deleting it.
 export function deleteGuestHistory(ids: string[], conflicts: string[], bases: Record<string, string>, expectedRecords: Record<string, string>): Promise<void> {
@@ -667,12 +694,12 @@ export function importWorkspaceValue(ownerId: string, kind: WorkspaceKind, id: s
 }
 
 /** Persist the image and its update preference in one local workspace transaction. */
-export function saveWallpaper(ownerId: string | null, theme: 'light' | 'dark', background: WorkspaceValues['background'] | undefined, automatic: 'off' | 'nature' | 'portrait') {
+export function saveWallpaper(ownerId: string | null, theme: 'light' | 'dark', background: WorkspaceValues['background'] | undefined, automatic: 'off' | 'nature' | 'portrait', adaptive?: boolean) {
   return editWorkspace(ownerId, (items) => {
     const settings = workspaceSettings(items);
     const changes: { kind: 'settings' | 'background'; id: string; value: unknown }[] = [
       { kind: 'background', id: theme, value: background },
-      { kind: 'settings', id: 'preferences', value: { ...settings, wallpapers: { ...settings.wallpapers, [theme]: automatic } } },
+      { kind: 'settings', id: 'preferences', value: { ...settings, wallpapers: { ...settings.wallpapers, [theme]: automatic }, ...(adaptive !== undefined && { wallpaperAdaptive: { ...settings.wallpaperAdaptive, [theme]: adaptive } }) } },
     ];
     const generation = ownerId ? readWorkspaceGeneration(ownerId) : null;
     const updates = changes.map(({ kind, id, value }): WorkspaceItem => {

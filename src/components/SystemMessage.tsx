@@ -150,7 +150,9 @@ const messages:Record<string,string>={
   "本机资料替换失败": "Could not replace local data.",
   "删除结果无法读取": "Could not read the deletion result.",
   "此记录已删除": "This record was deleted.",
-  "本机草稿已变化，请重试": "Local drafts changed. Please retry."
+  "本机草稿已变化，请重试": "Local drafts changed. Please retry.",
+  "草稿已更新，请重新选择后删除": "Drafts changed. Select them again before deleting.",
+  "草稿所属账号已变化，请刷新后重试": "The draft account changed. Reload and try again."
 };
 const chineseSupportMessages: Record<string, string> = {
   'Support settings storage has not been installed': '捐赠设置存储尚未安装，请联系站点管理员',

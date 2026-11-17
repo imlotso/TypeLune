@@ -11,7 +11,7 @@ test.describe('English interface',()=>{
  });
  test('keeps practice language separate and exposes both background editors',async({page})=>{
   await page.goto('/'); const group=page.getByRole('group',{name:'Practice language'}); await expect(group.getByRole('button',{name:'Chinese',exact:true})).toHaveAttribute('aria-pressed','true');
-  await page.getByRole('button',{name:'More',exact:true}).click(); await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByRole('button',{name:'Appearance',exact:true}).click();
   await expect(page.getByRole('button',{name:'Light background',exact:true})).toBeVisible(); await page.getByRole('button',{name:'Dark background',exact:true}).click();
   await expect(page.getByRole('dialog',{name:'Dark mode background',exact:true})).toBeVisible();
  });

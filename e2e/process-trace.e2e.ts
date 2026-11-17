@@ -1,3 +1,4 @@
+import { chooseTheme } from './appearance';
 import { expect, test } from './fixtures';
 
 test('keeps observed process samples across two devices and in the saved result', async ({ page, browser, baseURL, clientIp }, testInfo) => {
@@ -37,7 +38,7 @@ test('keeps observed process samples across two devices and in the saved result'
     });
   }, { timeout: 15000 }).toBe(true);
   await result.getByRole('button', { name: '关闭' }).click();
-  await reader.getByRole('button', { name: '切换至夜间模式' }).click();
+  await chooseTheme(reader, 'dark');
   await reader.setViewportSize({ width: 390, height: 844 });
   await reader.getByRole('button', { name: '更多' }).click();
   await reader.getByRole('button', { name: '我的记录', exact: true }).click();

@@ -1,4 +1,4 @@
-import { fetchDailyWallpaper } from '../lib/daily-wallpaper';
+import { fetchDailyWallpaper, wallpaperDisplay } from '../lib/daily-wallpaper';
 import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
@@ -11,14 +11,18 @@ type Props = {
   theme: BackgroundTheme;
   value?: BackgroundConfig;
   autoMode?: 'off' | 'nature' | 'portrait';
-  onSave: (value: BackgroundConfig | undefined, autoMode?: 'off' | 'nature' | 'portrait') => Promise<void>;
+  adaptive?: boolean;
+  onSave: (value: BackgroundConfig | undefined, autoMode?: 'off' | 'nature' | 'portrait', adaptive?: boolean) => Promise<void>;
   onClose: () => void;
 };
 
-export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'off' }: Props) {
+export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'off', adaptive = true }: Props) {
   const { t, locale } = useI18n();
 
   const [automatic, setAutomatic] = useState(autoMode);
+  const [adaptDisplay, setAdaptDisplay] = useState(adaptive);
+  const [display, setDisplay] = useState(wallpaperDisplay);
+  const seen = useRef<string[]>([]);
   const [pendingDaily, setPendingDaily] = useState<'nature' | 'portrait'>();
   const [draft, setDraft] = useState(value);
   const [dirty, setDirty] = useState(false);
@@ -42,6 +46,11 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
     return () => { window.removeEventListener('beforeunload', protectSaving); mounted.current = false; generation.current++; operation.current?.abort(); };
   }, []);
   useEffect(() => { if (!dirty) setDraft(value); }, [value, dirty]);
+  useEffect(() => {
+    const resize = () => { const next = wallpaperDisplay(); setDisplay(current => current.width === next.width && current.height === next.height ? current : next); };
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
 
   function cancelProcessing() {
     generation.current++;
@@ -72,11 +81,11 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
       if (mounted.current && current === generation.current) setProcessing(false);
     }
   }
-  async function daily(kind: 'nature' | 'portrait') {
+  async function daily(kind: 'nature' | 'portrait', another = false) {
     cancelProcessing(); const current=generation.current; const controller=new AbortController();operation.current=controller;
     setError('');setProcessing(true);setPendingDaily(kind);
-    try {const background=await fetchDailyWallpaper(kind,theme,controller.signal);
-      if(mounted.current&&current===generation.current){setDraft(background);setAutomatic(kind);setDirty(true);}
+    try {const background=await fetchDailyWallpaper(kind,theme,controller.signal,{ display: adaptDisplay ? display : undefined, exclude: another && draft?.daily ? [draft.daily.id, ...seen.current] : undefined });
+      if(mounted.current&&current===generation.current){seen.current=[...new Set([background.daily?.id, ...seen.current].filter((id): id is string => !!id))].slice(0,12);setDraft(background);setAutomatic(kind);setDirty(true);}
     }catch(e){if(mounted.current&&current===generation.current)setError(t('每日壁纸暂不可用，当前背景已保留','Daily wallpaper unavailable. Current background retained.'));}
     finally{if(mounted.current&&current===generation.current){setProcessing(false);setPendingDaily(undefined);}}
   }
@@ -94,7 +103,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
     if (!dirty || processing || savingRef.current) return;
     savingRef.current = true; setSaving(true); setError('');
     try {
-      await onSave(draft, automatic);
+      await onSave(draft, automatic, adaptDisplay);
       if (mounted.current) onClose();
     } catch (problem) {
       if (mounted.current) setError(problem instanceof Error ? problem.message : t("背景保存失败", "Could not save background"));
@@ -109,6 +118,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
 
   return <Dialog title={theme === 'dark' ? t("夜间背景", "Dark mode background") : t("日间背景", "Light mode background")} onClose={close} dismissible={!saving} className="background-dialog">
     <form className="background-editor" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      <div className="background-editor-content">
       <div className={`background-preview${dragging ? ' is-dragging' : ''}`} data-theme={theme}
         onDragOver={(event) => { event.preventDefault(); if (!saving) setDragging(true); }}
         onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }} onDrop={drop}>
@@ -117,16 +127,18 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
         <div className="background-shade" style={{ opacity: (draft?.shade ?? 0) / 100 }} />
         <div className="background-preview-sample" aria-hidden="true"><span>TypeLune</span><i /><i /></div>
       </div>
-      <fieldset className="settings-group" disabled={saving||processing}><legend>Wallhaven</legend>
+      <fieldset className="settings-group wallpaper-options" disabled={saving||processing}><legend>Wallhaven</legend>
         <label className="profile-visibility"><input type="checkbox" checked={automatic!=='off'||!!pendingDaily} onChange={event=>{if(event.target.checked)void daily('nature');else{setAutomatic('off');setDirty(true);}}}/>{t('每日自动更新壁纸','Update wallpaper daily')}</label>
         <label>{t('图片偏好','Image preference')}<select value={pendingDaily??(automatic==='off'?'nature':automatic)} onChange={event=>void daily(event.target.value as 'nature'|'portrait')}><option value="nature">{t('自然风景','Natural landscapes')}</option><option value="portrait">{t('清新人像','Portraits')}</option></select></label>
-        <button type="button" className="outline-button" onClick={()=>void daily(automatic==='off'?'nature':automatic)}>{t('获取今日壁纸','Get today’s wallpaper')}</button>
+        <label className="settings-check"><input type="checkbox" checked={adaptDisplay} onChange={event=>{setAdaptDisplay(event.target.checked);setDirty(true);}} />{t('显示器自适应','Adapt to display')}<small>{adaptDisplay ? `${display.width} × ${display.height}` : t('固定尺寸','Fixed size')}</small></label>
+        <div className="wallpaper-fetch-actions"><button type="button" className="outline-button" onClick={()=>void daily(automatic==='off'?'nature':automatic)}>{t('获取今日壁纸','Get today’s wallpaper')}</button>
+          {draft?.daily && <button type="button" className="outline-button" onClick={()=>void daily(draft.daily!.kind,true)}>{t('换一张','Another wallpaper')}</button>}</div>
         {draft?.daily&&<a href={'https://wallhaven.cc/w/'+draft.daily.id} target="_blank" rel="noopener noreferrer">{t('图片来源：Wallhaven','Source: Wallhaven')} ↗</a>}
       </fieldset>
       <div className="background-file-row" onDragOver={(event) => event.preventDefault()} onDrop={drop}>
         <input ref={input} hidden aria-label={t("背景图片", "Background image")} type="file" accept="image/jpeg,image/png,image/webp" disabled={saving}
           onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void choose(file); }} />
-        <button type="button" className="outline-button" disabled={saving} onClick={() => input.current?.click()}><ImageSquare size={18} aria-hidden="true" />{draft ? t("更换图片", "Replace image") : t("选择图片", "Choose image")}</button>
+        <button type="button" className="outline-button" disabled={saving} onClick={() => input.current?.click()}><ImageSquare size={18} aria-hidden="true" />{t("上传图片", "Upload image")}</button>
         <span className="feature-muted">JPG / PNG / WebP · 10 MB</span>
       </div>
       {processing && <p className="feature-muted" role="status">{pendingDaily ? t("正在获取壁纸…", "Fetching wallpaper…") : t("正在处理图片…", "Processing image…")}</p>}
@@ -141,6 +153,7 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
         </fieldset>
       </>}
       {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
+      </div>
       <div className="background-editor-actions">
         <button type="button" className="text-button" disabled={saving || (!draft && !processing)} onClick={() => { cancelProcessing(); setDraft(undefined); setAutomatic('off'); setDirty(true); setError(''); }}><ArrowCounterClockwise size={17} aria-hidden="true" />{t("恢复默认", "Restore default")}</button>
         <div><button type="button" className="outline-button" disabled={saving} onClick={close}>{t("取消", "Cancel")}</button><button className="primary-button" disabled={!dirty || processing || saving}>{saving ? t("保存中…", "Saving…") : t("保存", "Save")}</button></div>

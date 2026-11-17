@@ -23,7 +23,7 @@ it('keeps article content and editor input unchanged on UI language switch',()=>
 it('renders English history, draft and mistake empty states',()=>{
  const view=render(<I18nProvider><RecordsView records={[]} onReplay={()=>{}} onContinue={()=>{}} onDelete={async()=>{}}/></I18nProvider>);
  expect(screen.getByText('No records')).toBeTruthy();view.unmount();
- const drafts=render(<I18nProvider><DraftsView drafts={[]} onResume={()=>{}} onDelete={()=>{}}/></I18nProvider>);
+ const drafts=render(<I18nProvider><DraftsView drafts={[]} onResume={()=>{}} onDelete={async()=>{}}/></I18nProvider>);
  expect(screen.getByText('No drafts')).toBeTruthy();drafts.unmount();
  render(<I18nProvider><MistakesView records={[]} states={{}} onStatus={()=>{}} onPractice={()=>{}}/></I18nProvider>);
  expect(screen.getByText('No mistakes')).toBeTruthy();

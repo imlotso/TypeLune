@@ -48,7 +48,7 @@ it.each(['adjust', 'reset'])('keeps the edited background theme fixed when remot
   render(<App />);
   await screen.findByRole('button', { name: /背景账号/ });
   await waitFor(() => expect((screen.getByRole('textbox', { name: '当前行输入' }) as HTMLTextAreaElement).disabled).toBe(false));
-  more('设置'); fireEvent.click(screen.getByRole('button', { name: '日间背景图' }));
+  fireEvent.click(screen.getByRole('button', { name: '外观' })); fireEvent.click(await screen.findByRole('button', { name: '日间背景图' }));
   if (action === 'reset') fireEvent.click(screen.getByRole('button', { name: '恢复默认' }));
   else fireEvent.change(screen.getByRole('slider', { name: '模糊' }), { target: { value: 4 } });
   await act(() => putWorkspaceValue(owner, 'settings', 'preferences', { ...defaultSettings, theme: 'dark' }));

@@ -1,3 +1,4 @@
+import { chooseTheme } from './appearance';
 import { expect, test } from './fixtures';
 
 test('preserves an active draft and records a phrase drill without a public score', async ({ page }, testInfo) => {
@@ -36,7 +37,7 @@ test('preserves an active draft and records a phrase drill without a public scor
 test('offers readable Chinese numbers and punctuation in mobile night mode', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('button', { name: '切换至夜间模式' }).click();
+  await chooseTheme(page, 'dark');
   await page.getByRole('button', { name: '专项练习', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '专项练习' });
   await expect(dialog.getByLabel('专项素材')).toContainText('１２３４５');

@@ -151,12 +151,13 @@ it.each([admin, member])('waits for uncached account preferences before allowing
   render(<App />);
   if (current.isAdmin) await screen.findByRole('heading', { name: '管理后台' });
   else await screen.findByRole('button', { name: /reader/ });
-  const toggle = screen.getByRole('button', { name: '切换至夜间模式' }) as HTMLButtonElement;
+  const toggle = (screen.queryByRole('button', { name: '切换至夜间模式' }) ?? screen.getByRole('button', { name: '外观' })) as HTMLButtonElement;
   expect(toggle.disabled).toBe(true);
   await waitFor(() => expect(resolveWorkspace).toBeTypeOf('function'));
   await act(async () => resolveWorkspace(new Response(JSON.stringify({ items: [{ kind: 'settings', id: 'preferences', updatedAt: Date.now(), serverRevision: 1, value: preferences }], serverTime: Date.now(), protocol: 2, generation: 1 }))));
   await waitFor(() => expect(toggle.disabled).toBe(false));
   fireEvent.click(toggle);
+  if (toggle.textContent?.includes('外观')) fireEvent.click(await screen.findByRole('button', { name: '夜间' }));
   await waitFor(async () => expect((await readWorkspace(current.id)).find((item) => item.kind === 'settings')?.value).toMatchObject({ minutes: 17, fontSize: 23, theme: 'dark' }));
 });
 
@@ -168,9 +169,10 @@ it('can update known cached preferences while cloud sync is offline', async () =
     ? Promise.reject(new Error('offline')) : original(path, options)));
   render(<App />);
   await screen.findByRole('heading', { name: '管理后台' });
-  const toggle = screen.getByRole('button', { name: '切换至夜间模式' }) as HTMLButtonElement;
+  const toggle = (screen.queryByRole('button', { name: '切换至夜间模式' }) ?? screen.getByRole('button', { name: '外观' })) as HTMLButtonElement;
   await waitFor(() => expect(toggle.disabled).toBe(false));
   fireEvent.click(toggle);
+  if (toggle.textContent?.includes('外观')) fireEvent.click(await screen.findByRole('button', { name: '夜间' }));
   await waitFor(async () => expect((await readWorkspace(admin.id)).find((item) => item.kind === 'settings')?.value).toMatchObject({ minutes: 19, theme: 'dark' }));
 });
 

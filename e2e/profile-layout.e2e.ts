@@ -1,3 +1,4 @@
+import { chooseTheme } from './appearance';
 import { test, expect } from './fixtures';
 import sharp from 'sharp';
 import { mkdirSync } from 'node:fs';
@@ -15,7 +16,7 @@ test('course guide stays alongside the active input and can be resized in a low-
  await input.fill('fj fj jf jf ff jj fj jf\n');await expect(page.getByTestId('typed-count')).not.toHaveText('0');
  expect(await page.evaluate(()=>window.scrollY)).toBeLessThan(10);await expect(page.getByRole('textbox',{name:'当前行输入'})).toBeInViewport();
  await page.screenshot({path:screenshots+'/course-desktop.png',fullPage:true});
- await page.getByRole('button',{name:'切换至夜间模式',exact:true}).click();await page.screenshot({path:screenshots+'/course-desktop-dark.png',fullPage:true});
+ await chooseTheme(page, 'dark');await page.screenshot({path:screenshots+'/course-desktop-dark.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await expect(page.getByRole('textbox',{name:'当前行输入'})).toBeInViewport();
  await page.screenshot({path:screenshots+'/course-mobile.png',fullPage:true});
@@ -44,12 +45,12 @@ test('custom avatar and public profile work across accounts, and privacy blocks 
 });
 test('daily wallpaper preview saves, survives reload, and can be disabled without removing the image',async({page,browser,clientIp})=>{
  const {data,info}=await sharp('public/assets/lake-default.webp').resize(960).webp().toBuffer({resolveWithObject:true});
- const background={image:'data:image/webp;base64,'+data.toString('base64'),name:'Wallhaven test fixture',width:info.width,height:info.height,fit:'cover',positionX:50,positionY:50,blur:0,shade:25,daily:{id:'ab12cd',day:new Date().toISOString().slice(0,10),kind:'nature'}};
+ const background={image:'data:image/webp;base64,'+data.toString('base64'),name:'Wallhaven test fixture',width:info.width,height:info.height,fit:'cover',positionX:50,positionY:50,blur:0,shade:25,daily:{id:'ab12cd',day:new Date().toISOString().slice(0,10),kind:'nature',resolution:'1280x720'}};
  await page.route('**/api/wallpapers/daily?*',route=>route.fulfill({json:{background}}));
  const username='daily_'+Date.now().toString(36),email=username+'@example.test',password='daily-test-password';
  await page.request.post('/api/auth/code',{data:{email,purpose:'register'}});const code=(await(await page.request.get('/__e2e__/email-code?email='+email+'&purpose=register')).json()).code;
  expect((await page.request.post('/api/auth/register',{data:{email,username,password,code}})).ok()).toBe(true);await page.goto('/');await expect(page.getByRole('button',{name:username,exact:true})).toBeVisible();
- async function open(){await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('button',{name:'设置',exact:true}).click();await expect(page.getByText('已同步',{exact:true})).toBeVisible();await page.getByRole('button',{name:'日间背景图',exact:true}).click();}
+ async function open(){await page.getByRole('button',{name:'外观',exact:true}).click();await page.getByRole('button',{name:'日间背景图',exact:true}).click();}
  await open();await page.getByRole('checkbox',{name:'每日自动更新壁纸'}).check();await expect(page.getByRole('link',{name:'图片来源：Wallhaven ↗'})).toBeVisible();
  await expect(page.getByTestId('custom-background-image')).toHaveCount(0);await page.screenshot({path:screenshots+'/wallpaper-settings.png',fullPage:true});
  await page.getByRole('button',{name:'保存',exact:true}).click();await expect(page.getByRole('dialog',{name:'日间背景',exact:true})).toHaveCount(0);await expect(page.getByTestId('custom-background-image')).toBeVisible();await page.reload();await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src',background.image);

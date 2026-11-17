@@ -1,3 +1,4 @@
+import { chooseTheme } from './appearance';
 import { test, expect, ensureAdmin } from './fixtures';
 import QRCode from 'qrcode';
 import sharp from 'sharp';
@@ -46,7 +47,7 @@ test('administrator publishes real sanitized test QR images to the quiet footer 
   await expect(support).toBeFocused();
   await front.setViewportSize({width:390,height:844});
   await front.getByRole('button',{name:'界面语言：中文，切换为 English'}).click();
-  await front.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
+  await chooseTheme(front, 'dark');
   await front.getByRole('button',{name:'Support TypeLune',exact:true}).click();
   await expect(front.getByRole('img',{name:'WeChat payment QR code'})).toBeVisible();
   const rendered=await front.getByRole('img',{name:'WeChat payment QR code'}).screenshot();

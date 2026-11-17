@@ -24,10 +24,9 @@ import { Clock } from '@phosphor-icons/react/Clock';
 import { Cloud } from '@phosphor-icons/react/Cloud';
 import { Crosshair } from '@phosphor-icons/react/Crosshair';
 import { Keyboard } from '@phosphor-icons/react/Keyboard';
-import { MoonStars } from '@phosphor-icons/react/MoonStars';
+import { Palette } from '@phosphor-icons/react/Palette';
 import { Pause } from '@phosphor-icons/react/Pause';
 import { Play } from '@phosphor-icons/react/Play';
-import { Sun } from '@phosphor-icons/react/Sun';
 import { Trophy } from '@phosphor-icons/react/Trophy';
 import { BrandLogo } from './components/BrandLogo';
 import { guestNicknamePrefix, validGuestNickname } from './lib/leaderboard';
@@ -35,6 +34,7 @@ import { AccountDialog } from './components/AccountDialog';
 import { AccountMenu } from './components/AccountMenu';
 import { CommandPalette, type Command } from './components/CommandPalette';
 import { BackgroundDialog } from './components/BackgroundDialog';
+import { AppearanceDialog } from './components/AppearanceDialog';
 import { RoomBackground } from './components/RoomBackground';
 import { AuthDialog } from './components/AuthDialog';
 import { Dialog } from './components/Dialog';
@@ -62,7 +62,7 @@ import { AssessmentPanel } from './components/AssessmentPanel';
 import { assessmentArticle, isAssessmentArticle, isWeakKeyArticle } from './lib/assessment';
 import { SiteFooter } from './components/SiteFooter';
 import { lessonArticle, lessonCopy, lessonForArticle, type Lesson } from './lib/lessons';
-import { continuationDraftId, deleteLocalHistory, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, recoveryDraftFromSaved, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
+import { canDiscardSavedDraft, continuationDraftId, deleteLocalHistory, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, recoveryDraftFromSaved, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useSiteFeatures } from './hooks/useSiteFeatures';
 import { useScoreStatus } from './hooks/useScoreStatus';
@@ -78,7 +78,7 @@ import { readableCharacter } from './lib/practice-lines';
 import { scoreTyping, splitCharacters } from './lib/scoring';
 import { createRoundMistakeDrill } from './lib/analysis';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
-import { allowLocalAccount, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, localAccountBlockPrefix, markWorkspaceDraftFallback, mutateWorkspaceValue, putWorkspaceValue, readBlockedWorkspace, readWorkspace, workspaceValue } from './lib/workspace';
+import { allowLocalAccount, deleteWorkspaceDrafts, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, localAccountBlockPrefix, markWorkspaceDraftFallback, mutateWorkspaceValue, putWorkspaceValue, readBlockedWorkspace, readWorkspace, workspaceValue } from './lib/workspace';
 import { cancelLocalCleanup, finishLocalCleanup, pendingLocalCleanups, prepareLocalCleanup } from './lib/local-account-cleanup';
 import { localPracticeRawFingerprint } from './lib/local-practice-unsynced';
 import { resetWorkspaceFromCloud, WorkspaceResetIncompleteError } from './lib/workspace-recovery';
@@ -270,6 +270,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
   const [showCommands, setShowCommands] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showBackground, setShowBackground] = useState<Theme>();
+  const [showAppearance, setShowAppearance] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [libraryInitialTab, setLibraryInitialTab] = useState<'all' | 'favorites' | 'private'>('all');
   const [focused, setFocused] = useState(false);
@@ -572,7 +573,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       else if (wasFullscreen) setFocused(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !showResult && !showShare && !confirmPractice && !showSettings && !showPresets && !showSettingsTransfer && !showCommands && !showBackground && !showRecovery && !showGuestImport && !showSpecialTraining) exitFocus();
+      if (event.key === 'Escape' && !showResult && !showShare && !confirmPractice && !showSettings && !showPresets && !showSettingsTransfer && !showCommands && !showAppearance && !showBackground && !showRecovery && !showGuestImport && !showSpecialTraining) exitFocus();
     };
     document.addEventListener('fullscreenchange', fullscreenChange);
     document.addEventListener('keydown', escape);
@@ -580,7 +581,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       document.removeEventListener('fullscreenchange', fullscreenChange);
       document.removeEventListener('keydown', escape);
     };
-  }, [focused, showResult, showShare, confirmPractice, showSettings, showPresets, showSettingsTransfer, showCommands, showBackground, showRecovery, showGuestImport, showSpecialTraining]);
+  }, [focused, showResult, showShare, confirmPractice, showSettings, showPresets, showSettingsTransfer, showCommands, showAppearance, showBackground, showRecovery, showGuestImport, showSpecialTraining]);
 
   function exitFocus() {
     setFocused(false);
@@ -594,8 +595,8 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
     try { void focusRoot.current?.requestFullscreen?.().catch(() => {}); } catch { /* Embedded preview still uses focus layout. */ }
   }
 
-  function toggleTheme() {
-    const next = theme === 'dark' ? 'light' : 'dark';
+  function changeTheme(next: Theme) {
+    if (next === theme) return;
     if (user) {
       setPendingTheme(next);
       void workspace.updateSettings({ theme: next }).catch(() => {
@@ -866,14 +867,18 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
     return { available: false, reason: t("此设备没有可用或一致的恢复资料", "No matching recovery data on this device") };
   }
 
-  function deleteDraft(id: string) {
-    const draft = draftBox.drafts.find((item) => item.id === id);
-    if (!draft) return;
-    void afterPark(() => {
-      if (!discardSavedDraft(draft)) { setFeedback(t("草稿正在其他页面使用", "Draft is open in another tab")); return; }
-      if (practice.draftId === id) resetPractice(selection, true);
-      void workspace.remove('draft', id).catch(reportSaveError);
+  async function deleteDrafts(drafts: SavedPractice[]) {
+    let applied = false;
+    await afterPark(async () => {
+      await deleteWorkspaceDrafts(ownerId, drafts, () => {
+        if (!drafts.every(canDiscardSavedDraft)) throw new Error(t('所选草稿正在其他页面使用，请关闭后重试', 'A selected draft is open in another tab. Close it and try again.'));
+      });
+      if (drafts.some(draft => draft.id === practice.draftId)) resetPractice(selection, true);
+      const cleaned = drafts.map(discardSavedDraft).every(Boolean);
+      if (!cleaned) throw new Error(t('草稿已删除，本机缓存清理失败，请重试', 'Drafts deleted; local cache cleanup failed. Try again.'));
+      applied = true;
     });
+    if (!applied) throw new Error(t('练习保存中，请稍后重试', 'Practice is saving. Try again shortly.'));
   }
 
   function nextArticle() {
@@ -1099,7 +1104,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
           </div>}
         </div>
         <LanguageToggle />
-        <button className="theme-button" disabled={!!user && !workspace.settingsReady} aria-label={theme === 'dark' ? t("切换至日间模式", "Switch to light mode") : t("切换至夜间模式", "Switch to dark mode")} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={20} /> : <MoonStars size={20} />}<span>{theme === 'dark' ? t("日间", "Light") : t("夜间", "Dark")}</span></button>
+        <button className="theme-button" disabled={!!user && !workspace.settingsReady} aria-haspopup="dialog" onClick={() => { void afterPark(() => setShowAppearance(true)); }}><Palette size={20} aria-hidden="true" /><span>{t('外观', 'Appearance')}</span></button>
         {user ? <AccountMenu onProfile={() => openProfile(user.id)} user={user} disabled={!canChangeAccount} onAccount={() => { accountReturn.current = view === 'article' ? 'library' : view === 'profile' || view === 'notfound' || view === 'account' ? 'practice' : view; navigate('account'); }} onRecords={() => navigate('history')} onData={() => navigate('data')} onFeedback={() => navigate('feedback')}
           onLogout={() => void changeAccount()} onAdministration={onAdministration ? () => void afterPark(onAdministration) : undefined} /> : <button className="account-button" disabled={!canChangeAccount} onClick={() => void changeAccount()}>{t("登录", "Sign in")}</button>}
       </nav>
@@ -1169,7 +1174,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
         {view === 'history' && <RecordsView records={records} ownerId={ownerId} onReplay={selectArticle} onContinue={continueRecord} onDelete={deleteRecords} routeRecordId={routeRecordId}
           routeLoading={!workspace.ready || (!!ownerId && !historyLoaded)} routePartial={historyError || !!workspace.error || (!!ownerId && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory()}
           onOpenRecord={openRecord} onCloseRecord={() => commitView('history')} onRetryRecords={() => { setHistoryRevision((revision) => revision + 1); void workspace.sync(); }} recoveryFor={recoveryForRecord} />}
-        {view === 'drafts' && <DraftsView drafts={draftBox.drafts} onResume={(draft) => continueDraft(draft)} onDelete={deleteDraft}
+        {view === 'drafts' && <DraftsView drafts={draftBox.drafts} onResume={(draft) => continueDraft(draft)} onDelete={deleteDrafts}
           recovery={draftBox.completed.map((draft) => ({
             id: draft.recordId, title: draft.title, savedAt: draft.savedAt,
             recover: () => recoverCompletedDraft(draft),
@@ -1199,7 +1204,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
     {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin && !authCompleted.current) { window.history.replaceState(null, '', '/'); currentPath.current = '/'; } }} onLogin={(next) => { authCompleted.current = true; onUser(next); }} registrationEnabled={site.features?.registrationEnabled} />}
     {view === 'account' && user && <AccountDialog user={user} onClose={() => navigate(accountReturn.current)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} onGuardChange={setAccountGuard} />}
     {showLogout && user && <LogoutDialog user={user} initialClear={showLogout.clear} pendingCount={workspace.pendingCount} syncState={workspace.syncState} syncError={workspace.error} drafts={workspace.drafts} records={workspace.records} onSync={workspace.sync} onLogout={finishLogout} onClose={() => setShowLogout(undefined)} />}
-    {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} hasBackground={!!workspace.backgrounds[theme]} onBackground={(backgroundTheme = theme) => { setShowSettings(false); setShowBackground(backgroundTheme); }} onPresets={() => { setShowSettings(false); setShowPresets(true); }} onSettingsTransfer={() => { setShowSettings(false); setShowSettingsTransfer(true); }} onCommands={() => { setShowSettings(false); setShowCommands(true); }} />}
+    {showSettings && <SettingsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} onChange={updateSettings} locked={locked} onClose={() => setShowSettings(false)} onFocus={enterFocus} focused={focused} syncState={workspace.syncState} syncError={workspace.error} pendingCount={workspace.pendingCount} cloudCount={workspace.cloudCount} lastSyncedAt={workspace.lastSyncedAt} recoveryReason={workspace.recoveryReason} onRecovery={() => { if (workspace.recoveryReason) { setShowSettings(false); setShowRecovery(workspace.recoveryReason); } }} onSync={() => void workspace.sync()} isSignedIn={!!user} onPresets={() => { setShowSettings(false); setShowPresets(true); }} onSettingsTransfer={() => { setShowSettings(false); setShowSettingsTransfer(true); }} onCommands={() => { setShowSettings(false); setShowCommands(true); }} />}
     {showPresets && <PresetsDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} difficulty={difficulty} onAction={workspace.changePresets} onApply={(preset) => applyPracticeConfiguration(preset)} onClose={() => setShowPresets(false)} />}
     {showSettingsTransfer && <SettingsTransferDialog settings={{ ...workspace.settings, minutes: locked ? currentDuration / 60 : duration / 60, mode: locked ? currentMode : workspace.settings.mode, strict: locked ? currentStrict : workspace.settings.strict }} language={language} difficulty={difficulty} onImport={importPracticeConfiguration} onClose={() => setShowSettingsTransfer(false)} />}
     {showCommands && <CommandPalette commands={commandList} shortcutsEnabled={workspace.settings.shortcutsEnabled !== false} onClose={() => setShowCommands(false)} />}
@@ -1208,9 +1213,10 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       setShowGuestImport(false);
       void collectGuestImport(user.id).then((plan) => setHasGuestData(plan.items.length > 0)).catch(() => setHasGuestData(true));
     }} onRecovery={workspace.recoveryReason ? () => { setShowGuestImport(false); setShowRecovery(workspace.recoveryReason!); } : undefined} />}
-    {showBackground && <BackgroundDialog autoMode={workspace.settings.wallpapers?.[showBackground]} theme={showBackground} value={workspace.backgrounds[showBackground]} onClose={() => setShowBackground(undefined)} onSave={async (background, automatic) => {
+    {showAppearance && <AppearanceDialog theme={theme} onTheme={changeTheme} onClose={() => setShowAppearance(false)} onBackground={backgroundTheme => { setShowAppearance(false); setShowBackground(backgroundTheme); }} />}
+    {showBackground && <BackgroundDialog autoMode={workspace.settings.wallpapers?.[showBackground]} adaptive={workspace.settings.wallpaperAdaptive?.[showBackground]} theme={showBackground} value={workspace.backgrounds[showBackground]} onClose={() => setShowBackground(undefined)} onSave={async (background, automatic, adaptive) => {
       if(ownerId && !workspace.cloudLoaded && !workspace.hasSavedSettings) throw new Error(t('请先同步账号设置','Sync account settings first'));
-      await saveWallpaper(ownerId,showBackground,background,automatic??'off');
+      await saveWallpaper(ownerId,showBackground,background,automatic??'off',adaptive);
     }} />}
     {confirmPractice && <Dialog title={confirmPractice.action === 'restart' ? t("重新开始本次练习？", "Restart this practice?") : t("结束本次练习？", "Finish this practice?")} onClose={cancelPracticeAction}>
       {confirmPractice.action === 'restart' && <p className="dialog-intro">{t("本次输入和计时将被清除。", "Current input and timing will be cleared.")}</p>}

@@ -4,12 +4,11 @@ import { expect, test } from './fixtures';
 async function fixture(color: string, day = new Date().toISOString().slice(0, 10)) {
   const { data, info } = await sharp({ create: { width: 1920, height: 1080, channels: 3, background: color } }).webp().toBuffer({ resolveWithObject: true });
   return { image: 'data:image/webp;base64,' + data.toString('base64'), name: 'Wallhaven test', width: info.width, height: info.height, fit: 'cover', positionX: 50, positionY: 50, blur: 0, shade: 25,
-    daily: { id: 'ab12cd', day, kind: 'nature' } };
+    daily: { id: 'ab12cd', day, kind: 'nature', resolution: '1280x720' } };
 }
 async function openBackground(page: import('@playwright/test').Page) {
   await page.goto('/');
-  await page.getByRole('button', { name: '更多', exact: true }).click();
-  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('button', { name: '外观', exact: true }).click();
   await page.getByRole('button', { name: '日间背景图', exact: true }).click();
 }
 for (const trigger of ['manual', 'automatic'] as const) {

@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest';
-import { fetchDailyWallpaper } from '../src/lib/daily-wallpaper';
+import { fetchDailyWallpaper, wallpaperDisplay } from '../src/lib/daily-wallpaper';
 import { defaultBackground } from '../src/lib/background';
 import { wallpaperRequestTimeoutMs, wallpaperWorkTimeoutMs } from '../src/lib/wallpaper-policy';
 
 const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jG3cAAAAASUVORK5CYII=';
 const background = { ...defaultBackground('light', { image, width: 1, height: 1, name: 'Wallhaven test' }), daily: { id: 'ab12cd', day: '2026-11-17', kind: 'nature' as const } };
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 it('allows a cold wallpaper request to complete after the ordinary 12-second API timeout', async () => {
   vi.useFakeTimers();
@@ -29,4 +29,11 @@ it('still cancels a wallpaper request immediately when its dialog or identity is
   })));
   const result = fetchDailyWallpaper('nature', 'light', controller.signal);
   const rejected = expect(result).rejects.toThrow('Aborted'); controller.abort(); await rejected;
+});
+
+it('uses native display pixels including HiDPI scaling and bounds excessive dimensions',()=>{
+ vi.spyOn(window.screen,'width','get').mockReturnValue(1920);vi.spyOn(window.screen,'height','get').mockReturnValue(1080);
+ vi.stubGlobal('devicePixelRatio',2);expect(wallpaperDisplay()).toEqual({width:3840,height:2160});
+ vi.spyOn(window.screen,'width','get').mockReturnValue(7680);vi.spyOn(window.screen,'height','get').mockReturnValue(4320);
+ const bounded=wallpaperDisplay();expect(bounded.width).toBeLessThanOrEqual(5120);expect(bounded.width*bounded.height).toBeLessThanOrEqual(16_000_000);
 });

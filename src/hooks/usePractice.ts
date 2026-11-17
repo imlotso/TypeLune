@@ -246,6 +246,15 @@ function clearDraft(attempt: Attempt | null, owner: string) {
   try { if (sessionStorage.getItem(currentDraftKey) === attempt.recordId) sessionStorage.removeItem(currentDraftKey); } catch { /* Storage is optional. */ }
   return true;
 }
+export function canDiscardSavedDraft(saved: SavedPractice): boolean {
+  try {
+    const current = storedDraft(saved.recordId);
+    if (current) return (current.ownerId ?? null) === saved.ownerId && current.articleId === saved.article.id && current.target === saved.article.text && !leaseTaken(current, '');
+    let legacy: PracticeDraft | null = null;
+    try { legacy = JSON.parse(localStorage.getItem(legacyDraftKey) || 'null') as PracticeDraft | null; } catch { return true; }
+    return !legacy || legacy.version !== 1 || legacyRecordId(legacy) !== saved.recordId || ((legacy.ownerId ?? null) === saved.ownerId && legacy.articleId === saved.article.id && legacy.target === saved.article.text && !leaseTaken(legacy, ''));
+  } catch { return false; }
+}
 export function discardSavedDraft(saved: SavedPractice): boolean {
   try {
     const key = draftPrefix + saved.recordId;

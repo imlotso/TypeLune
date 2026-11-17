@@ -1,3 +1,4 @@
+import { chooseTheme } from './appearance';
 import { expect, test } from './fixtures';
 import type { APIRequestContext } from '@playwright/test';
 import { articles } from '../src/data/articles';
@@ -94,10 +95,10 @@ test('selects language and difficulty and validates the 1–60 minute limit', as
 
 test('keeps the chosen night theme after reloading', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '切换至夜间模式' }).click();
+  await chooseTheme(page, 'dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();
-  await expect(page.getByRole('button', { name: '切换至日间模式' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '外观', exact: true })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
@@ -108,7 +109,7 @@ test('keeps the main controls accessible on a small phone', async ({ page }) => 
   await expect(page.getByRole('spinbutton', { name: '测试时间（分钟）' })).toBeInViewport();
   await expect(page.getByRole('button', { name: '自定义文字' })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
-  await page.getByRole('button', { name: '切换至夜间模式' }).click();
+  await chooseTheme(page, 'dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
@@ -390,7 +391,7 @@ test('manages a live account and publishes a sourced article into the practice c
   expect(challenge.status()).toBe(200);
   expect((await challenge.json()).target).toBe(body.trim());
 
-  await page.getByRole('button', { name: '切换至夜间模式' }).click();
+  await chooseTheme(page, 'dark');
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: '预览网站', exact: true })).toBeInViewport();
   await page.getByRole('button', { name: '操作日志', exact: true }).click();

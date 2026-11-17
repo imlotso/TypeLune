@@ -601,3 +601,9 @@
 @media (prefers-reduced-motion: reduce) { .library-import-card { transition: none; } }
 
 @media(max-width:600px){.library-import-actions{padding-left:50px;justify-content:flex-start;}}
+
+.draft-selection-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 18px; padding: 12px 0; color: var(--typing-muted); font-size: 14px; }
+.draft-selection-bar .settings-check { display: inline-flex; align-items: center; gap: 8px; }
+.draft-selection-bar button { margin-left: auto; }
+.draft-select, .draft-selection-bar input { accent-color: var(--typing-accent); width: 17px; height: 17px; flex: 0 0 auto; }
+.drafts .content-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

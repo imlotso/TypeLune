@@ -1,3 +1,4 @@
+import { chooseTheme } from './appearance';
 import { expect, test } from './fixtures';
 import type { Page } from '@playwright/test';
 import { resolve } from 'node:path';
@@ -6,8 +7,7 @@ const dayPicture = resolve('public/assets/cloud-room.png');
 const nightPicture = resolve('public/assets/cloud-room-night.png');
 
 async function editor(page: Page, theme = '日间') {
-  await page.getByRole('button', { name: '更多', exact: true }).click();
-  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('button', { name: '外观', exact: true }).click();
   await page.getByRole('button', { name: `${theme}背景图`, exact: true }).click();
   return page.getByRole('dialog', { name: `${theme}背景`, exact: true });
 }
@@ -98,7 +98,7 @@ test('keeps phone controls reachable and day/night backgrounds independent', asy
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/'); await editor(page); await upload(page); await save(page);
   const daySource = await page.getByTestId('custom-background-image').getAttribute('src');
-  await page.getByRole('button', { name: '切换至夜间模式' }).click();
+  await chooseTheme(page, 'dark');
   await expect(page.getByTestId('custom-background-image')).toHaveCount(0);
   await editor(page, '夜间'); await upload(page, dayPicture);
   await expect(page.getByRole('button', { name: '保存', exact: true })).toBeInViewport();
@@ -106,7 +106,7 @@ test('keeps phone controls reachable and day/night backgrounds independent', asy
   await save(page);
   const nightSource = await page.getByTestId('custom-background-image').getAttribute('src');
   expect(nightSource).not.toBe(daySource);
-  await page.getByRole('button', { name: '切换至日间模式' }).click();
+  await chooseTheme(page, 'light');
   await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', daySource!);
 });
 

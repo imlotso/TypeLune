@@ -69,12 +69,14 @@ describe('practice interface', () => {
 
   it('switches to night mode and remembers the choice on a later visit', async () => {
     const first = render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: '切换至夜间模式' }));
+    fireEvent.click(screen.getByRole('button', { name: '外观' }));
+    fireEvent.click(await screen.findByRole('button', { name: '夜间' }));
     expect(document.documentElement.dataset.theme).toBe('dark');
     expect(localStorage.getItem('cloudtyping.theme.v1')).toBe('dark');
     first.unmount();
     render(<App />);
-    expect(screen.getByRole('button', { name: '切换至日间模式' })).toBeTruthy();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(screen.getByRole('button', { name: '外观' })).toBeTruthy();
   });
 
   it('does not count an IME candidate confirmed after the deadline', async () => {
