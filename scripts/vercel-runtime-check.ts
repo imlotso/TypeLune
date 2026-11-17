@@ -1,0 +1,32 @@
+import { spawnSync } from 'node:child_process';
+import { PostgresDatabase } from '../server/postgres/database.js';
+import { createApp } from '../server/app.js';
+
+// Deployment build check only. Normal application startup never performs DDL.
+async function main() {
+  if (process.env.VERCEL !== '1') return;
+  const env = process.env;
+  if (!env.DATABASE_URL || !env.CODE_SECRET || env.CODE_SECRET.length < 32) throw new Error('Database and stable CODE_SECRET are required');
+  const schema = env.DAZI_DATABASE_SCHEMA || 'public';
+  const database = new PostgresDatabase(env.DATABASE_URL, schema);
+  try { await database.verifySchema(); } finally { await database.close(); }
+  if (env.TYPELUNE_INSTALL_SEO) {
+    if (!['preview', 'production'].includes(env.TYPELUNE_INSTALL_SEO) || env.TYPELUNE_INSTALL_SEO !== env.VERCEL_ENV) throw new Error('SEO installation environment does not match the deployment');
+    const target = new URL(env.DATABASE_URL);
+    const name = decodeURIComponent(target.pathname.slice(1));
+    const result = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/postgres-database.ts', 'seo'], {
+      stdio: 'inherit', env: { ...env, DAZI_DATABASE_HOST: target.hostname, DAZI_DATABASE_NAME: name, DAZI_DATABASE_SCHEMA: schema, DAZI_CONFIRM_TARGET: `${target.hostname}/${name}/${schema}` },
+    });
+    if (result.status !== 0) throw new Error('Explicit SEO configuration installation failed');
+  }
+  const app = await createApp({ databaseUrl: env.DATABASE_URL, postgresSchema: schema, codeSecret: env.CODE_SECRET, secureCookies: true });
+  try { await app.ready(); } finally { await app.close(); }
+  console.log('Deployment runtime and database compatibility verified.');
+}
+main().catch((error: unknown) => {
+  // Whitelist fixed diagnostics; driver errors can contain credentials or SQL values.
+  const allowed = new Set(['Database and stable CODE_SECRET are required', 'PostgreSQL database URL is required', 'Invalid PostgreSQL connection configuration', 'Invalid PostgreSQL schema name',
+    'PostgreSQL schema is missing, unavailable, or incompatible; run the explicit migration', 'SEO installation environment does not match the deployment', 'Explicit SEO configuration installation failed']);
+  console.error(error instanceof Error && allowed.has(error.message) ? error.message : 'Deployment runtime verification failed; inspect the selected project configuration.');
+  process.exitCode = 1;
+});
