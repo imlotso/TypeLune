@@ -14,9 +14,9 @@ export function AppearanceDialog({ theme, onTheme, onBackground, onClose,surface
     <div className="feature-form">
       <fieldset className="settings-group">
         <legend>{t('主题', 'Theme')}</legend>
-        <div className="appearance-themes" role="group" aria-label={t('主题', 'Theme')}>
-          <button type="button" className="outline-button" aria-pressed={theme === 'light'} onClick={() => onTheme('light')}><Sun size={22} aria-hidden="true" />{t('日间', 'Light')}</button>
-          <button type="button" className="outline-button" aria-pressed={theme === 'dark'} onClick={() => onTheme('dark')}><MoonStars size={22} aria-hidden="true" />{t('夜间', 'Dark')}</button>
+        <div className="appearance-themes appearance-theme-icons" role="group" aria-label={t('主题', 'Theme')}>
+          <button type="button" className="outline-button" aria-label={t('日间','Light')} title={t('日间','Light')} aria-pressed={theme === 'light'} onClick={() => onTheme('light')}><Sun size={22} aria-hidden="true" /></button>
+          <button type="button" className="outline-button" aria-label={t('夜间','Dark')} title={t('夜间','Dark')} aria-pressed={theme === 'dark'} onClick={() => onTheme('dark')}><MoonStars size={22} aria-hidden="true" /></button>
         </div>
       </fieldset>
       <fieldset className="settings-group" disabled={disabled}><legend>{t('页面透明度与效果','Page transparency and effects')}</legend><SurfaceControls value={surface} onChange={onSurface} onReset={onResetSurface}/></fieldset>

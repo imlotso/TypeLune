@@ -85,3 +85,7 @@
 [data-theme='dark'] .room-default-background {background-image:linear-gradient(#151b3d88,#151b3d88),url('/assets/lake-default.webp');}
 .app-shell .brand-logo-default {filter:var(--wordmark-alpha);mix-blend-mode:normal;}
 [data-theme='dark'] .app-shell .brand-logo-default {filter:var(--wordmark-alpha) invert(1);mix-blend-mode:normal;}
+
+.appearance-theme-icons {grid-template-columns:repeat(2,48px);gap:10px;}
+.appearance-theme-icons button {width:48px;height:48px;padding:0;}
+.brand {text-decoration:none;}

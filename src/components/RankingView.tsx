@@ -10,6 +10,7 @@ import { Dialog } from './Dialog';
 import type { ArticleSnapshot, PracticeMode, RankingEntry } from '../lib/models';
 
 type Board = { entries: RankingEntry[]; self?: RankingEntry | null; total?: number; displayDays?: number };
+type RankingDifficulty = Difficulty | 'all';
 type Filters = { language: Language; difficulty: Difficulty; duration: number; mode: PracticeMode; strict: boolean };
 type Props = {
   onProfile?: (id: string) => void;
@@ -39,7 +40,7 @@ function initialFilters(initial: Filters, ownerId: string | null) {
   const period = query.get('period'); const board = query.get('board'); const page=Number(query.get('page')||1);
   return {
     language: language === 'zh' || language === 'en' ? language : initial.language,
-    difficulty: difficulty === 'beginner' || difficulty === 'intermediate' || difficulty === 'advanced' ? difficulty : initial.difficulty,
+    difficulty: difficulty === 'beginner' || difficulty === 'intermediate' || difficulty === 'advanced' ? difficulty : 'all',
     page: Number.isSafeInteger(page)&&page>=1&&page<=100000?page:1,
     period: period === 'week' || period === 'month' ? period : 'all',
     board: board === 'guest' || board === 'user' ? board : ownerId ? 'user' : 'guest',
@@ -49,11 +50,11 @@ function initialFilters(initial: Filters, ownerId: string | null) {
 
 export function RankingView({ initial, articles, isAdmin, ownerId, onAddressChange, onProfile }: Props) {
   const { t, locale } = useI18n();
-const difficulties: Record<Difficulty, string> = { beginner: t("入门", "Beginner"), intermediate: t("进阶", "Intermediate"), advanced: t("挑战", "Advanced") };
+const difficulties: Record<RankingDifficulty, string> = { all:t('全部','All'), beginner: t("入门", "Beginner"), intermediate: t("进阶", "Intermediate"), advanced: t("挑战", "Advanced") };
 
   const [selected] = useState(() => initialFilters(initial, ownerId));
   const [language, setLanguage] = useState<Language>(selected.language);
-  const [difficulty, setDifficulty] = useState<Difficulty>(selected.difficulty);
+  const [difficulty, setDifficulty] = useState<RankingDifficulty>(selected.difficulty);
   const [page, setPage] = useState(selected.page);
   const [period, setPeriod] = useState<string>(selected.period);
   const [boardKind, setBoardKind] = useState<'guest' | 'user'>(selected.board);
@@ -117,7 +118,7 @@ const difficulties: Record<Difficulty, string> = { beginner: t("入门", "Beginn
       <div className="segmented feature-segments" role="group" aria-label={t('排行语言','Article language')}>{(['zh','en'] as const).map(lang=><button key={lang} aria-pressed={language===lang} onClick={()=>{setLanguage(lang);setPage(1);}}>{lang==='zh'?t('中文','Chinese'):'English'}</button>)}</div>
     </div>
     <div className="ranking-simple-filters">
-      <div><span>{t('难度','Difficulty')}</span><div className="segmented feature-segments" role="group" aria-label={t('难度','Difficulty')}>{Object.entries(difficulties).map(([key,name])=><button key={key} aria-pressed={difficulty===key} onClick={()=>{setDifficulty(key as Difficulty);setPage(1);}}>{name}</button>)}</div></div>
+      <div><span>{t('难度','Difficulty')}</span><div className="segmented feature-segments" role="group" aria-label={t('难度','Difficulty')}>{Object.entries(difficulties).map(([key,name])=><button key={key} aria-pressed={difficulty===key} onClick={()=>{setDifficulty(key as RankingDifficulty);setPage(1);}}>{name}</button>)}</div></div>
       <div><span>{t('排行时段','Period')}</span><div className="segmented feature-segments" role="group" aria-label={t('排行时段','Period')}>{[['week',t('近7天','7 days')],['month',t('近30天','30 days')],['all',t('全部','All')]].map(([key,name])=><button key={key} aria-pressed={period===key} onClick={()=>{setPeriod(key);setPage(1);}}>{name}</button>)}</div></div>
     </div>
     {error && <><p className="form-error" role="alert">{<SystemMessage text={error} />}</p><button type="button" className="outline-button" onClick={() => setRevision((value) => value + 1)}>{t("重试", "Retry")}</button></>}

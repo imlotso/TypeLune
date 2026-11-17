@@ -1174,12 +1174,12 @@ export async function createApp(options: AppOptions) {
       if (!accountMatches(request, user)) return invalid(reply, '登录账号已变更', 403);
     }
     const query = request.query as Record<string, string>;
-    const { language, difficulty, period = 'all', articleId, mode = 'timed', strict = 'false', board = 'all' } = query;
+    const { language, difficulty = 'all', period = 'all', articleId, mode = 'timed', strict = 'false', board = 'all' } = query;
     const aggregate = query.duration === undefined && query.mode === undefined && query.strict === undefined && query.articleId === undefined;
     const page = Number(query.page ?? 1); const pageSize = aggregate ? 10 : 100; const offset = (page - 1) * pageSize;
     const duration = Number(query.duration);
     if (!Number.isSafeInteger(page) || page < 1 || page > 100000) return invalid(reply, '分页参数无效');
-    if (!['zh', 'en'].includes(language) || !difficulties.includes(difficulty as Difficulty) ||
+    if (!['zh', 'en'].includes(language) || (difficulty !== 'all' && !difficulties.includes(difficulty as Difficulty)) ||
       !['all', 'week', 'month'].includes(period) || !['all', 'guest', 'user'].includes(board) || !isPracticeMode(mode) || !['true', 'false'].includes(strict) ||
       (!aggregate && mode === 'timed' && !isValidDuration(duration)) ||
       (articleId !== undefined && !(await catalog.hasHistorical(articleId, language as Language, difficulty as Difficulty)))) {
@@ -1195,7 +1195,7 @@ export async function createApp(options: AppOptions) {
           ROW_NUMBER() OVER (PARTITION BY owner ORDER BY speed DESC, accuracy DESC, finished_at, id) AS owner_rank
         FROM challenges
         WHERE published=1 AND status='finished' AND ranking_removed=0 AND language=@language
-          AND difficulty=@difficulty AND (@aggregate=1 OR (mode=@mode AND strict=@strict)) AND finished_at>=@since
+          AND (@difficulty='all' OR difficulty=@difficulty) AND (@aggregate=1 OR (mode=@mode AND strict=@strict)) AND finished_at>=@since
           AND nickname IS NOT NULL AND speed IS NOT NULL
           AND (@board='all' OR (@board='guest' AND owner LIKE 'g:%') OR (@board='user' AND owner LIKE 'u:%'))
           AND (@duration IS NULL OR duration=@duration) AND (@articleId IS NULL OR article_id=@articleId)

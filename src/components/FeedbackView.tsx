@@ -1,3 +1,4 @@
+import {X} from '@phosphor-icons/react/X';
 import { SystemMessage } from './SystemMessage';
 import { useI18n, type UiLocale } from '../lib/i18n';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
@@ -84,9 +85,9 @@ export function FeedbackThread({ feedback }: { feedback: FeedbackDetail }) {
   </div>;
 }
 
-export function FeedbackView({ ownerId, draft, setDraft, onLogin, routeFeedbackId, onOpenFeedback, onCloseFeedback }: {
+export function FeedbackView({ ownerId, draft, setDraft, onLogin, routeFeedbackId, onOpenFeedback, onCloseFeedback,onClose }: {
   ownerId: string | null; draft: FeedbackDraft; setDraft: (draft: FeedbackDraft) => void; onLogin: (draft: FeedbackDraft) => void;
-  routeFeedbackId?: string; onOpenFeedback?: (id: string) => void; onCloseFeedback?: () => void;
+  onClose?:()=>void;routeFeedbackId?: string; onOpenFeedback?: (id: string) => void; onCloseFeedback?: () => void;
 }) {
   const { t, locale } = useI18n();
   const [list, setList] = useState<Page>();
@@ -181,7 +182,7 @@ export function FeedbackView({ ownerId, draft, setDraft, onLogin, routeFeedbackI
   }
 
   return <section className="content-panel feature-panel feedback-panel">
-    <div className="content-heading"><h1><ChatCircleText size={25} aria-hidden="true" />{t("功能反馈", "Feedback")}</h1></div>
+    <div className="content-heading"><h1><ChatCircleText size={25} aria-hidden="true" />{t("功能反馈", "Feedback")}</h1>{onClose&&<button type="button" className="icon-button" aria-label={t('关闭功能反馈','Close feedback')} title={t('关闭','Close')} disabled={busy} onClick={onClose}><X size={22} aria-hidden="true"/></button>}</div>
     {routeFeedbackId && !ownerId ? <div className="feature-form"><p>{t("请先登录", "Please sign in")}</p><button type="button" className="outline-button" onClick={() => onLogin(draft)}>{t("登录", "Sign in")}</button></div> :
       routeFeedbackId && !shownDetail ? <div className="feature-form">{detailLoading || !detailError ? <p role="status">{t("正在读取反馈…", "Loading feedback…")}</p> : <><p className="form-error" role="alert">{detailError}</p><button type="button" className="outline-button" onClick={() => setDetailRetry((value) => value + 1)}>{t("重试", "Retry")}</button></>}<button type="button" className="outline-button" onClick={onCloseFeedback}>{t("返回反馈", "Back to feedback")}</button></div> :
       shownDetail ? <>
