@@ -26,3 +26,5 @@ export function isWallhavenImageUrl(value: unknown, id?: string): value is strin
 }
 
 export const siteWallpaperIntervalMs = 12 * 60 * 60_000;
+
+export const wallpaperWidths = [640,1280,1920,2560,3840,5120] as const;

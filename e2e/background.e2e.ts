@@ -12,6 +12,7 @@ async function editor(page: Page, theme = '日间') {
   return page.getByRole('dialog', { name: `${theme}背景`, exact: true });
 }
 async function upload(page: Page, file = nightPicture) {
+  const follow=page.getByRole('checkbox',{name:'跟随全站壁纸刷新',exact:true});if(await follow.isChecked())await follow.uncheck();
   await page.getByLabel('背景图片').setInputFiles(file);
   await expect(page.getByRole('button', { name: '保存', exact: true })).toBeEnabled();
 }
@@ -86,6 +87,7 @@ test('decodes and stores JPEG, PNG and WebP uploads through the real browser enc
       return canvas.toDataURL('image/' + type);
     }, format);
     await editor(page);
+    await page.getByRole('checkbox',{name:'跟随全站壁纸刷新',exact:true}).uncheck();
     await page.getByLabel('背景图片').setInputFiles({ name: `picture.${format}`, mimeType: `image/${format}`, buffer: Buffer.from(raster.split(',')[1], 'base64') });
     await expect(page.getByRole('button', { name: '保存', exact: true })).toBeEnabled();
     await save(page);
@@ -114,7 +116,7 @@ test('syncs the image and reset across independent accounts/devices without shar
   const username = 'bg' + Date.now().toString(36);
   await register(page, username);
   await editor(page); await upload(page); await save(page);
-  await expect.poll(async () => (await (await page.request.get('/api/workspace',{headers:{'X-Workspace-Background-References':'1'}})).json()).items.some((item: { kind: string; deleted?: boolean }) => item.kind === 'background' && !item.deleted)).toBe(true);
+  await expect.poll(async () => (await (await page.request.get('/api/workspace',{headers:{'X-Workspace-Background-References':'1','X-Workspace-Appearance':'2'}})).json()).items.some((item: { kind: string; deleted?: boolean }) => item.kind === 'background' && !item.deleted)).toBe(true);
   await page.getByRole('button', { name: '文章库', exact: true }).click();
   const ordinarySync = page.waitForResponse((response) => response.url().endsWith('/api/workspace/sync') && response.request().postData()?.includes('favorite') === true);
   await page.getByRole('button', { name: '收藏《背影》' }).click();
@@ -129,7 +131,7 @@ test('syncs the image and reset across independent accounts/devices without shar
     await second.goto('/');
     await expect(second.getByTestId('custom-background-image')).toBeVisible();
     await editor(second); await second.getByRole('button', { name: '恢复默认', exact: true }).click(); await save(second);
-    await expect.poll(async () => (await (await second.request.get('/api/workspace',{headers:{'X-Workspace-Background-References':'1'}})).json()).items.some((item: { kind: string; deleted?: boolean }) => item.kind === 'background' && item.deleted)).toBe(true);
+    await expect.poll(async () => (await (await second.request.get('/api/workspace',{headers:{'X-Workspace-Background-References':'1','X-Workspace-Appearance':'2'}})).json()).items.some((item: { kind: string; deleted?: boolean }) => item.kind === 'background' && item.deleted)).toBe(true);
     await page.reload(); await expect(page.getByTestId('custom-background-image')).toHaveCount(0);
     await editor(page); await upload(page); await save(page);
     await page.getByRole('button', { name: username, exact: true }).click();

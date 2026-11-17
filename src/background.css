@@ -41,10 +41,6 @@
 .background-editor-actions .primary-button, .background-editor-actions .outline-button { padding: 10px 20px; min-height: 42px; }
 .room.room-custom { background-image: none; }
 .custom-background { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; background: #f8f4fc; }
-.room-custom .workspace::before { content: ''; position: absolute; z-index: -1; inset: 20px -18px 125px; border-radius: 24px; background: rgba(253,251,253,var(--wallpaper-workspace-opacity,.92)); }
-[data-theme='dark'] .room-custom .workspace::before { background: rgba(26,29,48,var(--wallpaper-workspace-opacity,.95)); }
-.room-custom .typing-panel, .room-custom .content-panel, .room-custom .course-content { background: rgba(253,251,253,var(--wallpaper-panel-opacity,.97)); backdrop-filter: blur(var(--wallpaper-panel-blur,0px)); border-color: color-mix(in srgb,var(--typing-border) var(--wallpaper-border-opacity,100%),transparent); }
-[data-theme='dark'] .room-custom .typing-panel, [data-theme='dark'] .room-custom .content-panel, [data-theme='dark'] .room-custom .course-content { background: rgba(26,29,48,var(--wallpaper-panel-opacity,.95)); }
 .background-surface-controls { border-top: 1px solid var(--typing-border); padding-top: 16px; }
 .background-surface-controls .settings-range { grid-template-columns: 86px minmax(0,1fr) 38px; }
 @media (max-width: 600px) {
@@ -57,5 +53,35 @@
   .background-editor-actions { gap: 8px; }
   .background-editor-actions > div { gap: 6px; }
   .background-editor-actions .primary-button, .background-editor-actions .outline-button { padding-inline: 14px; }
-  .room-custom .workspace::before { inset: 20px -6px 125px; border-radius: 16px; }
 }
+
+/* Apply transparency to painted surfaces, never to their text or children. */
+.app-shell { --wallpaper-surface: 253,251,253; --wallpaper-row:#f6f4fb; --wallpaper-input:#fff; --wallpaper-active:#edf4ff; --wallpaper-border:#d8d1e9; }
+[data-theme='dark'] .app-shell { --wallpaper-surface:26,29,48; --wallpaper-row:#272b42; --wallpaper-input:#20253a; --wallpaper-active:#333c58; --wallpaper-border:#666382; }
+.app-shell .site-header { background:rgba(var(--wallpaper-surface),var(--wallpaper-header-opacity,1)); backdrop-filter:blur(var(--wallpaper-panel-blur,0px)); }
+.app-shell .room .workspace {
+ --typing-row:color-mix(in srgb,var(--wallpaper-row) calc(var(--wallpaper-panel-opacity,.97)*100%),transparent);
+ --typing-input:color-mix(in srgb,var(--wallpaper-input) calc(var(--wallpaper-panel-opacity,.97)*100%),transparent);
+ --typing-active:color-mix(in srgb,var(--wallpaper-active) calc(var(--wallpaper-panel-opacity,.97)*100%),transparent);
+ --typing-border:color-mix(in srgb,var(--wallpaper-border) var(--wallpaper-border-opacity,100%),transparent);
+}
+.app-shell .room .workspace::before {content:'';position:absolute;z-index:-1;inset:20px -18px 125px;border-radius:24px;background:rgba(var(--wallpaper-surface),var(--wallpaper-workspace-opacity,.92));}
+.app-shell .room .typing-panel,.app-shell .room .content-panel,.app-shell .room .course-content {background:rgba(var(--wallpaper-surface),var(--wallpaper-panel-opacity,.97));backdrop-filter:blur(var(--wallpaper-panel-blur,0px));border-color:var(--typing-border);}
+.app-shell .course-content .typing-panel {background:transparent;backdrop-filter:none;}
+.app-shell .custom-background {position:fixed;inset:0;}
+.custom-background>img {object-fit:cover;}
+.appearance-dialog {width:min(100%,720px);max-height:94svh;display:flex;flex-direction:column;overflow:hidden;}
+.appearance-dialog .dialog-heading {flex-shrink:0;}
+.appearance-dialog>.feature-form {overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}
+.surface-controls {display:grid;gap:8px;}
+.surface-controls .background-surface-controls {border-top:0;padding-top:6px;}
+.surface-reset {justify-self:end;font-size:12px;padding-block:8px;}
+.follow-site-wallpaper {display:flex;align-items:center;gap:8px;font-size:14px;}
+@media(max-width:600px){.app-shell .room .workspace::before{inset:20px -6px 125px;}.background-surface-controls .settings-range{grid-template-columns:100px minmax(0,1fr) 40px;}}
+.wallpaper-load-status {position:fixed;bottom:12px;right:16px;z-index:2;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:8px 12px;border:1px solid var(--typing-border);border-radius:10px;background:var(--typing-input);color:var(--typing-text);font-size:12px;}
+.wallpaper-load-status button {flex-shrink:0;}
+.background-preview[data-theme='dark'] .background-preview-sample {color:#eeeafa;}
+.room-default-background {position:fixed;inset:0;z-index:0;pointer-events:none;background:linear-gradient(#a9b9e633,#a9b9e633),url('/assets/lake-default.webp') center/cover no-repeat;}
+[data-theme='dark'] .room-default-background {background-image:linear-gradient(#151b3d88,#151b3d88),url('/assets/lake-default.webp');}
+.app-shell .brand-logo-default {filter:var(--wordmark-alpha);mix-blend-mode:normal;}
+[data-theme='dark'] .app-shell .brand-logo-default {filter:var(--wordmark-alpha) invert(1);mix-blend-mode:normal;}

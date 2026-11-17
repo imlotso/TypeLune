@@ -45,7 +45,7 @@ it.each(['adjust', 'reset'])('keeps the edited background theme fixed when remot
   const night = defaultBackground('dark', { ...image, name: 'night.png' });
   await putWorkspaceValue(owner, 'background', 'light', defaultBackground('light', image));
   await putWorkspaceValue(owner, 'background', 'dark', night);
-  await putWorkspaceValue(owner, 'settings', 'preferences', { ...defaultSettings, theme: 'light' });
+  await putWorkspaceValue(owner, 'settings', 'preferences', { ...defaultSettings, theme: 'light',wallpaperFollowSite:{light:false,dark:false} });
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if(url.startsWith('/api/backgrounds/state')){
       const items=await readWorkspace(owner);const settings=items.find(item=>item.kind==='settings'&&item.id==='preferences')?.value as any;

@@ -1,0 +1,23 @@
+# Wallpaper delivery and appearance corrections
+
+The original transparency controls changed outer cards while nested practice rows and inputs retained opaque paints. The new controls change the actual backgrounds of these layers, the workspace and navigation, while text remains fully opaque. Appearance in the header exposes all five controls and a reset action. The background editor previews effects across the page and restores saved effects when cancelled. Settings are independent for day/night, work with default backgrounds and survive image failures. The selected serif wordmark retains its original glyphs; a rendering filter removes the fallback JPEG's white surround when the navigation is transparent. Custom site logos are unchanged.
+
+“Follow site wallpaper updates” defaults to checked. Personal selection and daily-update controls require explicitly opting out. Opting out freezes the current image, unless the user then selects another image or daily updates. Following again removes the personal override through the existing transactional save; unused uploaded files are deleted only after the replacement commits. Public profile wallpapers respect the same preference. Older open clients receive a refresh requirement before they can overwrite the new appearance settings.
+
+Wallhaven image metadata remains a URL reference. Browsers render same-origin `/api/wallpapers/image/:id?w=...` URLs rather than contacting Wallhaven. The server validates the ID, SFW classification, category, tags, destination and raster dimensions before serving it. Both upstream requests are bounded and redirects are refused. Only public provider pictures use this route; account uploads retain lossless PostgreSQL storage, ownership/privacy enforcement and private, noncached access.
+
+The relay temporarily caches at most 48 MiB of originals and 32 MiB of variants per warm instance for 30 minutes. It deduplicates in-flight work and limits processing to two active requests and eight queued requests. Successful public variants can be cached by Vercel's CDN for 12 hours; failures use `no-store`. No Wallhaven image bytes are added to PostgreSQL, browser workspace storage or permanent server files.
+
+Every screen uses the same selected image ID. Responsive widths are 640, 1280, 1920, 2560, 3840 and 5120 pixels, with no enlargement or distortion. Variants use high-quality WebP encoding. `cover` preserves aspect ratio and crops edges; `contain` preserves the whole picture with empty margins. The background is sized to the viewport rather than a long page. A previous successfully loaded image remains visible while a replacement loads. Failures retain it, keep appearance controls active, and expose retry.
+
+Verification:
+
+- Full unit/API suite with actual PostgreSQL: 174 files passed, one skipped; 845 assertions passed, four skipped. Additional focused checks passed 37 assertions and compatibility checks passed 22 assertions.
+- PostgreSQL browser suite: 14 initial wallpaper/appearance/draft/upload cases passed; the final 19-case regression passed appearance paints, cancellation/reset, failed-image retention/retry, cross-device follow/effects, account-language isolation, course progress/mobile layout and IME/shortcuts. A final three-case visual check covers the wordmark rendering correction.
+- Production build, TypeScript, emitted Vercel Node ESM import and all four Sites compatibility checks passed.
+- Real upstream traffic, without image mocks: source `7jx5l3` (4819×2711) produced 1280×720, 2560×1440 and 3840×2160 WebP responses. Chromium had Wallhaven domains blocked and made zero direct requests to them. The high-DPI browser displayed the 3840-pixel variant at 1920 CSS pixels.
+- Relay API tests cover proportional sizing/no enlargement, deduplication, corrupt data, unsafe URLs, non-SFW records, disallowed tags, invalid variants and success-only cache headers. Existing SQLite/PostgreSQL upload lifecycle and lossless pixel checks remain passing.
+
+Screenshots: [transparent page](screenshots/2026-11-17-wallpaper-delivery/transparent-page.png), [dark page](screenshots/2026-11-17-wallpaper-delivery/dark-page.png), [mobile controls](screenshots/2026-11-17-wallpaper-delivery/mobile-appearance.png), [live 1K](screenshots/2026-11-17-wallpaper-delivery/live-1k.png), [live 2K](screenshots/2026-11-17-wallpaper-delivery/live-2k.png), [live high DPI](screenshots/2026-11-17-wallpaper-delivery/live-4k-dpr2.png).
+
+No database migration or one-time installation flag is needed for this release. Preview uses the existing isolated schema. No production test accounts or verification mail are needed.

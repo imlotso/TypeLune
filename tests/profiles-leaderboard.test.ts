@@ -1,3 +1,4 @@
+import {defaultSettings} from '../src/lib/models';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -21,7 +22,7 @@ it('normalizes an uploaded avatar, persists privacy across sessions and denies d
  const metadata=await sharp(Buffer.from(save.json().user.avatar.split(',')[1],'base64')).metadata();expect(metadata.width).toBe(192);expect(metadata.height).toBe(192);
  const image=await sharp({create:{width:2,height:2,channels:3,background:'#607080'}}).webp().toBuffer();
  const background=defaultBackground('dark',{image:'data:image/webp;base64,'+image.toString('base64'),name:'private-filename.jpg',width:2,height:2});
- await syncWorkspace(app,alice.headers,[{kind:'background',id:'dark',updatedAt:Date.now(),value:background}]);
+ await syncWorkspace(app,alice.headers,[{kind:'background',id:'dark',updatedAt:Date.now(),value:background},{kind:'settings',id:'preferences',updatedAt:Date.now(),value:{...defaultSettings,wallpaperFollowSite:{dark:false}}}]);
  const publicView=await app.inject('/api/profiles/'+alice.user.id);expect(publicView.statusCode).toBe(200);expect(publicView.json().backgrounds.dark.image).toBe(background.image);
  expect(publicView.body).not.toContain('alice@example.test');expect(publicView.body).not.toContain('password');expect(publicView.body).not.toContain('session');
  const wrong=await app.inject({method:'POST',url:'/api/account/profile',headers:{...bob.headers,'x-workspace-owner':alice.user.id},payload:{displayName:'Alice',avatar:null,profilePublic:false}});expect(wrong.statusCode).toBe(403);
@@ -46,4 +47,11 @@ it('aggregates best published scores across durations, strictness, modes and art
  const legacy=(await app.inject('/api/leaderboard?board=user&language=en&difficulty=beginner&duration=60&mode=timed&strict=false')).json();expect(legacy.entries[0].speed).toBe(35);
  raw.prepare("UPDATE challenges SET ranking_removed=1 WHERE id='a3'").run();expect((await app.inject('/api/leaderboard?board=user&language=en&difficulty=beginner')).json().entries[0].speed).toBe(72);
  expect((await app.inject('/api/leaderboard?board=user&language=en&difficulty=beginner&page=0')).statusCode).toBe(400);
+});
+
+it('public wallpaper defaults follow the shared source until the owner explicitly opts out',async()=>{
+ const alice=await register('alice');const shared=defaultBackground('light',{image:'https://w.wallhaven.cc/full/aa/wallhaven-aaaaaa.jpg',name:'Wallhaven aaaaaa',width:3840,height:2160});
+ raw.prepare('INSERT INTO wallpaper_settings(id,settings,revision) VALUES(1,?,1)').run(JSON.stringify({enabled:true,styles:['nature']}));raw.prepare('INSERT INTO wallpaper_rotation(id,config_revision,slot,background,updated_at) VALUES(1,1,0,?,?)').run(JSON.stringify(shared),Date.now());
+ const response=await app.inject('/api/profiles/'+alice.user.id);expect(response.statusCode).toBe(200);expect(response.json().backgrounds.light.image).toBe(shared.image);expect(response.json().backgrounds.dark.image).toBe(shared.image);
+ await syncWorkspace(app,alice.headers,[{kind:'settings',id:'preferences',updatedAt:Date.now(),value:{...defaultSettings,wallpaperFollowSite:{light:false}}}]);expect((await app.inject({url:'/api/workspace',headers:{...alice.headers,'x-workspace-background-references':'1'}})).statusCode).toBe(426);expect((await app.inject({url:'/api/workspace',headers:{...alice.headers,'x-workspace-background-references':'1','x-workspace-appearance':'2'}})).statusCode).toBe(200);const privateChoice=(await app.inject('/api/profiles/'+alice.user.id)).json();expect(privateChoice.backgrounds.light).toBeUndefined();expect(privateChoice.backgrounds.dark.image).toBe(shared.image);
 });

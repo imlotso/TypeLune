@@ -1,3 +1,4 @@
+import {isSurfaceAppearance,pickSurface,effectiveSurface,type SurfaceAppearance} from './surface-appearance.js';
 import { defaultPace, defaultSettings, sameDraftSnapshot, type ReaderSettings, type SavedPractice, type WorkspaceItem, type WorkspaceKind, type WorkspaceValues } from './models.js';
 import { themeStorageKey } from './theme.js';
 import { isBackgroundConfig, isBackgroundPresentation, backgroundPresentation } from './background.js';
@@ -117,6 +118,8 @@ export function isWorkspaceItem(value: unknown): value is WorkspaceItem {
       (payload.typed === undefined || typeof payload.typed === 'string');
     case 'settings': return Number.isInteger(payload.minutes) && isTheme(payload.theme) && isMode(payload.mode) &&
       (payload.wallpapers === undefined || (isObject(payload.wallpapers) && Object.entries(payload.wallpapers).every(([key, value]) => ['light','dark'].includes(key) && (value === 'off' || isWallpaperStyle(value))))) &&
+      (payload.wallpaperFollowSite===undefined||(isObject(payload.wallpaperFollowSite)&&Object.entries(payload.wallpaperFollowSite).every(([key,value])=>['light','dark'].includes(key)&&typeof value==='boolean'))) &&
+      (payload.surfaceAppearance===undefined||(isObject(payload.surfaceAppearance)&&Object.entries(payload.surfaceAppearance).every(([key,value])=>['light','dark'].includes(key)&&isSurfaceAppearance(value)))) &&
       (payload.wallpaperAdaptive === undefined || (isObject(payload.wallpaperAdaptive) && Object.entries(payload.wallpaperAdaptive).every(([key, value]) => ['light', 'dark'].includes(key) && typeof value === 'boolean'))) &&
       (payload.backgroundPresentation === undefined || (isObject(payload.backgroundPresentation) && Object.entries(payload.backgroundPresentation).every(([key,value])=>['light','dark'].includes(key)&&isBackgroundPresentation(value)))) &&
       (payload.uiLocale === undefined || payload.uiLocale === 'auto' || payload.uiLocale === 'zh' || payload.uiLocale === 'en') &&
@@ -699,9 +702,10 @@ export function importWorkspaceValue(ownerId: string, kind: WorkspaceKind, id: s
 export function wallpaperUpdates(items:WorkspaceItem[],ownerId: string | null, theme: 'light' | 'dark', background: WorkspaceValues['background'] | undefined, automatic: 'off' | WallpaperStyle, adaptive?: boolean, followSite=false,serverTime=estimatedServerTime(ownerId),generation=ownerId?readWorkspaceGeneration(ownerId):null) {
     const settings = workspaceSettings(items);
     const presentation={...settings.backgroundPresentation};if(followSite&&background)presentation[theme]=backgroundPresentation(background);else delete presentation[theme];
+    const surfaces={...settings.surfaceAppearance};if(background)surfaces[theme]=pickSurface(background);else delete surfaces[theme];
     const changes: { kind: 'settings' | 'background'; id: string; value: unknown }[] = [
       { kind: 'background', id: theme, value: followSite?undefined:background },
-      { kind: 'settings', id: 'preferences', value: { ...settings, backgroundPresentation:presentation, wallpapers: { ...settings.wallpapers, [theme]: automatic }, ...(adaptive !== undefined && { wallpaperAdaptive: { ...settings.wallpaperAdaptive, [theme]: adaptive } }) } },
+      { kind: 'settings', id: 'preferences', value: { ...settings, wallpaperFollowSite:{...settings.wallpaperFollowSite,[theme]:followSite},surfaceAppearance:surfaces,backgroundPresentation:presentation, wallpapers: { ...settings.wallpapers, [theme]: automatic }, ...(adaptive !== undefined && { wallpaperAdaptive: { ...settings.wallpaperAdaptive, [theme]: adaptive } }) } },
     ];
     const updates = changes.map(({ kind, id, value }): WorkspaceItem => {
       const old = items.find(item => item.kind === kind && item.id === id);
@@ -716,4 +720,11 @@ export function wallpaperUpdates(items:WorkspaceItem[],ownerId: string | null, t
 /** Persist visitor settings in one local transaction. */
 export function saveWallpaper(ownerId:string|null,theme:'light'|'dark',background:WorkspaceValues['background']|undefined,automatic:'off'|WallpaperStyle,adaptive?:boolean,followSite=false){
   return editWorkspace(ownerId,items=>mergeWorkspaceItems(items,wallpaperUpdates(items,ownerId,theme,background,automatic,adaptive,followSite)),true).then(()=>{});
+}
+
+export function saveSurfaceAppearance(ownerId:string|null,theme:'light'|'dark',patch:SurfaceAppearance){
+  return mutateWorkspaceValue(ownerId,'settings','preferences',(_value,items)=>{
+    const settings=workspaceSettings(items);const current=workspaceValue(items,'background',theme);
+    return {...settings,surfaceAppearance:{...settings.surfaceAppearance,[theme]:{...effectiveSurface(theme,settings.surfaceAppearance?.[theme],current),...patch}}};
+  });
 }

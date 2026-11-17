@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { api } from '../lib/api';
 import { isBackgroundConfig, type BackgroundConfig, type BackgroundTheme } from '../lib/background';
 import { wallpaperRequestTimeoutMs } from '../lib/wallpaper-policy';
@@ -25,5 +25,5 @@ export function useSiteWallpaper(theme: BackgroundTheme, ready: boolean) {
     void refresh();document.addEventListener('visibilitychange',visible);
     return()=>{disposed=true;clearTimeout(timer);controller?.abort();document.removeEventListener('visibilitychange',visible);};
   },[theme,ready]);
-  return background?{...background,shade:theme==='dark'?45:25}:undefined;
+  return useMemo(()=>background?{...background,shade:theme==='dark'?45:25}:undefined,[background,theme]);
 }

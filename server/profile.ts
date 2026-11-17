@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AsyncDatabase } from './database/types.js';
 import type { AccountUser } from './account.js';
-import { isBackgroundConfig } from '../src/lib/background.js';
+import { isBackgroundConfig,type BackgroundConfig } from '../src/lib/background.js';
 
 export function profileValue(raw?: string | null): { avatar: string | null; profilePublic: boolean } {
   if (!raw || ['cloud', 'star', 'moon'].includes(raw)) return { avatar: raw || null, profilePublic: true };
@@ -23,7 +23,7 @@ export async function normalizeAvatar(value: unknown): Promise<string | null> {
   if (buffer.length > 80_000) throw new Error('头像图片过大');
   return 'data:image/webp;base64,' + buffer.toString('base64');
 }
-export function registerPublicProfiles(app: FastifyInstance, db: AsyncDatabase, userFor: (request: FastifyRequest) => Promise<AccountUser | undefined>) {
+export function registerPublicProfiles(app: FastifyInstance, db: AsyncDatabase, userFor: (request: FastifyRequest) => Promise<AccountUser | undefined>,globalBackground?:()=>Promise<BackgroundConfig|null|undefined>) {
   app.get('/api/profiles/:id', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
     const { id } = request.params as { id: string };
@@ -39,6 +39,11 @@ export function registerPublicProfiles(app: FastifyInstance, db: AsyncDatabase, 
       const rows = await db.prepare("SELECT item_id,value FROM workspace_items WHERE user_id=? AND kind='background' AND value IS NOT NULL").all(id) as { item_id: string; value: string }[];
       const backgrounds: Record<string, unknown> = {};
       for (const row of rows) { try { const value = JSON.parse(row.value); if (['light', 'dark'].includes(row.item_id) && isBackgroundConfig(value)) backgrounds[row.item_id] = { ...value, name: 'Wallpaper' }; } catch { /* Invalid legacy items are omitted. */ } }
+      if(globalBackground){
+        const prefs=await db.prepare("SELECT value FROM workspace_items WHERE user_id=? AND kind='settings' AND item_id='preferences'").get(id);
+        let settings:{wallpaperFollowSite?:{light?:boolean;dark?:boolean}}={};try{settings=JSON.parse(prefs?.value??'{}');}catch{}
+        const global=await globalBackground();for(const mode of ['light','dark'] as const)if(settings.wallpaperFollowSite?.[mode]!==false){if(global)backgrounds[mode]={...global,name:'Wallpaper',shade:mode==='dark'?45:25};else delete backgrounds[mode];}
+      }
       return { id: user.id, displayName: user.display_name || user.username, ...profileValue(user.avatar), joinedAt: user.created_at, stats, backgrounds };
     }).immediate();
   });

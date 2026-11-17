@@ -11,6 +11,8 @@ export const defaultPace: PaceSettings = { enabled: false, source: 'custom', cus
 export type PresetReading = { fontSize: number; lineHeight: number; visibleLines: number; showTimer: boolean; showSpeed: boolean; showAccuracy: boolean };
 export type PracticePreset = { id: string; name: string; language: Language; difficulty: Difficulty; mode: PracticeMode; minutes: number; strict: boolean; autoPause: boolean; pace?: PaceSettings; reading?: PresetReading };
 export type ReaderSettings = {
+  wallpaperFollowSite?: {light?:boolean;dark?:boolean};
+  surfaceAppearance?: {light?:import('./surface-appearance.js').SurfaceAppearance;dark?:import('./surface-appearance.js').SurfaceAppearance};
   wallpapers?: { light?: 'off' | import('./wallpaper-policy.js').WallpaperStyle; dark?: 'off' | import('./wallpaper-policy.js').WallpaperStyle };
   wallpaperAdaptive?: { light?: boolean; dark?: boolean };
   backgroundPresentation?: { light?: import('./background.js').BackgroundPresentation; dark?: import('./background.js').BackgroundPresentation };

@@ -1,3 +1,4 @@
+import {wallpaperImageSource} from '../src/lib/wallpaper-image';
 import sharp from 'sharp';
 import { expect, test } from './fixtures';
 
@@ -6,11 +7,12 @@ async function fixture(color: string, day = new Date().toISOString().slice(0, 10
   return { image: 'https://w.wallhaven.cc/full/ab/wallhaven-ab12cd.webp', name: 'Wallhaven test', width: info.width, height: info.height, fit: 'cover', positionX: 50, positionY: 50, blur: 0, shade: 25,
     daily: { id: 'ab12cd', day, kind: 'nature', resolution: '1280x720' } };
 }
-test.beforeEach(async({page})=>{await page.route('https://w.wallhaven.cc/**',route=>route.fulfill({path:'public/assets/lake-default.webp',contentType:'image/webp'}));});
+test.beforeEach(async({page})=>{await page.route('**/api/wallpapers/image/**',route=>route.fulfill({path:'public/assets/lake-default.webp',contentType:'image/webp'}));});
 async function openBackground(page: import('@playwright/test').Page) {
   await page.goto('/');
   await page.getByRole('button', { name: '外观', exact: true }).click();
   await page.getByRole('button', { name: '日间背景图', exact: true }).click();
+  await page.getByRole('checkbox',{name:'跟随全站壁纸刷新',exact:true}).uncheck();
 }
 for (const trigger of ['manual', 'automatic'] as const) {
   test(`a slow daily wallpaper succeeds through the ${trigger} control`, async ({ page }) => {
@@ -26,9 +28,9 @@ for (const trigger of ['manual', 'automatic'] as const) {
     await expect(page.getByRole('link', { name: '图片来源：Wallhaven ↗' })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('alert')).toHaveCount(0);
     await page.getByRole('button', { name: '保存', exact: true }).click();
-    await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', background.image);
+    await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', wallpaperImageSource(background.image));
     await page.reload();
-    await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', background.image);
+    await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', wallpaperImageSource(background.image));
   });
 }
 test('an enabled daily updater retains the old image while a slow next-day image loads', async ({ page }) => {
@@ -44,8 +46,8 @@ test('an enabled daily updater retains the old image while a slow next-day image
   await page.getByRole('checkbox', { name: '每日自动更新壁纸' }).check();
   await expect(page.getByRole('link', { name: '图片来源：Wallhaven ↗' })).toBeVisible();
   await page.getByRole('button', { name: '保存', exact: true }).click();
-  await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', old.image);
-  await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', today.image, { timeout: 20_000 });
+  await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', wallpaperImageSource(old.image));
+  await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', wallpaperImageSource(today.image), { timeout: 20_000 });
   await page.reload();
-  await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', today.image);
+  await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src', wallpaperImageSource(today.image));
 });

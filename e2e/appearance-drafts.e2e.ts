@@ -60,7 +60,7 @@ test('appearance groups themes and backgrounds, retrieves native 4K, changes ima
   const page = await context.newPage();
   try {
     const data = await sharp('public/assets/lake-default.webp').resize(3840, 2160).webp({ quality: 65 }).toBuffer();
-    await page.route('https://w.wallhaven.cc/**',route=>route.fulfill({body:data,contentType:'image/webp'}));
+    await page.route('**/api/wallpapers/image/**',route=>route.fulfill({body:data,contentType:'image/webp'}));
     const queries: URLSearchParams[] = []; const ids = ['aaaaaa', 'bbbbbb', 'cccccc'];
     await page.route('**/api/wallpapers/daily?*', async route => {
       const query = new URL(route.request().url()).searchParams; queries.push(query);
@@ -78,6 +78,7 @@ test('appearance groups themes and backgrounds, retrieves native 4K, changes ima
     await expect(page.getByRole('button', { name: '上传图片', exact: true })).toBeVisible();
     await expect(page.getByRole('checkbox', { name: '显示器自适应', exact: false })).toBeChecked();
     await expect(page.getByText('3840 × 2160', { exact: true })).toBeVisible();
+    await page.getByRole('checkbox',{name:'跟随全站壁纸刷新',exact:true}).uncheck();
     await page.getByRole('button', { name: '获取今日壁纸', exact: true }).click();
     await expect(page.getByRole('link', { name: '图片来源：Wallhaven ↗' })).toHaveAttribute('href', 'https://wallhaven.cc/w/aaaaaa');
     await page.getByRole('button', { name: '换一张', exact: true }).click();
