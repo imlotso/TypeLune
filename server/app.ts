@@ -6,6 +6,11 @@ import seoPages from '../src/data/seo.json' with { type: 'json' };
 import { createSupportSettings, registerSupportAdminRoutes, registerSupportPublicRoutes } from './support-settings.js';
 import { profileValue, registerPublicProfiles } from './profile.js';
 import { registerWallpapers } from './wallpapers.js';
+import { createSiteWallpapers, registerSiteWallpaperAdmin, registerSiteWallpaperPublic } from './site-wallpapers.js';
+import { createBackgroundFiles, registerBackgroundFiles, BackgroundFileError } from './background-files.js';
+import { backgroundFileId } from '../src/lib/background.js';
+import { isWallhavenImageUrl } from '../src/lib/wallpaper-policy.js';
+import type { WorkspaceItem } from '../src/lib/models.js';
 import { registerHistoryDeletion } from './history-delete.js';
 import { createScoreStatus } from './score-status.js';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
@@ -250,6 +255,8 @@ export async function createApp(options: AppOptions) {
   const seoSettings = await createSeoSettings(db, audit, options.seoOrigin ?? process.env.VITE_SITE_URL ?? '');
   const seoRenderer = await createSeoRenderer({ store: seoSettings, db, catalog, templatePath: options.htmlTemplatePath ?? (options.staticRoot ? `${options.staticRoot}/app.html` : undefined), preview: options.seoPreview ?? process.env.VERCEL_ENV === 'preview' });
   const supportSettings = await createSupportSettings(db, audit);
+  const siteWallpapers = await createSiteWallpapers(db, audit, now);
+  const backgroundFiles = await createBackgroundFiles(db, now);
   const scoreStatus = await createScoreStatus(db, now, async () => (await siteSettings.read()).settings.leaderboardDisplayDays);
   const smtp = await createSmtpSettings(db, { codeSecret: options.codeSecret, deployment: options.smtp, fallbackMailer: options.mailer, delivery: options.smtpDelivery, now });
   if (db.dialect === 'postgres') await smtp.assertStoredSecret();
@@ -304,6 +311,7 @@ export async function createApp(options: AppOptions) {
   const accountMatches = (request: FastifyRequest, user: User) =>
     expectedAccount(request) === undefined || expectedAccount(request) === user.id;
   registerPublicProfiles(app, db, userFor);
+  registerBackgroundFiles(app,{db,store:backgroundFiles,userFor,accountMatches});
   registerWallpapers(app);
   const publicUser = (user: User) => ({ id: user.id, username: user.username, email: user.email, isAdmin: user.role === 'admin', displayName: user.display_name || user.username, ...profileValue(user.avatar) });
   const clearAccountSession = (request: FastifyRequest, reply: FastifyReply) => {
@@ -387,6 +395,7 @@ export async function createApp(options: AppOptions) {
     registerSiteSettingsRoutes(admin, siteSettings);
     registerSeoAdminRoutes(admin, seoSettings);
     registerSupportAdminRoutes(admin, supportSettings);
+    registerSiteWallpaperAdmin(admin, siteWallpapers);
     smtp.register(admin, audit, async (request) => {
       const current = (await userFor(request));
       if (!current || current.role !== 'admin' || current.id !== request.admin.id || current.auth_version !== request.admin.authVersion) {
@@ -396,6 +405,7 @@ export async function createApp(options: AppOptions) {
   }, { prefix: '/api/admin' });
 
   registerSeoPublicSettings(app, seoSettings, options.seoPreview ?? process.env.VERCEL_ENV === 'preview');
+  registerSiteWallpaperPublic(app, siteWallpapers);
   registerSeoPageRoutes(app, seoRenderer);
 
   app.get('/api/health', async () => ({ ok: true }));
@@ -556,10 +566,19 @@ export async function createApp(options: AppOptions) {
   const pagedWorkspace = (request: FastifyRequest) =>
     (request.query as { paged?: string }).paged === '1' || request.headers['x-workspace-paged'] === '1';
 
+  const isReferenceImage = (value: unknown) => !!value && typeof value==='object' && (isWallhavenImageUrl((value as {image?:unknown}).image)||!!backgroundFileId((value as {image?:unknown}).image));
+  const backgroundClientNeedsUpdate = async(request:FastifyRequest,owner:string,incoming:WorkspaceItem[]=[]) => {
+    if(request.headers['x-workspace-background-references']==='1')return false;
+    if(incoming.some(item=>item.kind==='background'&&!item.deleted&&isReferenceImage(item.value)))return true;
+    const rows=await db.prepare("SELECT value FROM workspace_items WHERE user_id=? AND kind='background' AND value IS NOT NULL").all(owner);
+    return rows.some(row=>{try{return isReferenceImage(JSON.parse(row.value));}catch{return false;}});
+  };
+
   app.get('/api/workspace', async (request, reply) => {
     const user = (await userFor(request));
     if (!user) return invalid(reply, '请先登录', 401);
     if (!accountMatches(request, user)) return invalid(reply, '登录账号已变更', 403);
+    if(await backgroundClientNeedsUpdate(request,user.id))return reply.code(426).send({error:'背景存储格式已更新，请刷新页面后继续',code:'SYNC_CLIENT_UPDATE_REQUIRED'});
     reply.header('Cache-Control', 'no-store');
     if (pagedWorkspace(request)) {
       const rawCursor = (request.query as { cursor?: unknown }).cursor ?? request.headers['x-workspace-cursor'];
@@ -603,12 +622,19 @@ export async function createApp(options: AppOptions) {
     const items = validateWorkspaceItems(body.items, user.id, serverTime);
     if (!items || items.some((item) => item.baseRevision === undefined) || typeof body.generation !== 'number' || !Number.isSafeInteger(body.generation) || body.generation < 1) return invalid(reply, '同步数据无效');
     const requestedGeneration = body.generation;
+    if(await backgroundClientNeedsUpdate(request,user.id,items))return reply.code(426).send({error:'背景存储格式已更新，请刷新页面后继续',code:'SYNC_CLIENT_UPDATE_REQUIRED'});
     try {
       const saved = await db.transaction(async () => {
         const current = await userFor(request);
         if (!current || current.id !== user.id || current.auth_version !== user.auth_version) return null;
         const capability = request.headers['x-workspace-capabilities'];
+        const touchesBackground=items.some(item=>item.kind==='background');
+        const filesAvailable=touchesBackground&&await backgroundFiles.available();
+        if(!filesAvailable&&items.some(item=>item.kind==='background'&&!item.deleted&&!!backgroundFileId((item.value as {image?:unknown})?.image)))throw new BackgroundFileError('背景图片存储尚未安装',503);
+        const previousFiles=filesAvailable?await backgroundFiles.references(user.id):new Set<string>();
+        if(filesAvailable)await backgroundFiles.validateReferences(user.id,items);
         await workspace.merge(user.id, requestedGeneration, items, typeof capability === 'string' ? capability : undefined);
+        if(filesAvailable)await backgroundFiles.deleteReplaced(user.id,previousFiles);
         if (!pagedWorkspace(request)) return { response: await workspaceResponse(request, user.id, serverTime) };
         const known = request.headers['x-workspace-backgrounds'];
         return { background: await workspace.backgroundState(user.id, typeof known === 'string' ? known : undefined) };
@@ -619,6 +645,7 @@ export async function createApp(options: AppOptions) {
       return { acknowledged: true, items: [], serverTime, protocol: 2, generation: requestedGeneration, ...saved.background };
     }
     catch (error) {
+      if (error instanceof BackgroundFileError) return invalid(reply,error.message,error.status);
       if (error instanceof WorkspaceLimitError) return invalid(reply, '同步空间已满', 413);
       if (error instanceof WorkspaceGenerationError) return reply.code(409).send({ error: '云端资料已整理，请先导出本机资料并重新同步', code: 'SYNC_RESYNC_REQUIRED' });
       if (error instanceof WorkspaceClientUpdateRequiredError) return reply.code(426).send({ error: '同步版本过旧，请更新页面后重试；更新前可先导出本机资料', code: 'SYNC_CLIENT_UPDATE_REQUIRED' });

@@ -12,7 +12,7 @@ export async function fetchWorkspace(owner: string, options: { signal?: AbortSig
   const seenCursors = new Set<string>(); const seenItems = new Set<string>(); const collected: WorkspaceItem[] = [];
   do {
     const headers: Record<string, string> = { 'X-Workspace-Owner': owner, 'X-Workspace-Backgrounds': known?.version ?? 'initial',
-      'X-Workspace-Protocol': '2', 'X-Workspace-Capabilities': 'local-conflict-v2', 'X-Workspace-Paged': '1' };
+      'X-Workspace-Protocol': '2', 'X-Workspace-Capabilities': 'local-conflict-v2', 'X-Workspace-Paged': '1', 'X-Workspace-Background-References': '1' };
     if (cursor) headers['X-Workspace-Cursor'] = cursor;
     const data = await api<WorkspaceResponse>(items === undefined ? '/api/workspace' : '/api/workspace/sync', {
       method: items === undefined ? 'GET' : 'POST', timeoutMs: 60_000,

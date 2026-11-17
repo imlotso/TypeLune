@@ -41,8 +41,12 @@
 .background-editor-actions .primary-button, .background-editor-actions .outline-button { padding: 10px 20px; min-height: 42px; }
 .room.room-custom { background-image: none; }
 .custom-background { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; background: #f8f4fc; }
-.room-custom .workspace::before { content: ''; position: absolute; z-index: -1; inset: 20px -18px 125px; border-radius: 24px; background: rgba(253,251,253,.92); }
-[data-theme='dark'] .room-custom .workspace::before { background: rgba(26,29,48,.95); }
+.room-custom .workspace::before { content: ''; position: absolute; z-index: -1; inset: 20px -18px 125px; border-radius: 24px; background: rgba(253,251,253,var(--wallpaper-workspace-opacity,.92)); }
+[data-theme='dark'] .room-custom .workspace::before { background: rgba(26,29,48,var(--wallpaper-workspace-opacity,.95)); }
+.room-custom .typing-panel, .room-custom .content-panel, .room-custom .course-content { background: rgba(253,251,253,var(--wallpaper-panel-opacity,.97)); backdrop-filter: blur(var(--wallpaper-panel-blur,0px)); border-color: color-mix(in srgb,var(--typing-border) var(--wallpaper-border-opacity,100%),transparent); }
+[data-theme='dark'] .room-custom .typing-panel, [data-theme='dark'] .room-custom .content-panel, [data-theme='dark'] .room-custom .course-content { background: rgba(26,29,48,var(--wallpaper-panel-opacity,.95)); }
+.background-surface-controls { border-top: 1px solid var(--typing-border); padding-top: 16px; }
+.background-surface-controls .settings-range { grid-template-columns: 86px minmax(0,1fr) 38px; }
 @media (max-width: 600px) {
   .background-dialog { padding: 20px 18px; }
   .background-preview { height: 160px; }

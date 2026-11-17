@@ -1,6 +1,6 @@
 import { api } from './api';
 import { isBackgroundConfig, type BackgroundConfig, type BackgroundTheme } from './background';
-import { wallpaperRequestTimeoutMs } from './wallpaper-policy';
+import { wallpaperRequestTimeoutMs, type WallpaperStyle } from './wallpaper-policy';
 
 export type WallpaperDisplay = { width: number; height: number };
 
@@ -12,10 +12,11 @@ export function wallpaperDisplay(): WallpaperDisplay {
   return { width: Math.max(320, Math.floor(width * scale)), height: Math.max(320, Math.floor(height * scale)) };
 }
 
-export async function fetchDailyWallpaper(kind: 'nature' | 'portrait', theme: BackgroundTheme, signal?: AbortSignal, options?: { display?: WallpaperDisplay; exclude?: string[] }): Promise<BackgroundConfig> {
+export async function fetchDailyWallpaper(kind: WallpaperStyle, theme: BackgroundTheme, signal?: AbortSignal, options?: { display?: WallpaperDisplay; exclude?: string[]; id?: string }): Promise<BackgroundConfig> {
   const query = new URLSearchParams({ kind, theme });
   if (options?.display) { query.set('width', String(options.display.width)); query.set('height', String(options.display.height)); }
   if (options?.exclude?.length) query.set('exclude', [...new Set(options.exclude)].slice(0, 12).join(','));
+  if (options?.id) query.set('id', options.id);
   const result = await api<{ background: BackgroundConfig }>('/api/wallpapers/daily?' + query, { signal, timeoutMs: wallpaperRequestTimeoutMs });
   if (!isBackgroundConfig(result.background)) throw new Error('壁纸数据无效');
   return result.background;

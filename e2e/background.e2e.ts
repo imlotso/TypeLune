@@ -114,7 +114,7 @@ test('syncs the image and reset across independent accounts/devices without shar
   const username = 'bg' + Date.now().toString(36);
   await register(page, username);
   await editor(page); await upload(page); await save(page);
-  await expect.poll(async () => (await (await page.request.get('/api/workspace')).json()).items.some((item: { kind: string; deleted?: boolean }) => item.kind === 'background' && !item.deleted)).toBe(true);
+  await expect.poll(async () => (await (await page.request.get('/api/workspace',{headers:{'X-Workspace-Background-References':'1'}})).json()).items.some((item: { kind: string; deleted?: boolean }) => item.kind === 'background' && !item.deleted)).toBe(true);
   await page.getByRole('button', { name: '文章库', exact: true }).click();
   const ordinarySync = page.waitForResponse((response) => response.url().endsWith('/api/workspace/sync') && response.request().postData()?.includes('favorite') === true);
   await page.getByRole('button', { name: '收藏《背影》' }).click();
@@ -129,7 +129,7 @@ test('syncs the image and reset across independent accounts/devices without shar
     await second.goto('/');
     await expect(second.getByTestId('custom-background-image')).toBeVisible();
     await editor(second); await second.getByRole('button', { name: '恢复默认', exact: true }).click(); await save(second);
-    await expect.poll(async () => (await (await second.request.get('/api/workspace')).json()).items.some((item: { kind: string; deleted?: boolean }) => item.kind === 'background' && item.deleted)).toBe(true);
+    await expect.poll(async () => (await (await second.request.get('/api/workspace',{headers:{'X-Workspace-Background-References':'1'}})).json()).items.some((item: { kind: string; deleted?: boolean }) => item.kind === 'background' && item.deleted)).toBe(true);
     await page.reload(); await expect(page.getByTestId('custom-background-image')).toHaveCount(0);
     await editor(page); await upload(page); await save(page);
     await page.getByRole('button', { name: username, exact: true }).click();

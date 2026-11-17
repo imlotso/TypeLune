@@ -60,11 +60,12 @@ test('appearance groups themes and backgrounds, retrieves native 4K, changes ima
   const page = await context.newPage();
   try {
     const data = await sharp('public/assets/lake-default.webp').resize(3840, 2160).webp({ quality: 65 }).toBuffer();
+    await page.route('https://w.wallhaven.cc/**',route=>route.fulfill({body:data,contentType:'image/webp'}));
     const queries: URLSearchParams[] = []; const ids = ['aaaaaa', 'bbbbbb', 'cccccc'];
     await page.route('**/api/wallpapers/daily?*', async route => {
       const query = new URL(route.request().url()).searchParams; queries.push(query);
       const id = ids[Math.min(queries.length - 1, 2)];
-      await route.fulfill({ json: { background: { image: 'data:image/webp;base64,' + data.toString('base64'), name: 'Wallhaven ' + id, width: 3840, height: 2160, fit: 'cover', positionX: 50, positionY: 50, blur: 0, shade: 25, daily: { id, day: new Date().toISOString().slice(0, 10), kind: 'nature', ...(query.has('width') && { resolution: query.get('width') + 'x' + query.get('height') }) } } } });
+      await route.fulfill({ json: { background: { image: `https://w.wallhaven.cc/full/${id.slice(0,2)}/wallhaven-${id}.webp`, name: 'Wallhaven ' + id, width: 3840, height: 2160, fit: 'cover', positionX: 50, positionY: 50, blur: 0, shade: 25, daily: { id, day: new Date().toISOString().slice(0, 10), kind: 'nature', ...(query.has('width') && { resolution: query.get('width') + 'x' + query.get('height') }) } } } });
     });
     await page.goto('/');
     await page.getByRole('button', { name: '外观', exact: true }).click();

@@ -76,6 +76,8 @@ suite('PostgreSQL migration and SQLite import', () => {
     sqlite.prepare('INSERT INTO feedback_attachments(id,feedback_id,name,bytes) VALUES (?,?,?,?)').run('attachment-test', 'feedback-test', 'image.webp', Buffer.from([0, 1, 2, 255]));
     sqlite.prepare(`INSERT INTO feedback_upload_chunks(user_id,request_id,file_index,chunk_index,chunk_count,name,mime,total_bytes,digest,bytes,created_at)
       VALUES ('u1','upload-test',0,0,1,'pending.png','image/png',4,?,?,1)`).run('a'.repeat(64), Buffer.from([4, 5, 6, 255]));
+    sqlite.prepare('INSERT INTO wallpaper_settings(id,settings,revision) VALUES(1,?,1)').run(JSON.stringify({enabled:true,styles:['nature','forest']}));
+    sqlite.prepare('INSERT INTO background_files(id,user_id,name,mime,width,height,digest,bytes,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run('00000000-0000-4000-8000-000000000001','u1','lossless.webp','image/webp',1,1,'a'.repeat(64),Buffer.from([0,1,2,255]),1);
     sqlite.prepare('INSERT INTO retired_attempts(id) VALUES (?)').run('retired-test');
     const key = createHmac('sha256', 'x'.repeat(32)).update('dazi.smtp.credentials.v1').digest();
     const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', key, iv);
@@ -137,6 +139,9 @@ suite('PostgreSQL migration and SQLite import', () => {
     consistent.prepare("DELETE FROM workspace_deleted_records WHERE user_id='u1' AND record_id='inconsistent'").run();
     consistent.close();
     const result = await importSqlite(client, path, target);
+    expect(result.counts.wallpaper_settings).toBe(1);
+    expect(result.counts.background_files).toBe(1);
+    expect((await client.query("SELECT encode(bytes,'hex') AS bytes FROM background_files")).rows[0].bytes).toBe('000102ff');
     expect(result.counts.seo_settings).toBe(1);
     expect((await client.query('SELECT settings,revision FROM seo_settings')).rows[0]).toEqual({settings:JSON.stringify(defaultSeoSettings('https://roundtrip.example')),revision:'5'});
     expect(result.counts.support_settings).toBe(1);

@@ -2,6 +2,7 @@ import { existsSync, linkSync, openSync, closeSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
+import {wallpaperTables} from '../wallpaper-schema.js';
 import type { Client } from 'pg';
 import { createApp } from '../app.js';
 import { decodeEmail } from '../database/email.js';
@@ -16,7 +17,7 @@ function normalized(row: Row, columns: Column[], table: string, postgres: boolea
   return columns.map((column) => {
     const raw = row[column.name];
     const value = table === 'workspace_legacy_record_aliases' && column.name === 'source_id' && raw === '\0local-conflict' ? ''
-      : (table === 'feedback_attachments' || table === 'feedback_upload_chunks') && column.name === 'bytes' && Buffer.isBuffer(raw) ? { bytes: raw.toString('base64') }
+      : (['feedback_attachments','feedback_upload_chunks','background_files','background_upload_chunks'].includes(table)) && column.name === 'bytes' && Buffer.isBuffer(raw) ? { bytes: raw.toString('base64') }
       : postgres && table === 'challenges' && column.name === 'typed' && Buffer.isBuffer(raw) ? raw.toString('utf8')
       : postgres && (table === 'users' || table === 'email_codes') && column.name === 'email' && typeof raw === 'string' ? decodeEmail(raw) : raw;
     if (value === null) return null;
@@ -55,7 +56,7 @@ export async function exportSqlite(client: Client, destination: string, target: 
     const version = await client.query<{ version: number; checksum: string }>('SELECT version,checksum FROM dazi_schema_migrations ORDER BY version');
     if (!schemaMatches(version.rows)) throw new Error('Unsupported PostgreSQL schema version');
     const extensions: string[] = [];
-    for (const table of ['support_settings', 'seo_settings']) {
+    for (const table of ['support_settings', 'seo_settings',...wallpaperTables]) {
       if ((await client.query('SELECT to_regclass($1) AS name', [table])).rows[0]?.name) extensions.push(table);
     }
     const dataTables = [...baseDataTables, ...extensions];
