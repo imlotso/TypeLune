@@ -4,6 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
 COPY package*.json ./
 RUN npm ci
 COPY . .
+ARG VITE_SITE_URL=""
 ARG VITE_SITE_OPERATOR=""
 ARG VITE_SITE_CONTACT_EMAIL=""
 ARG VITE_PRIVACY_VERSION=""
@@ -22,6 +23,7 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/scripts/backup.mjs /app/scripts/bootstrap-admin.mjs ./scripts/
 COPY --from=build --chown=node:node /app/build-operator/postgres-database.mjs ./scripts/postgres-database.mjs
 COPY --from=build --chown=node:node /app/server/postgres/support-settings.sql ./server/postgres/support-settings.sql
+COPY --from=build --chown=node:node /app/server/postgres/seo-settings.sql ./server/postgres/seo-settings.sql
 USER node
 EXPOSE 3001
 CMD ["node", "dist/server/app.js"]

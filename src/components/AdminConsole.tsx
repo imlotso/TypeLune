@@ -1,3 +1,4 @@
+import { SeoSettingsPanel } from './admin/SeoSettingsPanel';
 import { SupportSettingsPanel } from './admin/SupportSettingsPanel';
 import { SystemMessage } from './SystemMessage';
 import { useAdminText } from './admin/i18n';
@@ -17,7 +18,7 @@ import {
 import '../admin.css';
 
 const tabs = [
-  ['overview', '概览'], ['users', '用户'], ['articles', '文章'], ['scores', '成绩'], ['feedback', '反馈'], ['settings', '站点设置'], ['support', '捐赠设置'], ['mail', '邮件'], ['audit', '操作日志'],
+  ['overview', '概览'], ['users', '用户'], ['articles', '文章'], ['scores', '成绩'], ['feedback', '反馈'], ['settings', '站点设置'], ['seo', 'SEO'], ['support', '捐赠设置'], ['mail', '邮件'], ['audit', '操作日志'],
 ] as const;
 const labels = {
   users: '注册账号', disabledUsers: '已停用账号', admins: '在任管理员', activeUsers7d: '近 7 天练习账号',
@@ -66,6 +67,7 @@ export function AdminConsole({ ownerId, onCatalogChange }: AdminProps & { onCata
       {tab === 'articles' && <ArticlesPanel ownerId={ownerId} onCatalogChange={onCatalogChange} initialArticleId={articleFromFeedback} onInitialClose={() => setArticleFromFeedback(undefined)} />}
       {tab === 'scores' && <ScoresPanel ownerId={ownerId} />}
       {tab === 'feedback' && <FeedbackPanel ownerId={ownerId} onArticle={(id) => { setArticleFromFeedback(id); setTab('articles'); }} />}
+      {tab === 'seo' && <SeoSettingsPanel ownerId={ownerId} />}
       {tab === 'settings' && <SiteSettingsPanel ownerId={ownerId} />}
       {tab === 'support' && <SupportSettingsPanel ownerId={ownerId} />}
       {tab === 'mail' && <SmtpPanel ownerId={ownerId} />}

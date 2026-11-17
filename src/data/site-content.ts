@@ -14,14 +14,15 @@ const publicDefaults = {
   operator: 'www.sitetalk.net', contactEmail: 'admin@imlotso.com',
   privacyVersion: '1.0', privacyEffectiveDate: '2026-11-15', termsVersion: '1.0', termsEffectiveDate: '2026-11-15',
 };
-const email = configured(import.meta.env.VITE_SITE_CONTACT_EMAIL) || publicDefaults.contactEmail;
+const publicEnv = import.meta.env ?? (typeof process !== 'undefined' ? process.env : {});
+const email = configured(publicEnv.VITE_SITE_CONTACT_EMAIL) || publicDefaults.contactEmail;
 export const siteInfo = {
-  operator: configured(import.meta.env.VITE_SITE_OPERATOR) || publicDefaults.operator,
+  operator: configured(publicEnv.VITE_SITE_OPERATOR) || publicDefaults.operator,
   contactEmail: /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email) ? email : '',
-  privacyVersion: configured(import.meta.env.VITE_PRIVACY_VERSION) || publicDefaults.privacyVersion,
-  privacyEffectiveDate: date(import.meta.env.VITE_PRIVACY_EFFECTIVE_DATE || publicDefaults.privacyEffectiveDate),
-  termsVersion: configured(import.meta.env.VITE_TERMS_VERSION) || publicDefaults.termsVersion,
-  termsEffectiveDate: date(import.meta.env.VITE_TERMS_EFFECTIVE_DATE || publicDefaults.termsEffectiveDate),
+  privacyVersion: configured(publicEnv.VITE_PRIVACY_VERSION) || publicDefaults.privacyVersion,
+  privacyEffectiveDate: date(publicEnv.VITE_PRIVACY_EFFECTIVE_DATE || publicDefaults.privacyEffectiveDate),
+  termsVersion: configured(publicEnv.VITE_TERMS_VERSION) || publicDefaults.termsVersion,
+  termsEffectiveDate: date(publicEnv.VITE_TERMS_EFFECTIVE_DATE || publicDefaults.termsEffectiveDate),
 };
 
 export const helpSections = [

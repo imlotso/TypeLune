@@ -12,7 +12,8 @@
 | `postgres:18.7` | 本候选固定的官方 PostgreSQL 18 镜像，不使用 19 预览版；PostgreSQL 不称为 LTS |
 | `postgres_data:/var/lib/postgresql` | 数据库持久卷，默认实际名称带 Compose 项目前缀 |
 | `caddy_data` / `caddy_config` | HTTPS 证书及代理配置持久卷，不是数据库备份 |
-| `Dockerfile` | 沿用 Node 26 镜像，包含 `scripts/postgres-database.mjs` 操作器及 support SQL；Vercel 继续用 Node 22 |
+| `Dockerfile` | 沿用 Node 26 镜像，包含 `scripts/postgres-database.mjs` 操作器及 support/SEO SQL；Vercel 继续用 Node 22 |
+| `server/postgres/seo-settings.sql` | 独立、可选的 SEO 配置表；显式安装，不改既有运行设置或迁移校验值 |
 | `server/postgres/support-settings.sql` | 独立、可选的二维码配置表，不修改既有 schema 1/2 校验值 |
 
 官方 PostgreSQL 18 镜像的卷挂载点为 `/var/lib/postgresql`，默认 `PGDATA` 为 `/var/lib/postgresql/18/docker`，与 17 及更早镜像不同。不要直接套用旧镜像的挂载目录。[官方镜像说明](https://hub.docker.com/_/postgres)
@@ -72,18 +73,21 @@ pgc exec -T postgres pg_isready -U typelune -d typelune
 pgc --profile setup run --rm db-init
 ```
 
-`db-init` 按顺序显式运行 `migrate`、`support`、`seed`。操作器核对主机、数据库与 schema，确认目标为 `postgres/typelune/public`；应用启动不静默迁移 PostgreSQL。`seed` 只允许空文章库，所以**整个 `db-init` 不是可以在已有站点反复执行的升级命令**。初始化中断后先检查实际状态，不删除数据、不盲目重试种子步骤。
+`db-init` 按顺序显式运行 `migrate`、`support`、`seo`、`seed`。操作器核对主机、数据库与 schema，确认目标为 `postgres/typelune/public`；应用启动不静默迁移 PostgreSQL。`seed` 只允许空文章库，所以**整个 `db-init` 不是可以在已有站点反复执行的升级命令**。初始化中断后先检查实际状态，不删除数据、不盲目重试种子步骤。
 
-如需导入旧 SQLite 数据，应在迁移及 support 建表后使用 `import` 操作，而不是先 `seed`；保持目标无应用写入，包括健康检查。导入要求目标为空，旧源没有 support 表也不能覆盖目标已有的支持配置。目标检查与回滚细节见 [PostgreSQL 操作说明](vercel-neon.md)。
+如需导入旧 SQLite 数据，应在迁移及 support/SEO 建表后使用 `import` 操作，而不是先 `seed`；保持目标无应用写入，包括健康检查。导入要求目标为空，旧源没有 support 表也不能覆盖目标已有的支持配置。目标检查与回滚细节见 [PostgreSQL 操作说明](vercel-neon.md)。
 
 已有 PostgreSQL 站点升级本轮支持入口时，先按下节备份并验证恢复，再在批准的维护范围单独执行：
 
 ```bash
 pgc --profile setup build app db-init
 pgc --profile setup run --rm db-init node scripts/postgres-database.mjs support
+pgc --profile setup run --rm db-init node scripts/postgres-database.mjs seo
 ```
 
 `support` 只做独立表的 `CREATE TABLE IF NOT EXISTS`，可重复执行；不清空设置、不改旧迁移校验值。若尚未安装，公开支持入口隐藏，后台支持设置返回 503，其余功能继续可用。`migrate` 只在版本确实需要且已核验目标时单独执行，已有数据不要运行 `seed`。
+
+`seo` 显式添加独立的 `seo_settings` 表，不向旧 `site_settings` JSON 添加字段。可重复执行，安装后刷新后台 SEO 栏目即可使用；未安装时网站继续使用公开部署默认值，后台写入返回 `503 / SEO_STORAGE_NOT_READY`，应用启动不自动建 PostgreSQL 表。通过后台配置正式域名、双语元数据、Logo/favicon/分享图、索引与 sitemap；首次安装前的 canonical 域名可由构建参数 `VITE_SITE_URL` 提供。旧应用可以保留并忽略独立表，避免回滚破坏运行设置。
 
 需要首位管理员时，使用同一个 PostgreSQL 操作器；密码走标准输入，命令拒绝覆盖已有账号或已有管理员：
 
@@ -103,7 +107,7 @@ unset admin_password
 
 1. 确认项目、数据库及目标卷。变更或恢复前先为**当前状态**另存备份，不覆盖旧备份。生产切换还需停写或维护窗口，确认没有其他应用/脚本写入；普通 `pg_dump` 是一致性时间点快照，不代表备份之后的新写入也已保存。
 2. 用与服务器相同主版本、最好同一小版本的工具。本示例直接使用 `postgres:18.7` 数据库容器内的工具。不要用旧主版本 `pg_dump` 导出新主版本服务器，也不保证新版本导出可恢复到更旧的主版本；跨主版本升级需单独演练，不能直接把 PG18 数据目录交给别的主版本启动。[pg_dump 版本说明](https://www.postgresql.org/docs/18/app-pgdump.html)
-3. 采用完整单库逻辑备份，包含 `support_settings`、私人空间、账号、SMTP 密文、审计记录和序列，不按旧表名单过滤。它不包含集群级角色/表空间、部署环境文件或 `CODE_SECRET`，这些须另行安全保存。本例不保留原对象属主和 ACL，恢复后须重新核验授权。
+3. 采用完整单库逻辑备份，包含 `support_settings`、`seo_settings`、私人空间、账号、SMTP 密文、审计记录和序列，不按旧表名单过滤。它不包含集群级角色/表空间、部署环境文件或 `CODE_SECRET`，这些须另行安全保存。本例不保留原对象属主和 ACL，恢复后须重新核验授权。
 
 下列命令创建新的私密备份目录，不使用 PowerShell 文本重定向处理二进制归档。先核实第一条查询的输出，再继续：
 
@@ -157,11 +161,11 @@ pgr exec -T postgres pg_restore -U typelune -d typelune \
 
 任一检查不通过立即停止，保留源、备份与目标用于调查。**不要在恢复前跑 `db-init`/`seed`，不要添加 `--clean` 来强行覆盖非空目标，也不要删除源卷后恢复。** 单事务恢复在失败时回滚本次 SQL，不意味着可以略过目标核验。[pg_restore 单事务选项](https://www.postgresql.org/docs/18/app-pgrestore.html)
 
-恢复后比较迁移版本/校验值、逐表数量与关键记录、序列及权限，特别核对 `support_settings` 的存在、revision、开关和实际二维码图片。用隔离应用验证登录、私人空间、练习记录和支持入口，并以原 `CODE_SECRET` 验证 SMTP 密文可读；这不代表邮件真实送达。容器重启与**删除后重建容器但复用原卷**也需验证。全部通过、完成切换前最后一次备份、确认停写和另获上线授权后，才讨论将流量切到新目标。
+恢复后比较迁移版本/校验值、逐表数量与关键记录、序列及权限，特别核对 `seo_settings` 的 revision、双语标题、图片及 sitemap 配置，并核对 `support_settings` 的存在、revision、开关和实际二维码图片。用隔离应用验证登录、私人空间、练习记录和支持入口，并以原 `CODE_SECRET` 验证 SMTP 密文可读；这不代表邮件真实送达。容器重启与**删除后重建容器但复用原卷**也需验证。全部通过、完成切换前最后一次备份、确认停写和另获上线授权后，才讨论将流量切到新目标。
 
 ## 回滚与验收差异
 
-- 应用回滚不等于数据库时间回退。旧兼容应用可以忽略独立 `support_settings`，无需删表；先核验实际目标版本的兼容性，保留新版本已接收的写入。
+- 应用回滚不等于数据库时间回退。旧兼容应用可以忽略独立 `support_settings` 与 `seo_settings`，无需删表；先核验实际目标版本的兼容性，保留新版本已接收的写入。
 - 不把旧快照覆盖到正在使用的数据库。若数据库已接受新数据，先停写、备份并确定数据保全方案，再切换；SQLite 往返导入/导出是另外的受保护操作，不代替 PostgreSQL 灾备。
 - 后端分支真实 PG18.7 测试为 130 文件 / 634 项；最终集成候选 `143b9bb` 的真实 PG + SQLite 共 142 文件 / 680 项，全部通过。Node 22.23.5 的 Vercel 专项另有 14 项通过。完整 Chrome 130 项在临时 SQLite 上通过，不声称它们本轮全部在 PG 上重跑。
 - Docker + PG 的待验收命令：先 `docker build -t dazi-ci:local .`，再 `DAZI_TEST_IMAGE=dazi-ci:local npm run test:docker:postgres`。该脚本使用唯一测试容器/卷/网络，测试初始化、登录、二维码权限和重启持久化，最后只清理其自己创建的测试资源；**它不覆盖 Compose/Caddy、容器替换或本页备份恢复流程**。

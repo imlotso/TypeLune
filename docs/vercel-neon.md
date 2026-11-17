@@ -36,6 +36,8 @@ export DAZI_CONFIRM_TARGET="$DAZI_DATABASE_HOST/$DAZI_DATABASE_NAME/$DAZI_DATABA
 npm run db:postgres -- migrate
 # 本轮收款码配置使用独立、可选的表；必须显式安装，不随冷启动建表。
 npm run db:postgres -- support
+# SEO 配置同样使用独立可选表，不改既有 site_settings JSON。
+npm run db:postgres -- seo
 # 全新空库二选一：载入内置文章，或导入经过核验的 SQLite 快照。
 npm run db:postgres -- seed
 # npm run db:postgres -- import /安全路径/源快照.sqlite
@@ -44,6 +46,10 @@ npm run db:postgres -- seed
 `migrate` 只接受明确确认的空 schema 或相同版本的已初始化 schema；`seed` 要求文章表为空。`import` 要求整个目标及限流表为空，在事务中核验源库完整性、表结构、逐表内容和审计序列，不支持的源结构会拒绝导入。先停止指向目标库的应用，包括健康检查：任何访问都可能生成限流记录，使导入拒绝继续。中途连接中断时提交状态可能未知，先核查目标库，再决定是否在一个全新的空目标上重试。不要删除或覆盖原库。
 
 `support` 仅添加独立的 `support_settings` 表，可重复执行，不改既有 schema 1/2 校验值或 `site_settings` 内容。已有站点升级时，在先备份并确认目标后单独运行 `support`，不要重跑 `seed`。未安装时公开支持入口隐藏，后台该栏目返回 503，其余站点功能不依赖这张可选表。完整数据库备份应包含它，不能只备份旧表名单；旧版本回滚可保留并忽略它。Docker 自托管使用同一后端能力，独立步骤见 [Docker + PostgreSQL 18](docker-postgres.md)。
+
+`seo` 显式安装独立的 `seo_settings` 表，可重复执行，不改 schema 1/2 迁移记录或 `site_settings` 的内容。已有站点先备份并确认目标，只运行 `npm run db:postgres -- seo`；不要重跑 `seed`。未安装时网站按部署默认 SEO 配置正常提供双语 HTML 与 sitemap，后台可读取默认配置并显示“存储尚未安装”，写入返回 `503 / SEO_STORAGE_NOT_READY`。安装完成后重新加载后台即可配置，无需冷启动时建表。
+
+备份与恢复必须包含 `seo_settings` 中的双语元数据、图片、索引及 sitemap 配置。SQLite 导入/导出会校验并完整保留这张可选表；旧源没有该表时，导入仍会拒绝覆盖目标已有 SEO 配置。旧应用回滚可以保留并忽略独立 SEO 表，不会因旧版对 `site_settings` 严格解析而失败。后台 SEO 的“正式网站地址”优先于构建/部署变量 `VITE_SITE_URL`；首次安装前以该公开变量作为默认值。
 
 没有 SMTP 可用于新空库时，可在明确确认目标后创建**首位**管理员。该命令仅接受标准输入的一行密码，且数据库中已有管理员时拒绝执行；它会写审计记录：
 

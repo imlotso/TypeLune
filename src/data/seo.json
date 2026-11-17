@@ -1,0 +1,10 @@
+{
+  "/": ["TypeLune · 中英文打字测试", "免费中英文打字练习，支持逐行长文、五分钟速度测试与准确率统计。", "TypeLune · Chinese and English typing practice", "Practice Chinese and English typing with long articles, timed tests and accuracy statistics."],
+  "/lessons": ["指法课程 · TypeLune", "从基础键位开始，循序练习英文键盘指法。", "Typing lessons · TypeLune", "Build keyboard skills with progressive typing exercises."],
+  "/library": ["练习文章 · TypeLune", "浏览中文与英文长文，选择适合自己的打字练习。", "Article library · TypeLune", "Browse Chinese and English long-form typing practice articles."],
+  "/rankings": ["打字排行榜 · TypeLune", "查看中文字符速度与英文 WPM 排名，游客与注册用户分别展示。", "Typing rankings · TypeLune", "Explore Chinese CPM and English WPM rankings with separate guest and registered-user boards."],
+  "/help": ["使用帮助 · TypeLune", "了解打字练习、暂停恢复、速度计算与成绩记录。", "Help · TypeLune", "Learn about typing practice, pause and resume, speed calculations and practice records."],
+  "/about": ["关于 TypeLune", "TypeLune 提供中英文长文逐行打字练习。", "About TypeLune", "TypeLune offers line-by-line typing practice with Chinese and English articles."],
+  "/privacy": ["隐私政策 · TypeLune", "了解 TypeLune 的账户、练习数据与隐私保护。", "Privacy · TypeLune", "Learn about accounts, practice data and privacy at TypeLune."],
+  "/terms": ["服务条款 · TypeLune", "了解 TypeLune 的使用条款。", "Terms · TypeLune", "Read the terms for using TypeLune."]
+}

@@ -3,10 +3,138 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist/client",
-  "regions": ["sin1"],
-  "functions": { "api/handler.ts": { "maxDuration": 60 } },
+  "regions": [
+    "sin1"
+  ],
+  "functions": {
+    "api/handler.ts": {
+      "maxDuration": 60,
+      "includeFiles": "dist/client/app.html"
+    }
+  },
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/handler?__dazi_path=:path" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/:path*",
+      "destination": "/api/handler?__dazi_path=:path"
+    },
+    {
+      "source": "/",
+      "destination": "/api/handler?__dazi_page=/"
+    },
+    {
+      "source": "/lessons",
+      "destination": "/api/handler?__dazi_page=/lessons"
+    },
+    {
+      "source": "/library",
+      "destination": "/api/handler?__dazi_page=/library"
+    },
+    {
+      "source": "/rankings",
+      "destination": "/api/handler?__dazi_page=/rankings"
+    },
+    {
+      "source": "/help",
+      "destination": "/api/handler?__dazi_page=/help"
+    },
+    {
+      "source": "/about",
+      "destination": "/api/handler?__dazi_page=/about"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/api/handler?__dazi_page=/privacy"
+    },
+    {
+      "source": "/terms",
+      "destination": "/api/handler?__dazi_page=/terms"
+    },
+    {
+      "source": "/articles/:id",
+      "destination": "/api/handler?__dazi_page=/articles/:id"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/handler?__dazi_page=/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/api/handler?__dazi_page=/robots.txt"
+    },
+    {
+      "source": "/sitemap-:part.xml",
+      "destination": "/api/handler?__dazi_page=/sitemap-:part.xml"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/app.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "base-uri 'self'; object-src 'none'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/assets/:file(.+-[A-Za-z0-9_-]{8,}\\.[^/]+)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/seo/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    }
   ]
 }

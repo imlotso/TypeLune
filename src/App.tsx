@@ -1,5 +1,12 @@
+import { StatsView } from './components/StatsView';
+import { RecordsView } from './components/RecordsView';
+import { MistakesView } from './components/MistakesView';
+import { DraftsView } from './components/DraftsView';
+import { PublicArticleView } from './components/PublicArticleView';
+import { ArticleLibrary } from './components/ArticleLibrary';
+import { PageLoadBoundary } from './components/PageLoadBoundary';
+import { preserveLanguageAddress, updatePageMetadata } from './lib/seo';
 import { CourseLayout } from './components/CourseLayout';
-import { PublicProfile } from './components/PublicProfile';
 import { saveWallpaper } from './lib/workspace';
 import { pathForProfile, profileIdFromPath } from './lib/routes';
 import { useDailyWallpaper } from './hooks/useDailyWallpaper';
@@ -7,7 +14,7 @@ import { SystemMessage } from './components/SystemMessage';
 import { useI18n } from './lib/i18n';
 import { LanguageToggle } from './components/LanguageToggle';
 import { WorkspaceI18nProvider } from './components/WorkspaceI18nProvider';
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { ArrowCounterClockwise } from '@phosphor-icons/react/ArrowCounterClockwise';
 import { ArrowRight } from '@phosphor-icons/react/ArrowRight';
 import { BookOpen } from '@phosphor-icons/react/BookOpen';
@@ -22,24 +29,19 @@ import { Pause } from '@phosphor-icons/react/Pause';
 import { Play } from '@phosphor-icons/react/Play';
 import { Sun } from '@phosphor-icons/react/Sun';
 import { Trophy } from '@phosphor-icons/react/Trophy';
-import { AdminWorkspace } from './components/AdminWorkspace';
 import { BrandLogo } from './components/BrandLogo';
 import { guestNicknamePrefix, validGuestNickname } from './lib/leaderboard';
 import { AccountDialog } from './components/AccountDialog';
 import { AccountMenu } from './components/AccountMenu';
 import { CommandPalette, type Command } from './components/CommandPalette';
-import { ArticleLibrary } from './components/ArticleLibrary';
-import { PublicArticleView } from './components/PublicArticleView';
 import { BackgroundDialog } from './components/BackgroundDialog';
 import { RoomBackground } from './components/RoomBackground';
 import { AuthDialog } from './components/AuthDialog';
 import { Dialog } from './components/Dialog';
-import { DraftsView } from './components/DraftsView';
 import { EnglishSpeed } from './components/EnglishSpeed';
 import { ScoreStatusView } from './components/ScoreStatusView';
 import { FeedbackView, newFeedbackDraft, type FeedbackDraft } from './components/FeedbackView';
 import { GuestImportDialog } from './components/GuestImportDialog';
-import { MistakesView } from './components/MistakesView';
 import { PracticeLines } from './components/PracticeLines';
 import { PersonalDataView } from './components/PersonalDataView';
 import { PersonalBestComparison } from './components/PersonalBestComparison';
@@ -52,10 +54,7 @@ import { SpecialTrainingDialog } from './components/SpecialTrainingDialog';
 import { LogoutDialog } from './components/LogoutDialog';
 import { WorkspaceRecoveryDialog } from './components/WorkspaceRecoveryDialog';
 import type { CapacityDestination } from './components/WorkspaceCapacity';
-import { RankingView } from './components/RankingView';
-import { RecordsView } from './components/RecordsView';
 import { SettingsDialog } from './components/SettingsDialog';
-import { StatsView } from './components/StatsView';
 import { SiteInfoView } from './components/SiteInfoView';
 import { articles, type Difficulty, type Language } from './data/articles';
 import { LessonsView, LessonGuide, LessonResult } from './components/LessonsView';
@@ -95,6 +94,11 @@ type PendingLoad = { legacy: PracticeDraft } | { draft: SavedPractice; newRound?
 
 const builtIns: ArticleSnapshot[] = articles.map(({ content, ...article }) => ({ ...article, text: content, custom: false }));
 const builtInById = new Map(builtIns.map((article) => [article.id, article]));
+const AdminWorkspace = lazy(() => import('./components/AdminWorkspace').then(module => ({ default: module.AdminWorkspace })));
+
+const PublicProfile = lazy(() => import('./components/PublicProfile').then(module => ({ default: module.PublicProfile })));
+const RankingView = lazy(() => import('./components/RankingView').then(module => ({ default: module.RankingView })));
+
 const recordViews: View[] = ['history', 'mistakes', 'stats', 'lessons'];
 const authChangeKey = 'cloudtyping.auth-change.v1';
 
@@ -199,11 +203,12 @@ export function App() {
   const inAdministration = !!user?.isAdmin && previewOwner !== user.id;
   useEffect(() => {
     if (!authReady || !user) return;
+    if (inAdministration) updatePageMetadata('/admin', locale);
     if (inAdministration && window.location.pathname !== '/admin') window.history.replaceState(null, '', '/admin');
     else if (!inAdministration && /^\/admin\/?$/.test(window.location.pathname)) window.history.replaceState(null, '', '/');
-  }, [authReady, user?.id, user?.isAdmin, inAdministration]);
+  }, [authReady, user?.id, user?.isAdmin, inAdministration, locale]);
   if (!authReady && /^\/admin\/?$/.test(window.location.pathname)) return <div className="administration-session" role="status"><Cloud size={32} aria-hidden="true" />{t("正在读取账号…", "Loading account…")}</div>;
-  if (inAdministration && user) return <AdminWorkspace key={user.id} user={user} onLogout={() => changeUser(null)} onPreview={() => { window.history.replaceState(null, '', '/'); setPreviewOwner(user.id); }} />;
+  if (inAdministration && user) return <PageLoadBoundary key={user.id} message={t("页面加载失败", "Could not load this page")} retryLabel={t("重新载入", "Reload")}><Suspense fallback={<div role="status" aria-live="polite">{t("正在读取账号…", "Loading account…")}</div>}><AdminWorkspace key={user.id} user={user} onLogout={() => changeUser(null)} onPreview={() => { window.history.replaceState(null, '', '/'); setPreviewOwner(user.id); }} /></Suspense></PageLoadBoundary>;
   return <PracticeApp key={`${user ? `account:${user.id}` : 'guest'}:${identityEpoch}`} user={user} authReady={authReady} onUser={changeUser}
     accountNotice={accountNotice} onAccountReauthentication={(message) => { changeUser(null); setAccountNotice(message); }}
     onSignedOutNotice={(message) => { setPendingCleanup(pendingLocalCleanups()); if (!currentUser.current) setAccountNotice(message); }}
@@ -237,12 +242,14 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
   const authCompleted = useRef(false);
   const [directAdmin] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
   const [view, setView] = useState<View>(() => feedbackResume ? 'feedback' : directAdmin ? 'practice' : mainRoute(window.location.pathname));
+  useEffect(() => { updatePageMetadata(window.location.pathname, locale); }, [view, locale]);
   const profileReturn = useRef('/rankings');
   const [routeProfileId, setRouteProfileId] = useState(() => profileIdFromPath(window.location.pathname));
   const [routeArticleId, setRouteArticleId] = useState(() => articleIdFromPath(window.location.pathname));
   const [routeRecordId, setRouteRecordId] = useState(() => recordIdFromPath(window.location.pathname));
   const [routeFeedbackId, setRouteFeedbackId] = useState(() => feedbackIdFromPath(window.location.pathname));
   const currentPath = useRef(window.location.pathname + window.location.search + window.location.hash);
+  useEffect(() => { const update = () => { currentPath.current = window.location.pathname + window.location.search + window.location.hash; }; window.addEventListener('typelune:locale-url', update); return () => window.removeEventListener('typelune:locale-url', update); }, []);
   const currentHistoryIndex = useRef(0);
   const currentEntryIndex = useRef(navigationEntryIndex());
   const restoringHistory = useRef(false);
@@ -663,13 +670,15 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
   }
 
   function commitAddress(path: string, next: View) {
-    if (window.location.pathname !== path) {
+    path = preserveLanguageAddress(path);
+    const pathname = new URL(path, window.location.origin).pathname;
+    if (window.location.pathname + window.location.search + window.location.hash !== path) {
       currentHistoryIndex.current++;
       window.history.pushState(navigationState(window.history.state, currentHistoryIndex.current), '', path);
     }
     currentPath.current = window.location.pathname + window.location.search + window.location.hash;
     currentEntryIndex.current = navigationEntryIndex();
-    setView(next); setRouteProfileId(profileIdFromPath(window.location.pathname)); setRouteArticleId(articleIdFromPath(path)); setRouteRecordId(recordIdFromPath(path)); setRouteFeedbackId(feedbackIdFromPath(path));
+    setView(next); setRouteProfileId(profileIdFromPath(window.location.pathname)); setRouteArticleId(articleIdFromPath(pathname)); setRouteRecordId(recordIdFromPath(pathname)); setRouteFeedbackId(feedbackIdFromPath(pathname));
   }
   function commitView(next: MainView) { commitAddress(pathForView(next), next); }
 
@@ -1138,6 +1147,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
           </section>
           </CourseLayout>
         </>}
+        <PageLoadBoundary key={view} message={t("页面加载失败", "Could not load this page")} retryLabel={t("重新载入", "Reload")}><Suspense fallback={<section className="content-panel feature-panel" role="status">{t("正在读取…", "Loading…")}</section>}>
         {view === 'lessons' && <LessonsView records={records} drafts={draftBox.drafts} ownerId={ownerId} onSelect={selectLesson} onResume={(draft) => continueDraft(draft)} onTraining={selectArticle} />}
         {view !== 'practice' && feedback && <p className="form-error view-error" role="alert"><SystemMessage text={feedback} /></p>}
         {historyError && recordViews.includes(view) && <p className="form-error view-error" role="status">{t("连接失败，显示已读取的记录。", "Connection failed. Showing loaded records.")}</p>}
@@ -1172,6 +1182,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
         {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} onGuestImport={() => setShowGuestImport(true)} onManageCapacity={manageCapacity} onResetSettings={() => workspace.remove('settings', 'preferences')} />}
         {view === 'notfound' && <section className="content-panel feature-panel"><div className="content-heading"><h1>{t("页面未找到", "Page not found")}</h1></div><button type="button" className="outline-button" onClick={() => navigate('practice')}>{t("返回练习", "Back to practice")}</button></section>}
         {(view === 'help' || view === 'about' || view === 'privacy' || view === 'terms') && <SiteInfoView page={view} onFeedback={() => navigate('feedback')} />}
+        </Suspense></PageLoadBoundary>
       </div>
     </RoomBackground>
     {!focused && <SiteFooter ready={authReady} onNavigate={navigate} />}

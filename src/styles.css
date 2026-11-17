@@ -26,7 +26,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .site-header nav button.account-button { border: 1px solid #a69bd8; background: #fff; min-width: 97px; display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
 .site-header nav button.account-button:hover { background: #f1edfb; }
 .site-header nav button.theme-button { display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
-.room { min-height: calc(100svh - 88px); position: relative; isolation: isolate; background-color: #fbf5f6; background-image: url('/assets/cloud-room.png'); background-position: center center; background-size: 100% 100%; background-repeat: no-repeat; }
+.room { min-height: calc(100svh - 88px); position: relative; isolation: isolate; background-color: #fbf5f6; background-image: url('/assets/cloud-room.webp'); background-position: center center; background-size: 100% 100%; background-repeat: no-repeat; }
 .workspace { position: relative; z-index: 1; width: min(1080px, calc(100% - 160px)); margin: 0 auto; padding: 36px 0 150px; }
 .top-filters { display: flex; align-items: center; justify-content: center; gap: 35px; }
 .segmented { display: inline-flex; align-items: center; border: 1px solid #d5cbef; border-radius: 999px; padding: 2px; background: rgba(255,255,255,.62); overflow: hidden; }
@@ -177,7 +177,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 [data-theme='dark'] .site-header nav button:hover, [data-theme='dark'] .site-header nav button.nav-active { color: #fff; background: #39486d; }
 [data-theme='dark'] .site-header nav button.account-button { color: #f2edff; background: #292b45; border-color: #817aa6; }
 [data-theme='dark'] .site-header nav button.account-button:hover { background: #3c3b5b; }
-[data-theme='dark'] .room { background-color: #171b30; background-image: url('/assets/cloud-room-night.png'); }
+[data-theme='dark'] .room { background-color: #171b30; background-image: url('/assets/cloud-room-night.webp'); }
 [data-theme='dark'] .segmented { background: rgba(35,38,61,.95); border-color: #696582; }
 [data-theme='dark'] .segmented button { color: #e7e2f7; }
 [data-theme='dark'] .segmented button[aria-pressed='true'] { color: #fff; background: #526fae; }

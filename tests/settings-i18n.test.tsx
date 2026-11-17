@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { I18nProvider, localeStorageKey, useI18n } from '../src/lib/i18n';
 import { AuthDialog } from '../src/components/AuthDialog';
 import { SettingsDialog } from '../src/components/SettingsDialog';
 import { BackgroundDialog } from '../src/components/BackgroundDialog';
 import { defaultSettings } from '../src/lib/models';
 function Toggle(){const {setLocale}=useI18n();return <button onClick={()=>setLocale('zh')}>Switch test locale</button>}
+// Locale switches also update the URL; each case starts with a fresh visit.
+beforeEach(() => { window.history.replaceState(null, '', '/'); });
 afterEach(()=>{cleanup();localStorage.clear();vi.restoreAllMocks()});
 it('switches auth labels without discarding entered identity',()=>{
  localStorage.setItem(localeStorageKey,'en');

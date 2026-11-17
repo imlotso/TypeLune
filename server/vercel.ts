@@ -1,3 +1,6 @@
+import { resolve } from 'node:path';
+import { seoPaths } from '../src/lib/seo-settings.js';
+import { articleIdFromPath } from '../src/lib/routes.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { attachDatabasePool } from '@vercel/functions';
 import { createApp } from './app.js';
@@ -21,7 +24,7 @@ export function createVercelHandler(env: NodeJS.ProcessEnv = process.env) {
             username: env.SMTP_USER || '', password: env.SMTP_PASSWORD || '' };
         }
         const instance = await createApp({ databaseUrl, postgresSchema: env.DAZI_DATABASE_SCHEMA || 'public', codeSecret,
-          adminEmail: env.ADMIN_EMAIL, secureCookies: true, trustProxy: true, smtp, onDatabasePool: attachDatabasePool });
+          adminEmail: env.ADMIN_EMAIL, secureCookies: true, trustProxy: true, smtp, onDatabasePool: attachDatabasePool, seoOrigin: env.VITE_SITE_URL ?? '', seoPreview: env.VERCEL_ENV === 'preview', htmlTemplatePath: resolve('dist/client/app.html') });
         try { await instance.ready(); } catch (error) { await instance.close(); throw error; }
         return instance;
       })().catch((error) => { pending = undefined; throw error; });
@@ -36,6 +39,15 @@ export function createVercelHandler(env: NodeJS.ProcessEnv = process.env) {
     }
     try {
       const url = new URL(request.url ?? '/', 'http://localhost');
+      const page = url.searchParams.get('__dazi_page');
+      if (page !== null) {
+        if (!(seoPaths.includes(page as typeof seoPaths[number]) || page === '/sitemap.xml' || /^\/sitemap-[1-9]\d*\.xml$/u.test(page) || page === '/robots.txt' || articleIdFromPath(page)) || (url.pathname !== '/api/handler' && url.pathname !== page)) {
+          response.writeHead(400, { 'cache-control': 'no-store', 'x-robots-tag': 'noindex' }).end(); return;
+        }
+        url.searchParams.delete('__dazi_page');
+        url.pathname = page;
+        request.url = url.pathname + url.search;
+      }
       const rewritten = url.searchParams.get('__dazi_path');
       if (rewritten !== null) {
         if (!/^[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*$/.test(rewritten)) {

@@ -16,7 +16,7 @@ try{
  docker('run','-d','--name',database,'--network',network,'--network-alias','postgres','-v',`${volume}:/var/lib/postgresql`,'-e','POSTGRES_USER=typelune','-e','POSTGRES_PASSWORD=ci-only-disposable-password','-e','POSTGRES_DB=typelune','postgres:18.7');containers.add(database);
  await wait(()=>{docker('exec',database,'pg_isready','-U','typelune','-d','typelune');return true;});
  const version=docker('exec',database,'postgres','--version');assert.match(version,/18\./);
- for(const action of ['migrate','support','seed'])docker('run','--rm','--network',network,...env,image,'node','scripts/postgres-database.mjs',action);
+ for(const action of ['migrate','support','seo','seed'])docker('run','--rm','--network',network,...env,image,'node','scripts/postgres-database.mjs',action);
  execFileSync('docker',['run','--rm','-i','--network',network,...env,'-e','ADMIN_USERNAME=SupportAdmin','-e','ADMIN_EMAIL=support@example.test',image,'node','scripts/postgres-database.mjs','bootstrap'],{input:'disposable-password-123\n',stdio:['pipe','pipe','pipe']});
  docker('run','-d','--name',app,'--network',network,'-p','127.0.0.1::3001',...env,image);containers.add(app);
  const base=`http://${docker('port',app,'3001/tcp').split('\n')[0]}`;

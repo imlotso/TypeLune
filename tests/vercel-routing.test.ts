@@ -11,14 +11,19 @@ it('maps every nested API path to an existing Vercel Function using Vercel routi
   expect(result.error).toBeNull();
   const routes = result.routes ?? [];
   for (const path of ['/api', '/api/health', '/api/auth/login', '/api/workspace/sync', '/api/tests/example/pause', '/api/not-found']) {
-    const matched = routes.find((route) => 'src' in route && route.src && new RegExp(route.src).test(path));
+    const matched = routes.find((route) => 'dest' in route && 'src' in route && route.src && new RegExp(route.src).test(path));
     expect(matched).toBeDefined();
     expect(matched && 'dest' in matched && matched.dest).toMatch(/^\/api\/handler/);
   }
-  for (const path of ['/library', '/articles/example', '/records/example', '/account/data', '/feedback/example', '/admin', '/not-found']) {
-    const matched = routes.find((route) => 'src' in route && route.src && new RegExp(route.src).test(path));
-    expect(matched && 'dest' in matched && matched.dest).toBe('/index.html');
+  for (const path of ['/records/example', '/account/data', '/feedback/example', '/admin', '/not-found']) {
+    const matched = routes.find((route) => 'dest' in route && 'src' in route && route.src && new RegExp(route.src).test(path));
+    expect(matched && 'dest' in matched && matched.dest).toBe('/app.html');
   }
+  for (const path of ['/', '/library', '/lessons', '/privacy', '/articles/example', '/sitemap.xml', '/sitemap-2.xml', '/robots.txt']) {
+    const matched = routes.find(route => 'dest' in route && 'src' in route && route.src && new RegExp(route.src).test(path));
+    expect(matched && 'dest' in matched && matched.dest).toContain('/api/handler?__dazi_page=');
+  }
+  expect(config.functions['api/handler.ts'].includeFiles).toBe('dist/client/app.html');
   expect(existsSync('api/handler.ts')).toBe(true);
 });
 

@@ -12,7 +12,7 @@ function Probe() {
   return <><span>{t('当前中文', 'Current English')}</span><input aria-label="practice" defaultValue="keep input"/><LanguageToggle /></>;
 }
 const account = (ownerId: string, preference: 'zh' | 'en' | 'auto' | undefined, save = vi.fn(async () => {}), canChange = true) => ({ ownerId, preference, save, canChange });
-beforeEach(() => { localStorage.clear(); vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['zh-CN']); });
+beforeEach(() => { window.history.replaceState(null, '', '/'); localStorage.clear(); vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['zh-CN']); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 it('reads account preference without overwriting it with the guest value or writing on mount', () => {
@@ -133,4 +133,53 @@ it('shows account sync failures separately from local saving and offers a retry'
   rerender(<I18nProvider account={{ ...saved, sync: { ...saved.sync, needsRecovery: true } }}>{content}</I18nProvider>);
   expect(screen.queryByRole('button', { name: 'Retry sync' })).toBeNull();
   expect(screen.getByText('Resolve the conflict in practice settings')).toBeTruthy();
+});
+
+it('honors an explicit crawler locale without overwriting unread account preferences', () => {
+  window.history.replaceState(null, '', '/library?tl=en');
+  const save = vi.fn(async () => {});
+  const { rerender } = render(<I18nProvider account={account('alice', undefined, save, false)}><Probe /></I18nProvider>);
+  expect(screen.getByText('Current English')).toBeTruthy();
+  rerender(<I18nProvider account={account('alice', 'zh', save)}><Probe /></I18nProvider>);
+  expect(screen.getByText('Current English')).toBeTruthy();
+  expect(save).not.toHaveBeenCalled();
+  expect(window.location.search).toBe('?tl=en');
+});
+
+it('restores the previous explicit language URL when a manual account save fails', async () => {
+  window.history.replaceState(null, '', '/library?tl=en&filter=keep');
+  const save = vi.fn(async () => { throw new Error('storage failed'); });
+  render(<I18nProvider account={account('alice', 'zh', save)}><Probe /></I18nProvider>);
+  fireEvent.click(screen.getByRole('button'));
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Language not saved'));
+  expect(screen.getByText('Current English')).toBeTruthy();
+  expect(window.location.search).toBe('?tl=en&filter=keep');
+  expect((screen.getByLabelText('practice') as HTMLInputElement).value).toBe('keep input');
+});
+
+it('lets later synced account preferences update a language URL created by a manual switch', async () => {
+  const save = vi.fn(async () => {});
+  const { rerender } = render(<I18nProvider account={account('alice', 'zh', save)}><Probe /></I18nProvider>);
+  fireEvent.click(screen.getByRole('button'));
+  rerender(<I18nProvider account={account('alice', 'en', save)}><Probe /></I18nProvider>);
+  await act(async () => {});
+  expect(window.location.search).toBe('?tl=en');
+  rerender(<I18nProvider account={account('alice', 'zh', save)}><Probe /></I18nProvider>);
+  expect(screen.getByText('当前中文')).toBeTruthy();
+  expect(window.location.search).toBe('?tl=zh-CN');
+  expect(save).toHaveBeenCalledTimes(1);
+});
+
+it('does not undo navigation when an account language save fails later', async () => {
+  window.history.replaceState(null, '', '/library?tl=en');
+  let rejectSave!: (error: Error) => void;
+  const save = vi.fn(() => new Promise<void>((_resolve, reject) => { rejectSave = reject; }));
+  render(<I18nProvider account={account('alice', 'zh', save)}><Probe /></I18nProvider>);
+  fireEvent.click(screen.getByRole('button'));
+  window.history.pushState(null, '', '/help?tl=zh-CN&filter=keep#section');
+  await act(async () => { rejectSave(new Error('storage failed')); });
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Language not saved'));
+  expect(window.location.pathname).toBe('/help');
+  expect(window.location.search).toBe('?tl=en&filter=keep');
+  expect(window.location.hash).toBe('#section');
 });
