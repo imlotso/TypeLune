@@ -24,7 +24,7 @@ async function readPassword() {
 
 async function main() {
   const action = process.argv[2];
-  if (action !== 'migrate' && action !== 'import' && action !== 'export' && action !== 'seed' && action !== 'bootstrap' && action !== 'support' && action !== 'repair-punctuation') throw new Error('Use migrate, import, export, seed, bootstrap, support or repair-punctuation');
+  if (action !== 'migrate' && action !== 'import' && action !== 'export' && action !== 'seed' && action !== 'bootstrap' && action !== 'support' && action !== 'seo' && action !== 'repair-punctuation') throw new Error('Use migrate, import, export, seed, bootstrap, support, seo or repair-punctuation');
   const connectionString = process.env.DATABASE_URL;
   const database = process.env.DAZI_DATABASE_NAME;
   const schema = process.env.DAZI_DATABASE_SCHEMA;
@@ -43,14 +43,14 @@ async function main() {
     if (action === 'migrate') {
       await migratePostgres(client, { database, schema });
       console.log('PostgreSQL schema is ready.');
-    } else if (action === 'support') {
+    } else if (action === 'support' || action === 'seo') {
       await client.query('BEGIN');
       try {
         await assertPostgresTarget(client, { database, schema });
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))', ['dazi.schema.migration', schema]);
-        await client.query(readFileSync(new URL('../server/postgres/support-settings.sql', import.meta.url), 'utf8'));
+        await client.query(readFileSync(new URL(action === 'seo' ? '../server/postgres/seo-settings.sql' : '../server/postgres/support-settings.sql', import.meta.url), 'utf8'));
         await client.query('COMMIT');
-        console.log('Support settings extension is ready.');
+        console.log(action === 'seo' ? 'SEO settings extension is ready.' : 'Support settings extension is ready.');
       } catch (error) { await client.query('ROLLBACK'); throw error; }
     } else if (action === 'import') {
       const { counts } = await importSqlite(client, source, { database, schema });
@@ -84,7 +84,7 @@ main().catch((error: unknown) => {
   // Database drivers can include SQL parameters, hostnames, and credentials in
   // their diagnostics. Only print fixed, explicitly safe operator messages.
   const safe = error instanceof Error && [
-    'Use migrate, import, export, seed, bootstrap, support or repair-punctuation',
+    'Use migrate, import, export, seed, bootstrap, support, seo or repair-punctuation',
     'DATABASE_URL and an explicitly confirmed target database/schema are required',
     'An explicit SQLite source path is required',
     'An explicit SQLite destination is required',

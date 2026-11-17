@@ -1,12 +1,134 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build && node --import tsx scripts/vercel-runtime-check.ts",
   "outputDirectory": "dist/client",
-  "regions": ["sin1"],
-  "functions": { "api/handler.ts": { "maxDuration": 60 } },
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/handler?__dazi_path=:path" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "regions": [
+    "sin1"
+  ],
+  "functions": {
+    "api/handler.ts": {
+      "maxDuration": 60,
+      "includeFiles": "dist/client/app.html"
+    }
+  },
+  "routes": [
+    {
+      "src": "^(?:/(.*))$",
+      "headers": {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Content-Security-Policy": "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
+        "Cache-Control": "no-cache"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/assets(?:/(.+-[A-Za-z0-9_-]{8,}\\.[^/]+))$",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/api(?:/(.*))$",
+      "headers": {
+        "Cache-Control": "no-store"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/seo(?:/(.*))$",
+      "headers": {
+        "X-Robots-Tag": "noindex, follow"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/index\\.html$",
+      "headers": {
+        "X-Robots-Tag": "noindex, follow"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/api/handler$",
+      "dest": "/api/handler"
+    },
+    {
+      "src": "^/api(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?$",
+      "dest": "/api/handler?__dazi_path=$1&path=$1",
+      "check": true
+    },
+    {
+      "src": "^/$",
+      "dest": "/api/handler?__dazi_page=%2F",
+      "check": true
+    },
+    {
+      "src": "^/lessons$",
+      "dest": "/api/handler?__dazi_page=%2Flessons",
+      "check": true
+    },
+    {
+      "src": "^/library$",
+      "dest": "/api/handler?__dazi_page=%2Flibrary",
+      "check": true
+    },
+    {
+      "src": "^/rankings$",
+      "dest": "/api/handler?__dazi_page=%2Frankings",
+      "check": true
+    },
+    {
+      "src": "^/help$",
+      "dest": "/api/handler?__dazi_page=%2Fhelp",
+      "check": true
+    },
+    {
+      "src": "^/about$",
+      "dest": "/api/handler?__dazi_page=%2Fabout",
+      "check": true
+    },
+    {
+      "src": "^/privacy$",
+      "dest": "/api/handler?__dazi_page=%2Fprivacy",
+      "check": true
+    },
+    {
+      "src": "^/terms$",
+      "dest": "/api/handler?__dazi_page=%2Fterms",
+      "check": true
+    },
+    {
+      "src": "^/articles(?:/([^/]+?))$",
+      "dest": "/api/handler?__dazi_page=%2Farticles%2F$1&id=$1",
+      "check": true
+    },
+    {
+      "src": "^/sitemap\\.xml$",
+      "dest": "/api/handler?__dazi_page=%2Fsitemap.xml",
+      "check": true
+    },
+    {
+      "src": "^/robots\\.txt$",
+      "dest": "/api/handler?__dazi_page=%2Frobots.txt",
+      "check": true
+    },
+    {
+      "src": "^/sitemap-([^/]+?)\\.xml$",
+      "dest": "/api/handler?__dazi_page=%2Fsitemap-$1.xml&part=$1",
+      "check": true
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "^(?:/(.*))$",
+      "dest": "/app.html",
+      "check": true
+    }
   ]
 }

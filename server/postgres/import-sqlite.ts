@@ -43,7 +43,7 @@ export async function importSqlite(client: Client, path: string, target: Expecte
       throw new Error('SQLite integrity or foreign-key validation failed');
     }
     const sourceTables = (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>).map(({ name }) => name);
-    const dataTables = [...baseDataTables, ...(sourceTables.includes('support_settings') ? ['support_settings'] : [])];
+    const dataTables = [...baseDataTables, ...['support_settings', 'seo_settings'].filter(table => sourceTables.includes(table))];
     const unknown = sourceTables.filter((name) => !dataTables.some((table) => table === name));
     if (unknown.length) throw new Error('SQLite source contains unsupported tables');
     for (const table of dataTables) {
@@ -55,8 +55,10 @@ export async function importSqlite(client: Client, path: string, target: Expecte
     await client.query(`SET LOCAL search_path TO ${quote(target.schema)}, pg_catalog`);
     const migration = await client.query<{ version: number; checksum: string }>('SELECT version,checksum FROM dazi_schema_migrations ORDER BY version');
     if (!schemaMatches(migration.rows)) throw new Error('Unsupported PostgreSQL schema version');
-    if (sourceTables.includes('support_settings')) await client.query('CREATE TABLE IF NOT EXISTS support_settings (id BIGINT PRIMARY KEY CHECK(id=1), settings TEXT NOT NULL, revision BIGINT NOT NULL CHECK(revision>0))');
-    if (!dataTables.includes('support_settings') && (await client.query("SELECT to_regclass('support_settings') AS name")).rows[0]?.name) dataTables.push('support_settings');
+    for (const table of ['support_settings', 'seo_settings']) {
+      if (sourceTables.includes(table)) await client.query(`CREATE TABLE IF NOT EXISTS ${table} (id BIGINT PRIMARY KEY CHECK(id=1), settings TEXT NOT NULL, revision BIGINT NOT NULL CHECK(revision>0))`);
+      if (!dataTables.includes(table) && (await client.query('SELECT to_regclass($1) AS name', [table])).rows[0]?.name) dataTables.push(table);
+    }
     await client.query(`LOCK TABLE ${[...dataTables, 'rate_limit_entries'].map(quote).join(',')} IN ACCESS EXCLUSIVE MODE`);
     for (const table of dataTables) {
       const result = await client.query(`SELECT 1 FROM ${quote(table)} LIMIT 1`);

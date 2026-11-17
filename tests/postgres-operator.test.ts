@@ -23,3 +23,9 @@ it('lists the explicit repair action for invalid commands without connection det
  expect(result.status).not.toBe(0);
  expect(result.stderr).toContain('repair-punctuation');
 });
+
+it('refuses explicit SEO installation without a confirmed target and never exposes connection details', () => {
+  const env = { ...process.env, DATABASE_URL: 'postgresql://user:test-private-password@unselected.example.test/test', DAZI_DATABASE_NAME: '', DAZI_DATABASE_SCHEMA: '', DAZI_CONFIRM_TARGET: '' };
+  const result = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/postgres-database.ts', 'seo'], { env, encoding: 'utf8' });
+  expect(result.status).not.toBe(0); expect(result.stderr).toContain('explicitly confirmed target'); expect(result.stderr).not.toContain('test-private-password');
+});

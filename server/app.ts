@@ -1,3 +1,8 @@
+import { createSeoSettings, registerSeoAdminRoutes, registerSeoPublicSettings } from './seo-settings.js';
+import { createSeoRenderer, registerSeoPageRoutes } from './seo.js';
+import { mainRoute } from '../src/lib/routes.js';
+import { verifyLoginPassword } from './login-password.js';
+import seoPages from '../src/data/seo.json' with { type: 'json' };
 import { createSupportSettings, registerSupportAdminRoutes, registerSupportPublicRoutes } from './support-settings.js';
 import { profileValue, registerPublicProfiles } from './profile.js';
 import { registerWallpapers } from './wallpapers.js';
@@ -51,6 +56,9 @@ export type AppOptions = {
   adminEmail?: string;
   staticRoot?: string;
   trustProxy?: boolean;
+  seoOrigin?: string;
+  seoPreview?: boolean;
+  htmlTemplatePath?: string;
 };
 
 type User = AccountUser;
@@ -239,6 +247,8 @@ export async function createApp(options: AppOptions) {
   }, feedbackUploads);
   const audit = createAdminAudit(db, now);
   const siteSettings = await createSiteSettings(db, audit);
+  const seoSettings = await createSeoSettings(db, audit, options.seoOrigin ?? process.env.VITE_SITE_URL ?? '');
+  const seoRenderer = await createSeoRenderer({ store: seoSettings, db, catalog, templatePath: options.htmlTemplatePath ?? (options.staticRoot ? `${options.staticRoot}/app.html` : undefined), preview: options.seoPreview ?? process.env.VERCEL_ENV === 'preview' });
   const supportSettings = await createSupportSettings(db, audit);
   const scoreStatus = await createScoreStatus(db, now, async () => (await siteSettings.read()).settings.leaderboardDisplayDays);
   const smtp = await createSmtpSettings(db, { codeSecret: options.codeSecret, deployment: options.smtp, fallbackMailer: options.mailer, delivery: options.smtpDelivery, now });
@@ -256,10 +266,26 @@ export async function createApp(options: AppOptions) {
   await app.register(rateLimit, { max: 180, timeWindow: '1 minute', allowList: (request) => !request.url.startsWith('/api/'),
     ...(postgres && { store: postgresRateLimitStore(postgres.pool, codeSecret, postgres.schema), skipOnError: false }) });
   app.addHook('onClose', async () => { await db.close(); });
+  app.addHook('onSend', async (request, reply, payload) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    if (!reply.hasHeader('Content-Security-Policy')) reply.header('Content-Security-Policy', "base-uri 'self'; object-src 'none'; frame-ancestors 'none'");
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    if (request.url.startsWith('/api/')) {
+      reply.header('Cache-Control', 'no-store');
+      if (!reply.hasHeader('X-Robots-Tag')) reply.header('X-Robots-Tag', 'noindex, nofollow');
+    }
+    return payload;
+  });
   app.addHook('onRequest', async (request, reply) => {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers['sec-fetch-site'] === 'cross-site') {
+      return invalid(reply, '请求来源无效', 403);
+    }
     if (request.method === 'GET' || request.method === 'HEAD' || !request.headers.origin) return;
     try {
-      if (new URL(request.headers.origin).host !== request.headers.host) return invalid(reply, '请求来源无效', 403);
+      const origin = new URL(request.headers.origin);
+      if (origin.username || origin.password || origin.protocol !== `${request.protocol}:` || origin.host !== request.headers.host) return invalid(reply, '请求来源无效', 403);
     } catch { return invalid(reply, '请求来源无效', 403); }
   });
 
@@ -359,6 +385,7 @@ export async function createApp(options: AppOptions) {
     registerAdminFeedbackRoutes(admin, feedbackStore, audit);
     registerCatalogRoutes(admin, catalog, audit);
     registerSiteSettingsRoutes(admin, siteSettings);
+    registerSeoAdminRoutes(admin, seoSettings);
     registerSupportAdminRoutes(admin, supportSettings);
     smtp.register(admin, audit, async (request) => {
       const current = (await userFor(request));
@@ -367,6 +394,9 @@ export async function createApp(options: AppOptions) {
       }
     });
   }, { prefix: '/api/admin' });
+
+  registerSeoPublicSettings(app, seoSettings, options.seoPreview ?? process.env.VERCEL_ENV === 'preview');
+  registerSeoPageRoutes(app, seoRenderer);
 
   app.get('/api/health', async () => ({ ok: true }));
   app.get('/api/me', async (request, reply) => {
@@ -443,7 +473,7 @@ export async function createApp(options: AppOptions) {
     if (identifier.length > 254 || password.length > 128) return invalid(reply, '账号或密码不正确', 401);
     const usernameIdentifier = db.dialect === 'postgres' && identifier.includes('\0') ? '' : identifier;
     const user = (await db.prepare(`SELECT * FROM users WHERE (${usernameEquals} OR ${userEmailEquals}) AND disabled_at IS NULL`).get(usernameIdentifier, storageEmail(identifier.toLowerCase()))) as User | undefined;
-    if (!user || !(await argon2.verify(user.password_hash, password))) return invalid(reply, '账号或密码不正确', 401);
+    if (!(await verifyLoginPassword(user?.password_hash, password)) || !user) return invalid(reply, '账号或密码不正确', 401);
     if (!(await startSession(request, reply, user))) return invalid(reply, '账号或密码不正确', 401);
     return { user: publicUser(user) };
   });
@@ -1142,18 +1172,18 @@ export async function createApp(options: AppOptions) {
           COUNT(*) OVER () AS total
         FROM candidates WHERE owner_rank=1
       )
-      SELECT * FROM ranked WHERE (rank>@offset AND rank<=@end) OR owner=@owner ORDER BY rank
+      SELECT ranked.*, u.avatar AS account_avatar, u.id AS profile_user_id
+      FROM ranked LEFT JOIN users u ON ranked.owner='u:' || u.id AND u.disabled_at IS NULL
+      WHERE (rank>@offset AND rank<=@end) OR owner=@owner ORDER BY rank
     `).all({
       language, difficulty, mode, strict: Number(strict === 'true'), since, owner, board, aggregate: Number(aggregate), offset, end: offset + pageSize,
       duration: !aggregate && mode === 'timed' ? duration : null, articleId: articleId ?? null,
-    })) as Array<Omit<RankingEntry, 'articleId'> & { owner: string; total: number; rank: number; articleId: string | null }>;
-    const entries = await Promise.all(rows.map(async ({ owner: rowOwner, total: _total, articleId, ...row }) => {
-      const userId = rowOwner.startsWith('u:') ? rowOwner.slice(2) : undefined;
-      const account = userId ? await db.prepare('SELECT avatar FROM users WHERE id=? AND disabled_at IS NULL').get(userId) as { avatar: string | null } | undefined : undefined;
+    })) as Array<Omit<RankingEntry, 'articleId'> & { owner: string; total: number; rank: number; articleId: string | null; account_avatar: string | null; profile_user_id: string | null }>;
+    const entries = rows.map(({ owner: rowOwner, total: _total, articleId, account_avatar, profile_user_id, ...row }) => {
       return { ...row, cpm: row.cpm == null ? null : Number(row.cpm), ...(articleId && { articleId }), mine: rowOwner === owner,
-        ...(account && { userId, avatar: profileValue(account.avatar).avatar, profilePublic: profileValue(account.avatar).profilePublic }),
+        ...(profile_user_id && { userId: profile_user_id, avatar: profileValue(account_avatar).avatar, profilePublic: profileValue(account_avatar).profilePublic }),
         ...(!aggregate && { mode, strict: strict === 'true' }) };
-    }));
+    });
     reply.header('Cache-Control', 'no-store');
     return { entries: entries.filter(entry => entry.rank! > offset && entry.rank! <= offset + pageSize), self: entries.find((entry) => entry.mine) ?? null, total: rows[0]?.total ?? 0, ...(displayDays && { displayDays }) };
   });
@@ -1206,9 +1236,18 @@ export async function createApp(options: AppOptions) {
 
   if (options.staticRoot && existsSync(options.staticRoot)) {
     const { default: staticFiles } = await import('@fastify/static');
-    await app.register(staticFiles, { root: options.staticRoot, prefix: '/' });
+    await app.register(staticFiles, { root: options.staticRoot, prefix: '/', preCompressed: true, setHeaders(response, filePath) {
+      response.header('Cache-Control', /[\/]assets[\/].+-[A-Za-z0-9_-]{8,}\.[^/]+$/.test(filePath)
+        ? 'public, max-age=31536000, immutable' : 'no-cache');
+    } });
     app.setNotFoundHandler((request, reply) => {
-      if (request.method === 'GET' && !request.url.startsWith('/api/')) return reply.sendFile('index.html');
+      if (['GET', 'HEAD'].includes(request.method) && !request.url.startsWith('/api/')) {
+        const path = request.url.split('?')[0].replace(/\/+$/u, '') || '/';
+        if (path in seoPages) return reply.sendFile(path === '/' ? 'index.html' : `seo/${path.slice(1)}.html`);
+        reply.header('X-Robots-Tag', 'noindex, follow');
+        if (mainRoute(path) === 'notfound' && path !== '/admin') reply.code(404);
+        return reply.sendFile('app.html');
+      }
       return reply.code(404).send({ error: '未找到页面' });
     });
   }

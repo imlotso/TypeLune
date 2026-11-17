@@ -43,7 +43,8 @@ test('keeps an offline device from reviving deleted data and offers an export af
   await device.setOffline(false);
   await other.getByRole('button', { name: '更多' }).click();
   await other.getByRole('button', { name: '设置', exact: true }).click();
-  await settings.getByRole('button', { name: '立即同步' }).click();
+  // Reconnecting can detect reclamation before the manual sync click. Both controls lead to recovery.
+  await settings.getByRole('button', { name: /^(立即同步|处理同步冲突)$/ }).click();
   const recovery = other.getByRole('dialog', { name: '处理同步冲突' });
   if (!await recovery.isVisible()) await settings.getByRole('button', { name: '处理同步冲突' }).click();
   const download = other.waitForEvent('download');

@@ -8,7 +8,8 @@ import { DraftsView } from '../src/components/DraftsView';
 import { MistakesView } from '../src/components/MistakesView';
 import { RankingView } from '../src/components/RankingView';
 function Toggle(){const {setLocale}=useI18n();return <button onClick={()=>setLocale('zh')}>Switch test locale</button>}
-beforeEach(()=>localStorage.setItem(localeStorageKey,'en'));
+// Locale switches also update the URL; each case starts with a fresh visit.
+beforeEach(()=>{window.history.replaceState(null, '', '/');localStorage.setItem(localeStorageKey,'en')});
 afterEach(()=>{cleanup();localStorage.clear();vi.unstubAllGlobals()});
 it('keeps article content and editor input unchanged on UI language switch',()=>{
  const article={id:'a',title:'我的标题',text:'这是正文',language:'zh' as const,difficulty:'beginner' as const,custom:true as const};

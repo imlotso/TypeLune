@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AdminConsole } from '../src/components/AdminConsole';
 import { I18nProvider, localeStorageKey, useI18n } from '../src/lib/i18n';
 import { api } from '../src/lib/api';
 vi.mock('../src/lib/api', () => ({ api: vi.fn() }));
+// Locale switches also update the URL; each case starts with a fresh visit.
+beforeEach(() => { window.history.replaceState(null, '', '/'); });
 afterEach(() => { cleanup(); localStorage.clear(); vi.resetAllMocks(); });
 const overview = { metrics: { users: 3, disabledUsers: 1, admins: 2, activeUsers7d: 1, finishedPractices7d: 10, pendingScores: 2, publishedScores: 0, publishedArticles: 42 }, recentActions: [] };
 function Switch(){ const {setLocale}=useI18n(); return <button onClick={()=>setLocale('zh')}>Set Chinese</button>; }

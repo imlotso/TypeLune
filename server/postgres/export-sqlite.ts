@@ -54,8 +54,11 @@ export async function exportSqlite(client: Client, destination: string, target: 
     await client.query(`SET LOCAL search_path TO ${quote(target.schema)}, pg_catalog`);
     const version = await client.query<{ version: number; checksum: string }>('SELECT version,checksum FROM dazi_schema_migrations ORDER BY version');
     if (!schemaMatches(version.rows)) throw new Error('Unsupported PostgreSQL schema version');
-    const hasSupport = !!(await client.query("SELECT to_regclass('support_settings') AS name")).rows[0]?.name;
-    const dataTables = [...baseDataTables, ...(hasSupport ? ['support_settings'] : [])];
+    const extensions: string[] = [];
+    for (const table of ['support_settings', 'seo_settings']) {
+      if ((await client.query('SELECT to_regclass($1) AS name', [table])).rows[0]?.name) extensions.push(table);
+    }
+    const dataTables = [...baseDataTables, ...extensions];
     sqlite.exec('BEGIN IMMEDIATE');
     for (const table of [...dataTables].reverse()) sqlite.exec(`DELETE FROM ${quote(table)}`);
     const counts: Record<string, number> = {};

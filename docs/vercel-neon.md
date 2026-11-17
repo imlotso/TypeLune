@@ -36,6 +36,8 @@ export DAZI_CONFIRM_TARGET="$DAZI_DATABASE_HOST/$DAZI_DATABASE_NAME/$DAZI_DATABA
 npm run db:postgres -- migrate
 # 本轮收款码配置使用独立、可选的表；必须显式安装，不随冷启动建表。
 npm run db:postgres -- support
+# SEO 配置同样使用独立可选表，不改既有 site_settings JSON。
+npm run db:postgres -- seo
 # 全新空库二选一：载入内置文章，或导入经过核验的 SQLite 快照。
 npm run db:postgres -- seed
 # npm run db:postgres -- import /安全路径/源快照.sqlite
@@ -44,6 +46,10 @@ npm run db:postgres -- seed
 `migrate` 只接受明确确认的空 schema 或相同版本的已初始化 schema；`seed` 要求文章表为空。`import` 要求整个目标及限流表为空，在事务中核验源库完整性、表结构、逐表内容和审计序列，不支持的源结构会拒绝导入。先停止指向目标库的应用，包括健康检查：任何访问都可能生成限流记录，使导入拒绝继续。中途连接中断时提交状态可能未知，先核查目标库，再决定是否在一个全新的空目标上重试。不要删除或覆盖原库。
 
 `support` 仅添加独立的 `support_settings` 表，可重复执行，不改既有 schema 1/2 校验值或 `site_settings` 内容。已有站点升级时，在先备份并确认目标后单独运行 `support`，不要重跑 `seed`。未安装时公开支持入口隐藏，后台该栏目返回 503，其余站点功能不依赖这张可选表。完整数据库备份应包含它，不能只备份旧表名单；旧版本回滚可保留并忽略它。Docker 自托管使用同一后端能力，独立步骤见 [Docker + PostgreSQL 18](docker-postgres.md)。
+
+`seo` 显式安装独立的 `seo_settings` 表，可重复执行，不改 schema 1/2 迁移记录或 `site_settings` 的内容。已有站点先备份并确认目标，只运行 `npm run db:postgres -- seo`；不要重跑 `seed`。未安装时网站按部署默认 SEO 配置正常提供双语 HTML 与 sitemap，后台可读取默认配置并显示“存储尚未安装”，写入返回 `503 / SEO_STORAGE_NOT_READY`。安装完成后重新加载后台即可配置，无需冷启动时建表。
+
+备份与恢复必须包含 `seo_settings` 中的双语元数据、图片、索引及 sitemap 配置。SQLite 导入/导出会校验并完整保留这张可选表；旧源没有该表时，导入仍会拒绝覆盖目标已有 SEO 配置。旧应用回滚可以保留并忽略独立 SEO 表，不会因旧版对 `site_settings` 严格解析而失败。后台 SEO 的“正式网站地址”优先于构建/部署变量 `VITE_SITE_URL`；首次安装前以该公开变量作为默认值。
 
 没有 SMTP 可用于新空库时，可在明确确认目标后创建**首位**管理员。该命令仅接受标准输入的一行密码，且数据库中已有管理员时拒绝执行；它会写审计记录：
 
@@ -101,3 +107,9 @@ npm run db:postgres -- export /安全路径/新回滚快照.sqlite
 本轮候选的具体记录见[双 PostgreSQL 路线验证](qa/2026-11-16-dual-postgres.md)和[最终集成记录](qa/2026-11-16-nightly-integration.md)：真实本地 PG18.7 + Node 22 的 Vercel handler 专项通过，并非一次新的 Vercel Preview 部署。后续 Docker + PG18.7 与 SQLite 容器路线已在独立环境真实验收，见[Docker 实机记录](qa/2026-11-16-docker-runtime.md)；不将宿主 Node + PG 结果当作 Docker 结果。
 
 本地隔离 PostgreSQL 覆盖注册和验证码并发、权限撤销、配置冲突、成绩去重、恢复练习、多实例限流、32 MiB 配额并发、超过 4.5 MB 的分页、SQLite 往返迁移、备份恢复、冷启动和连接恢复；现有浏览器用例也分别在 SQLite 和 PostgreSQL 上运行。本机 SMTP 测试使用临时服务验证 TLS 和 STARTTLS 握手、接收验证码以及连接测试不发信。实际 Neon、Vercel Preview、Vercel 至 Neon 延迟、公网 SMTP 连接/送达和实体设备输入法仍需在隔离环境验证。运行 `npm run test:vercel-esm` 可检查 Node 22 对函数入口和其模块图的原生导入；这不能替代真实 Preview。
+
+### 部署前验证和隔离预览
+
+Vercel 构建会执行 `scripts/vercel-runtime-check.ts`，先验证当前数据库结构和应用启动，再发布函数；不会在正常请求或启动时执行 DDL。`TYPELUNE_INSTALL_SEO=production`（或 `preview`）是一次性的显式 SEO 表安装开关，只允许与当前 Vercel 环境相同的值，安装成功后应移除。
+
+需要新建隔离预览时，将分支级 `DAZI_DATABASE_SCHEMA` 设置为 `typelune_preview_` 前缀的专用名称，同时显式设置 `TYPELUNE_INIT_PREVIEW` 为同一名称。此操作仅允许在 Preview 环境创建该命名空间、执行现有迁移、安装扩展并初始化公共文章；不复制生产账户、记录或私有数据。初始化成功后移除 `TYPELUNE_INIT_PREVIEW`，保留分支的 schema 设置。该开关不能用于生产或 `public` schema。
