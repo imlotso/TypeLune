@@ -5,6 +5,7 @@ import type { PracticeResult } from "../hooks/usePractice";
 import type { ArticleSnapshot } from "../lib/models";
 import { EnglishSpeed, EnglishSpeedExplanation } from "./EnglishSpeed";
 import { ProcessChart } from "./ProcessChart";
+import { isCustomPracticeArticle } from "../lib/practice-kind";
 const time = (ms: number) =>
   `${String(Math.floor(ms / 60000)).padStart(2, "0")}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 type Props = {
@@ -61,11 +62,13 @@ export function ResultLayout({
               {[
                 article.author,
                 result.language === "zh" ? t("中文", "Chinese") : "English",
-                article.difficulty === "beginner"
-                  ? t("入门", "Beginner")
-                  : article.difficulty === "intermediate"
-                    ? t("进阶", "Intermediate")
-                    : t("挑战", "Advanced"),
+                isCustomPracticeArticle(article, result.custom || article.custom)
+                  ? t("自定义", "Custom")
+                  : article.difficulty === "beginner"
+                    ? t("入门", "Beginner")
+                    : article.difficulty === "intermediate"
+                      ? t("进阶", "Intermediate")
+                      : t("挑战", "Advanced"),
                 result.record?.mode === "article"
                   ? t("全文练习", "Full article")
                   : result.record?.duration
