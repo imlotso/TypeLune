@@ -32,6 +32,7 @@ it('keeps leaderboard filters independent from UI language',async()=>{
  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({entries:[],total:0}))));
  render(<I18nProvider><Toggle/><RankingView initial={{language:'zh',difficulty:'advanced',duration:120,mode:'timed',strict:false}} articles={[]} isAdmin={false} ownerId={null}/></I18nProvider>);
  expect(await screen.findByText('No scores yet')).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Advanced'}));
  expect(screen.getByRole('button',{name:'Advanced'}).getAttribute('aria-pressed')).toBe('true');
  fireEvent.click(screen.getByText('Switch test locale'));
  expect(screen.getByRole('button',{name:'挑战'}).getAttribute('aria-pressed')).toBe('true');

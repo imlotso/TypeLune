@@ -21,7 +21,7 @@ async function main() {
     if (env.VERCEL_ENV !== 'preview' || env.TYPELUNE_INIT_PREVIEW !== schema || !/^typelune_preview_[a-z0-9_]+$/.test(schema)) throw new Error('Preview initialization requires an explicitly selected isolated preview schema');
     const client = new pg.Client({ connectionString: env.DATABASE_URL });
     try { await client.connect(); await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`); } finally { await client.end(); }
-    for (const action of ['migrate', 'support', 'seo', 'wallpaper', 'seed']) runOperator(action);
+    for (const action of ['migrate', 'support', 'seo', 'wallpaper', 'nickname-policy', 'seed']) runOperator(action);
   }
   const database = new PostgresDatabase(env.DATABASE_URL, schema);
   try { await database.verifySchema(); } finally { await database.close(); }
@@ -33,6 +33,10 @@ async function main() {
     if (!['preview', 'production'].includes(env.TYPELUNE_INSTALL_WALLPAPER) || env.TYPELUNE_INSTALL_WALLPAPER !== env.VERCEL_ENV) throw new Error('Wallpaper installation environment does not match the deployment');
     runOperator('wallpaper');
   }
+  if (env.TYPELUNE_INSTALL_NICKNAME_POLICY) {
+    if (!['preview', 'production'].includes(env.TYPELUNE_INSTALL_NICKNAME_POLICY) || env.TYPELUNE_INSTALL_NICKNAME_POLICY !== env.VERCEL_ENV) throw new Error('Nickname policy installation environment does not match the deployment');
+    runOperator('nickname-policy');
+  }
   const app = await createApp({ databaseUrl: env.DATABASE_URL, postgresSchema: schema, codeSecret: env.CODE_SECRET, secureCookies: true });
   try { await app.ready(); } finally { await app.close(); }
   console.log('Deployment runtime and database compatibility verified.');
@@ -40,7 +44,7 @@ async function main() {
 main().catch((error: unknown) => {
   // Whitelist fixed diagnostics; driver errors can contain credentials or SQL values.
   const allowed = new Set(['Database and stable CODE_SECRET are required', 'PostgreSQL database URL is required', 'Invalid PostgreSQL connection configuration', 'Invalid PostgreSQL schema name',
-    'PostgreSQL schema is missing, unavailable, or incompatible; run the explicit migration', 'SEO installation environment does not match the deployment', 'Wallpaper installation environment does not match the deployment', 'Preview initialization requires an explicitly selected isolated preview schema', 'Explicit SEO configuration installation failed']);
+    'PostgreSQL schema is missing, unavailable, or incompatible; run the explicit migration', 'SEO installation environment does not match the deployment', 'Nickname policy installation environment does not match the deployment', 'Wallpaper installation environment does not match the deployment', 'Preview initialization requires an explicitly selected isolated preview schema', 'Explicit SEO configuration installation failed']);
   console.error(error instanceof Error && allowed.has(error.message) ? error.message : 'Deployment runtime verification failed; inspect the selected project configuration.');
   process.exitCode = 1;
 });

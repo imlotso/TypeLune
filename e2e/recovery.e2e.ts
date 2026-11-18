@@ -61,7 +61,7 @@ for (const scenario of ['response-lost', 'request-not-delivered'] as const) {
       await expect(result).toBeVisible();
       await expect(result.getByRole('button', { name: '提交到排行榜' })).toBeVisible();
     }
-    await result.getByRole('textbox', { name: '上榜昵称' }).fill(scenario === 'response-lost' ? 'visitor-恢复丢回包' : 'visitor-恢复未发出');
+    await result.getByRole('textbox', { name: '上榜昵称' }).fill(scenario === 'response-lost' ? '-恢复丢回包' : '-恢复未发出');
     if (scenario === 'response-lost') await page.context().clearCookies();
     const rejected = scenario === 'response-lost' ? page.waitForResponse((response) => response.url().endsWith('/api/leaderboard') && response.status() === 404) : undefined;
     const submitted = page.waitForResponse((response) => response.url().endsWith('/api/leaderboard') && response.request().method() === 'POST' && response.status() === 200);
@@ -142,7 +142,7 @@ test('retries a completed offline score and submits it after connectivity return
   disconnected = false;
   await result.getByRole('button', { name: '重试上榜' }).click();
   await expect(result.getByRole('button', { name: '提交到排行榜' })).toBeVisible();
-  await result.getByRole('textbox', { name: '上榜昵称' }).fill('visitor-恢复后重试');
+  await result.getByRole('textbox', { name: '上榜昵称' }).fill('-恢复后重试');
   const submitted = page.waitForResponse((response) => response.url().endsWith('/api/leaderboard') && response.request().method() === 'POST');
   await result.getByRole('button', { name: '提交到排行榜' }).click();
   expect((await submitted).status()).toBe(200);
@@ -204,7 +204,7 @@ test('recovers a submitted result after its response is lost without submitting 
   await page.waitForTimeout(1300);
   await page.getByRole('textbox', { name: '当前行输入' }).fill(target!);
   const result = page.getByRole('dialog', { name: '练习成绩' });
-  await result.getByRole('textbox', { name: '上榜昵称' }).fill('visitor-回包丢失');
+  await result.getByRole('textbox', { name: '上榜昵称' }).fill('-回包丢失');
   await result.getByRole('button', { name: '提交到排行榜' }).click();
   await expect(result.getByText('已提交，待复核。')).toBeVisible();
   await page.reload();

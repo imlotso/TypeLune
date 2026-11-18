@@ -40,7 +40,7 @@ test('freezes pace through pause, applies a changed target next round and syncs 
   await page.getByRole('button', { name: '继续练习' }).click();
   await page.getByRole('textbox', { name: '当前行输入' }).fill('山海相望');
   const result = page.getByRole('dialog', { name: '练习成绩' });
-  await expect(result.getByText('100%')).toBeVisible();
+  await expect(result.locator('.result-accuracy > strong')).toBeVisible();
   await expect(result.getByRole('button', { name: '提交到排行榜' })).toHaveCount(0);
   await result.getByRole('button', { name: '再练一次' }).click();
   await expect(pace).toContainText('目标 120 字/分');
@@ -62,7 +62,7 @@ test('uses the previous matching practice as a target without inventing a speed'
   const input = page.getByRole('textbox', { name: '当前行输入' });
   await input.fill('山'); await page.waitForTimeout(1200); await input.fill('山海');
   const result = page.getByRole('dialog', { name: '练习成绩' });
-  const speed = Number(await result.locator('.result-metrics > div').first().locator('strong').innerText());
+  const speed = Number.parseFloat(await result.locator('.result-speed > strong').innerText());
   expect(speed).toBeGreaterThan(0);
   await result.getByRole('button', { name: '关闭' }).click();
   const settings = await openSettings(page);

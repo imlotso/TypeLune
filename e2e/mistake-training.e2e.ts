@@ -16,7 +16,8 @@ test('practices corrected mistakes as an independent personal drill with the sel
   const before = (await (await page.request.get('/api/leaderboard?language=zh&difficulty=beginner&duration=300')).json()).entries.length as number;
   await completeWithCorrectedMistake(page);
   const result = page.getByRole('dialog', { name: '练习成绩' });
-  await expect(result.getByText('100%')).toBeVisible();
+  await expect(result.locator('.result-accuracy > strong')).toHaveText('100%');
+  await result.getByRole('tab', {name:'错字',exact:true}).click();
   await result.getByLabel('重复次数').fill('2');
   await result.getByRole('button', { name: '练习本轮错字' }).click();
   await expect(page.getByRole('heading', { name: '本轮错字专项' })).toBeVisible();

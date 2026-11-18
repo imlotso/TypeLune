@@ -8,6 +8,7 @@ import { PostgresDatabase } from '../server/postgres/database';
 import { AsyncPostgres } from '../server/database/postgres';
 import { migratePostgres } from '../server/postgres/migrate';
 import { seedPostgresCatalog } from '../server/postgres/seed';
+import {nicknamePolicySchema} from '../server/nickname-policy';
 import { wallpaperSchema } from '../server/wallpaper-schema';
 
 // Test-only server: real app and an isolated database, with an in-memory mailbox.
@@ -32,6 +33,7 @@ if (postgresUrl) {
   await setup.query(readFileSync(new URL('../server/postgres/support-settings.sql', import.meta.url), 'utf8'));
   await setup.query(readFileSync(new URL('../server/postgres/seo-settings.sql', import.meta.url), 'utf8'));
   await setup.query(wallpaperSchema);
+  await setup.query(nicknamePolicySchema);
   const database = new PostgresDatabase(postgresUrl, schema);
   try { await seedPostgresCatalog(new AsyncPostgres(database)); } finally { await database.close(); }
 }

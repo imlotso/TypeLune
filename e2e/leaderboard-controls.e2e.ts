@@ -10,11 +10,12 @@ test('keeps board filters across browsers and lets an administrator review and c
   await page.getByRole('dialog', { name: '结束本次练习？' }).getByRole('button', { name: '结束并查看成绩' }).click();
   const result = page.getByRole('dialog', { name: '练习成绩' });
   const nickname = result.getByLabel('上榜昵称');
-  await expect(nickname).toHaveValue('visitor');
-  await nickname.fill('云朵');
+  await expect(nickname).toHaveValue('');
+  await expect(result.getByLabel('固定前缀 visitor')).toHaveText('visitor');
+  await nickname.fill('1234567890');
   await expect(result.getByRole('button', { name: '提交到排行榜' })).toBeDisabled();
-  await expect(result.getByText(/游客昵称须以 visitor 开头/)).toBeVisible();
-  await nickname.fill('visitor-浏览器');
+  await expect(result.getByText('昵称后缀最多 9 个字符')).toBeVisible();
+  await nickname.fill('-浏览器');
   await result.getByRole('button', { name: '提交到排行榜' }).click();
   await expect(result.getByText('已提交，待复核。')).toBeVisible();
   await result.getByRole('button', { name: '排行榜', exact: true }).click();

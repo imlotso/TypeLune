@@ -140,7 +140,7 @@ describe('practice interface', () => {
     fireEvent.change(input, { target: { value: '你' } });
     time = 300_001;
     await screen.findByRole('dialog');
-    fireEvent.change(screen.getByRole('textbox', { name: '上榜昵称' }), { target: { value: 'visitor-小云' } });
+    fireEvent.change(screen.getByRole('textbox', { name: '上榜昵称' }), { target: { value: '-小云' } });
     await waitFor(() => expect((screen.getByRole('button', { name: '提交到排行榜' }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole('button', { name: '提交到排行榜' }));
     await screen.findByText('提交失败，请重试');
@@ -503,7 +503,7 @@ it('does not report a ranking when the submission response is malformed', async 
   fireEvent.change(screen.getByRole('textbox', { name: /当前行输入/ }), { target: { value: '你' } });
   time = 300_001;
   const result = await screen.findByRole('dialog', { name: '练习成绩' });
-  fireEvent.change(within(result).getByLabelText('上榜昵称'), { target: { value: 'visitor-小云' } });
+  fireEvent.change(within(result).getByLabelText('上榜昵称'), { target: { value: '-小云' } });
   await waitFor(() => expect((within(result).getByRole('button', { name: '提交到排行榜' }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(within(result).getByRole('button', { name: '提交到排行榜' }));
   expect(await within(result).findByText('提交结果无法确认，请重试')).toBeTruthy();
