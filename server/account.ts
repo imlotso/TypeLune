@@ -15,6 +15,7 @@ type Dependencies = {
   userFor: (request: FastifyRequest) => Promise<AccountUser | undefined>;
   accountMatches: (request: FastifyRequest, user: AccountUser) => boolean;
   publicUser: (user: AccountUser) => object;
+  nicknameBlocked?:(name:string)=>Promise<boolean>;
   clearSession: (request: FastifyRequest, reply: FastifyReply) => void;
 };
 type Result = { error: string; status: number } | { user?: AccountUser };
@@ -32,7 +33,7 @@ export async function migrateAccounts(db: AsyncDatabase) {
   }).immediate();
 }
 
-export function registerAccountRoutes(app: FastifyInstance, { db, userFor, accountMatches, publicUser, clearSession }: Dependencies) {
+export function registerAccountRoutes(app: FastifyInstance, { db, userFor, accountMatches, publicUser, clearSession,nicknameBlocked }: Dependencies) {
   async function requireUser(request: FastifyRequest, reply: FastifyReply): Promise<AccountUser | undefined> {
     reply.header('Cache-Control', 'no-store');
     const user = await userFor(request);
@@ -58,6 +59,7 @@ export function registerAccountRoutes(app: FastifyInstance, { db, userFor, accou
     const result = await db.transaction(async (): Promise<Result> => {
       const current = await stillAuthorized(request, initial);
       if (!current) return { error: '登录状态已失效，请重新登录', status: 401 };
+      if(nicknameBlocked&&username!==current.username&&await nicknameBlocked(username))return {error:'昵称含有不允许使用的词，请更换昵称',status:400};
       if (current.username !== initial.username) return { error: '账号资料已变更，请重试', status: 409 };
       const usernameEquals = db.dialect === 'postgres' ? `translate(username,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz') COLLATE "C"=translate(?,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz') COLLATE "C"` : 'username=?';
       if (await db.prepare(`SELECT id FROM users WHERE ${usernameEquals} AND id<>?`).get(username, current.id)) return { error: '用户名不可用', status: 409 };
@@ -103,6 +105,7 @@ export function registerAccountRoutes(app: FastifyInstance, { db, userFor, accou
     const result = await db.transaction(async (): Promise<Result> => {
       const current = await stillAuthorized(request, initial);
       if (!current) return { error: '登录状态已失效，请重新登录', status: 401 };
+      if(nicknameBlocked&&displayName!==(current.display_name||current.username)&&await nicknameBlocked(displayName))return {error:'昵称含有不允许使用的词，请更换昵称',status:400};
       const profilePublic = typeof body.profilePublic === 'boolean' ? body.profilePublic : profileValue(current.avatar).profilePublic;
       const stored = JSON.stringify({ version: 1, avatar, profilePublic });
       await db.prepare('UPDATE users SET display_name=?,avatar=? WHERE id=?').run(displayName, stored, current.id);

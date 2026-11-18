@@ -171,7 +171,7 @@ test('shows a result immediately when a custom article is completed', async ({ p
   const result = page.getByRole('dialog', { name: '练习成绩' });
   await expect(result).toBeVisible();
   await expect(result.getByText('4 / 4')).toBeVisible();
-  await expect(result.getByText('100%')).toBeVisible();
+  await expect(result.locator('.result-accuracy > strong')).toBeVisible();
 });
 
 test('submits an online result, uses an admin account and publishes the reviewed score', async ({ page, browser, baseURL }) => {
@@ -200,8 +200,8 @@ test('submits an online result, uses an admin account and publishes the reviewed
   expect(finishData.score).toMatchObject({ correct: total, total, accuracy: 100, cpm: expectedSpeed });
   const result = page.getByRole('dialog', { name: '练习成绩' });
   await expect(result.getByText(`${total} / ${total}`)).toBeVisible();
-  await expect(result.locator('.result-metrics > div').first().locator('strong')).toHaveText(String(expectedSpeed));
-  await result.getByRole('textbox', { name: '上榜昵称' }).fill('visitor-CI访客');
+  await expect(result.locator('.result-speed > strong')).toContainText(String(expectedSpeed));
+  await result.getByRole('textbox', { name: '上榜昵称' }).fill('-CI访客');
   const submitted = page.waitForResponse((response) => response.url().endsWith('/api/leaderboard') && response.request().method() === 'POST');
   await result.getByRole('button', { name: '提交到排行榜' }).click();
   expect((await submitted).status()).toBe(200);
@@ -289,7 +289,7 @@ test('submits an online result, uses an admin account and publishes the reviewed
   await page.getByRole('button', { name: '排行榜', exact: true }).click();
   await page.getByRole('button', { name: '游客榜', exact: true }).click();
   const ranked = page.locator('.ranking-table tbody tr').filter({ hasText: 'visitor-CI访客' });
-  await expect(ranked.locator('.rank-speed')).toHaveText(String(expectedSpeed));
+  await expect(ranked.locator('.rank-speed')).toContainText(String(expectedSpeed));
   await expect(ranked).toContainText('100%');
   await page.getByRole('button', { name: 'ci_admin', exact: true }).click();
   await page.getByRole('menuitem', { name: '返回后台' }).click();

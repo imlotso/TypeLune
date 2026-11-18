@@ -1,6 +1,16 @@
 import {useI18n,type UiLocale} from '../lib/i18n';
 // Exact known system messages only; unknown text and user content stay unchanged.
 const messages:Record<string,string>={
+  "昵称含有不允许使用的词，请更换昵称": "This nickname contains a blocked term. Choose another nickname.",
+  "昵称词库存储尚未安装": "Nickname wordlist storage is not installed.",
+  "昵称过滤设置无效": "Invalid nickname filtering settings.",
+  "词条格式无效": "Invalid term format.",
+  "词包中有重复词条": "The pack contains duplicate terms.",
+  "词条总数不能超过 5000": "Use at most 5,000 terms in total.",
+  "导入文件不能超过 1 MB": "Import files must not exceed 1 MB.",
+  "导入文件格式无效": "Invalid import file format.",
+  "全部词包导入需要 JSON 备份": "Use a JSON backup to import all packs.",
+
   "云端背景保存尚未确认，请重试": "Background save is not confirmed. Try again.",
   "背景存储格式已更新，请刷新页面后继续": "Background storage changed. Refresh before continuing.",
   "图片须为单帧 JPG、PNG 或 WebP": "Use a single-frame JPG, PNG or WebP image.",

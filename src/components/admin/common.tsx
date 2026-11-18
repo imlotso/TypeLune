@@ -28,7 +28,7 @@ const actionLabels: Record<string, string> = {
   'score.approve': '通过成绩', 'score.reject': '拒绝成绩', 'score.remove': '下架成绩',
   'score.bulk_remove': '按日期清理成绩',
   'smtp.update': '保存', 'smtp.reset': '恢复默认', 'smtp.verify': '测试连接',
-  'settings.site.update': '保存', 'settings.support.update': '捐赠设置',
+  'settings.nickname.update':'昵称过滤', 'settings.site.update': '保存', 'settings.support.update': '捐赠设置',
   'feedback.handle': '处理反馈',
 };
 

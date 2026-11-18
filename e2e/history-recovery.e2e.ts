@@ -19,7 +19,7 @@ test('recovers an interrupted public result from its history detail', async ({ p
   offline = false;
   await detail.getByRole('button', { name: '恢复成绩' }).click();
   await expect(result.getByRole('button', { name: '提交到排行榜' })).toBeVisible();
-  await result.getByRole('textbox', { name: '上榜昵称' }).fill('visitor-历史恢复');
+  await result.getByRole('textbox', { name: '上榜昵称' }).fill('-历史恢复');
   await result.getByRole('button', { name: '提交到排行榜' }).click();
   await expect(result.getByText('已提交，待复核。')).toBeVisible();
 });

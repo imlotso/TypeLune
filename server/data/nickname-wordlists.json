@@ -1,0 +1,4338 @@
+{
+  "source": "https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words",
+  "commit": "5faf2ba42d7b1c0977169ec3611df25a3c08eb13",
+  "license": "CC BY 4.0",
+  "changes": "Chinese and English lists split into editable packs; duplicates removed; matching modes and stable IDs added.",
+  "packs": {
+    "zh": [
+      {
+        "id": "zh-0001",
+        "term": "13.",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0002",
+        "term": "13点",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0003",
+        "term": "三级片",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0004",
+        "term": "下三烂",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0005",
+        "term": "下贱",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0006",
+        "term": "个老子的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0007",
+        "term": "九游",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0008",
+        "term": "乳",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0009",
+        "term": "乳交",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0010",
+        "term": "乳头",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0011",
+        "term": "乳房",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0012",
+        "term": "乳波臀浪",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0013",
+        "term": "交配",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0014",
+        "term": "仆街",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0015",
+        "term": "他奶奶",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0016",
+        "term": "他奶奶的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0017",
+        "term": "他奶娘的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0018",
+        "term": "他妈",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0019",
+        "term": "他妈ㄉ王八蛋",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0020",
+        "term": "他妈地",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0021",
+        "term": "他妈的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0022",
+        "term": "他娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0023",
+        "term": "他马的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0024",
+        "term": "你个傻比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0025",
+        "term": "你他马的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0026",
+        "term": "你全家",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0027",
+        "term": "你奶奶的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0028",
+        "term": "你她马的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0029",
+        "term": "你妈",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0030",
+        "term": "你妈的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0031",
+        "term": "你娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0032",
+        "term": "你娘卡好",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0033",
+        "term": "你娘咧",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0034",
+        "term": "你它妈的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0035",
+        "term": "你它马的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0036",
+        "term": "你是鸡",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0037",
+        "term": "你是鸭",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0038",
+        "term": "你马的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0039",
+        "term": "做爱",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0040",
+        "term": "傻比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0041",
+        "term": "傻逼",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0042",
+        "term": "册那",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0043",
+        "term": "军妓",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0044",
+        "term": "几八",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0045",
+        "term": "几叭",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0046",
+        "term": "几巴",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0047",
+        "term": "几芭",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0048",
+        "term": "刚度",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0049",
+        "term": "刚瘪三",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0050",
+        "term": "包皮",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0051",
+        "term": "十三点",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0052",
+        "term": "卖B",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0053",
+        "term": "卖比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0054",
+        "term": "卖淫",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0055",
+        "term": "卵",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0056",
+        "term": "卵子",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0057",
+        "term": "双峰微颤",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0058",
+        "term": "口交",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0059",
+        "term": "口肯",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0060",
+        "term": "叫床",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0061",
+        "term": "吃屎",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0062",
+        "term": "后庭",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0063",
+        "term": "吹箫",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0064",
+        "term": "塞你公",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0065",
+        "term": "塞你娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0066",
+        "term": "塞你母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0067",
+        "term": "塞你爸",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0068",
+        "term": "塞你老师",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0069",
+        "term": "塞你老母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0070",
+        "term": "处女",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0071",
+        "term": "外阴",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0072",
+        "term": "大卵子",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0073",
+        "term": "大卵泡",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0074",
+        "term": "大鸡巴",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0075",
+        "term": "奶",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0076",
+        "term": "奶奶的熊",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0077",
+        "term": "奶子",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0078",
+        "term": "奸",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0079",
+        "term": "奸你",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0080",
+        "term": "她妈地",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0081",
+        "term": "她妈的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0082",
+        "term": "她马的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0083",
+        "term": "妈B",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0084",
+        "term": "妈个B",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0085",
+        "term": "妈个比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0086",
+        "term": "妈个老比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0087",
+        "term": "妈妈的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0088",
+        "term": "妈比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0089",
+        "term": "妈的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0090",
+        "term": "妈的B",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0091",
+        "term": "妈逼",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0092",
+        "term": "妓",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0093",
+        "term": "妓女",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0094",
+        "term": "妓院",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0095",
+        "term": "妳她妈的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0096",
+        "term": "妳妈的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0097",
+        "term": "妳娘的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0098",
+        "term": "妳老母的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0099",
+        "term": "妳马的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0100",
+        "term": "姘头",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0101",
+        "term": "姣西",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0102",
+        "term": "姦",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0103",
+        "term": "娘个比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0104",
+        "term": "娘的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0105",
+        "term": "婊子",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0106",
+        "term": "婊子养的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0107",
+        "term": "嫖娼",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0108",
+        "term": "嫖客",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0109",
+        "term": "它妈地",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0110",
+        "term": "它妈的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0111",
+        "term": "密洞",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0112",
+        "term": "射你",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0113",
+        "term": "射精",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0114",
+        "term": "小乳头",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0115",
+        "term": "小卵子",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0116",
+        "term": "小卵泡",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0117",
+        "term": "小瘪三",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0118",
+        "term": "小肉粒",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0119",
+        "term": "小骚比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0120",
+        "term": "小骚货",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0121",
+        "term": "小鸡巴",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0122",
+        "term": "小鸡鸡",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0123",
+        "term": "屁眼",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0124",
+        "term": "屁股",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0125",
+        "term": "屄",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0126",
+        "term": "屌",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0127",
+        "term": "巨乳",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0128",
+        "term": "干x娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0129",
+        "term": "干七八",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0130",
+        "term": "干你",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0131",
+        "term": "干你妈",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0132",
+        "term": "干你娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0133",
+        "term": "干你老母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0134",
+        "term": "干你良",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0135",
+        "term": "干妳妈",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0136",
+        "term": "干妳娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0137",
+        "term": "干妳老母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0138",
+        "term": "干妳马",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0139",
+        "term": "干您娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0140",
+        "term": "干机掰",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0141",
+        "term": "干死CS",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0142",
+        "term": "干死GM",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0143",
+        "term": "干死你",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0144",
+        "term": "干死客服",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0145",
+        "term": "幹",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0146",
+        "term": "强奸",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0147",
+        "term": "强奸你",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0148",
+        "term": "性",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0149",
+        "term": "性交",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0150",
+        "term": "性器",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0151",
+        "term": "性无能",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0152",
+        "term": "性爱",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0153",
+        "term": "情色",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0154",
+        "term": "想上你",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0155",
+        "term": "懆您妈",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0156",
+        "term": "懆您娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0157",
+        "term": "懒8",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0158",
+        "term": "懒八",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0159",
+        "term": "懒叫",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0160",
+        "term": "懒教",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0161",
+        "term": "成人",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0162",
+        "term": "我操你祖宗十八代",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0163",
+        "term": "扒光",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0164",
+        "term": "打炮",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0165",
+        "term": "打飞机",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0166",
+        "term": "抽插",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0167",
+        "term": "招妓",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0168",
+        "term": "插你",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0169",
+        "term": "插死你",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0170",
+        "term": "撒尿",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0171",
+        "term": "操你",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0172",
+        "term": "操你全家",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0173",
+        "term": "操你奶奶",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0174",
+        "term": "操你妈",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0175",
+        "term": "操你娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0176",
+        "term": "操你祖宗",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0177",
+        "term": "操你老妈",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0178",
+        "term": "操你老母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0179",
+        "term": "操妳",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0180",
+        "term": "操妳全家",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0181",
+        "term": "操妳妈",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0182",
+        "term": "操妳娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0183",
+        "term": "操妳祖宗",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0184",
+        "term": "操机掰",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0185",
+        "term": "操比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0186",
+        "term": "操逼",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0187",
+        "term": "放荡",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0188",
+        "term": "日他娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0189",
+        "term": "日你",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0190",
+        "term": "日你妈",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0191",
+        "term": "日你老娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0192",
+        "term": "日你老母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0193",
+        "term": "日批",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0194",
+        "term": "月经",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0195",
+        "term": "机八",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0196",
+        "term": "机巴",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0197",
+        "term": "机机歪歪",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0198",
+        "term": "杂种",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0199",
+        "term": "浪叫",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0200",
+        "term": "淫",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0201",
+        "term": "淫乱",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0202",
+        "term": "淫妇",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0203",
+        "term": "淫棍",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0204",
+        "term": "淫水",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0205",
+        "term": "淫秽",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0206",
+        "term": "淫荡",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0207",
+        "term": "淫西",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0208",
+        "term": "湿透的内裤",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0209",
+        "term": "激情",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0210",
+        "term": "灨你娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0211",
+        "term": "烂货",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0212",
+        "term": "烂逼",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0213",
+        "term": "爛",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0214",
+        "term": "狗屁",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0215",
+        "term": "狗日",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0216",
+        "term": "狗狼养的",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0217",
+        "term": "玉杵",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0218",
+        "term": "王八蛋",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0219",
+        "term": "瓜娃子",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0220",
+        "term": "瓜婆娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0221",
+        "term": "瓜批",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0222",
+        "term": "瘪三",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0223",
+        "term": "白烂",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0224",
+        "term": "白痴",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0225",
+        "term": "白癡",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0226",
+        "term": "祖宗",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0227",
+        "term": "私服",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0228",
+        "term": "笨蛋",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0229",
+        "term": "精子",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0230",
+        "term": "老二",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0231",
+        "term": "老味",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0232",
+        "term": "老母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0233",
+        "term": "老瘪三",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0234",
+        "term": "老骚比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0235",
+        "term": "老骚货",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0236",
+        "term": "肉壁",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0237",
+        "term": "肉棍子",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0238",
+        "term": "肉棒",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0239",
+        "term": "肉缝",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0240",
+        "term": "肏",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0241",
+        "term": "肛交",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0242",
+        "term": "肥西",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0243",
+        "term": "色情",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0244",
+        "term": "花柳",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0245",
+        "term": "荡妇",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0246",
+        "term": "賤",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0247",
+        "term": "贝肉",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0248",
+        "term": "贱B",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0249",
+        "term": "贱人",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0250",
+        "term": "贱货",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0251",
+        "term": "贼你妈",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0252",
+        "term": "赛你老母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0253",
+        "term": "赛妳阿母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0254",
+        "term": "赣您娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0255",
+        "term": "轮奸",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0256",
+        "term": "迷药",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0257",
+        "term": "逼",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0258",
+        "term": "逼样",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0259",
+        "term": "野鸡",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0260",
+        "term": "阳具",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0261",
+        "term": "阳萎",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0262",
+        "term": "阴唇",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0263",
+        "term": "阴户",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0264",
+        "term": "阴核",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0265",
+        "term": "阴毛",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0266",
+        "term": "阴茎",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0267",
+        "term": "阴道",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0268",
+        "term": "阴部",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0269",
+        "term": "雞巴",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0270",
+        "term": "靠北",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0271",
+        "term": "靠母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0272",
+        "term": "靠爸",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0273",
+        "term": "靠背",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0274",
+        "term": "靠腰",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0275",
+        "term": "驶你公",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0276",
+        "term": "驶你娘",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0277",
+        "term": "驶你母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0278",
+        "term": "驶你爸",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0279",
+        "term": "驶你老师",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0280",
+        "term": "驶你老母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0281",
+        "term": "骚比",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0282",
+        "term": "骚货",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0283",
+        "term": "骚逼",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0284",
+        "term": "鬼公",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0285",
+        "term": "鸡8",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0286",
+        "term": "鸡八",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0287",
+        "term": "鸡叭",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0288",
+        "term": "鸡吧",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0289",
+        "term": "鸡奸",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0290",
+        "term": "鸡巴",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0291",
+        "term": "鸡芭",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0292",
+        "term": "鸡鸡",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0293",
+        "term": "龟儿子",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0294",
+        "term": "龟头",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0295",
+        "term": "𨳒",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0296",
+        "term": "陰莖",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0297",
+        "term": "㞗",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0298",
+        "term": "尻",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0299",
+        "term": "𨳊",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0300",
+        "term": "鳩",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0301",
+        "term": "𡳞",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0302",
+        "term": "𨶙",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0303",
+        "term": "撚",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0304",
+        "term": "𨳍",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0305",
+        "term": "柒",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0306",
+        "term": "閪",
+        "mode": "exact",
+        "enabled": true
+      },
+      {
+        "id": "zh-0307",
+        "term": "咸家鏟",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0308",
+        "term": "冚家鏟",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0309",
+        "term": "咸家伶",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0310",
+        "term": "冚家拎",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0311",
+        "term": "笨實",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0312",
+        "term": "粉腸",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0313",
+        "term": "屎忽",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0314",
+        "term": "躝癱",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0315",
+        "term": "你老闆",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0316",
+        "term": "你老味",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0317",
+        "term": "你老母",
+        "mode": "contains",
+        "enabled": true
+      },
+      {
+        "id": "zh-0318",
+        "term": "硬膠",
+        "mode": "contains",
+        "enabled": true
+      }
+    ],
+    "en": [
+      {
+        "id": "en-0001",
+        "term": "2g1c",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0002",
+        "term": "2 girls 1 cup",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0003",
+        "term": "acrotomophilia",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0004",
+        "term": "alabama hot pocket",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0005",
+        "term": "alaskan pipeline",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0006",
+        "term": "anal",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0007",
+        "term": "anilingus",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0008",
+        "term": "anus",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0009",
+        "term": "apeshit",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0010",
+        "term": "arsehole",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0011",
+        "term": "ass",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0012",
+        "term": "asshole",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0013",
+        "term": "assmunch",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0014",
+        "term": "auto erotic",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0015",
+        "term": "autoerotic",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0016",
+        "term": "babeland",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0017",
+        "term": "baby batter",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0018",
+        "term": "baby juice",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0019",
+        "term": "ball gag",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0020",
+        "term": "ball gravy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0021",
+        "term": "ball kicking",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0022",
+        "term": "ball licking",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0023",
+        "term": "ball sack",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0024",
+        "term": "ball sucking",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0025",
+        "term": "bangbros",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0026",
+        "term": "bangbus",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0027",
+        "term": "bareback",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0028",
+        "term": "barely legal",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0029",
+        "term": "barenaked",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0030",
+        "term": "bastard",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0031",
+        "term": "bastardo",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0032",
+        "term": "bastinado",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0033",
+        "term": "bbw",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0034",
+        "term": "bdsm",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0035",
+        "term": "beaner",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0036",
+        "term": "beaners",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0037",
+        "term": "beaver cleaver",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0038",
+        "term": "beaver lips",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0039",
+        "term": "beastiality",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0040",
+        "term": "bestiality",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0041",
+        "term": "big black",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0042",
+        "term": "big breasts",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0043",
+        "term": "big knockers",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0044",
+        "term": "big tits",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0045",
+        "term": "bimbos",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0046",
+        "term": "birdlock",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0047",
+        "term": "bitch",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0048",
+        "term": "bitches",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0049",
+        "term": "black cock",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0050",
+        "term": "blonde action",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0051",
+        "term": "blonde on blonde action",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0052",
+        "term": "blowjob",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0053",
+        "term": "blow job",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0054",
+        "term": "blow your load",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0055",
+        "term": "blue waffle",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0056",
+        "term": "blumpkin",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0057",
+        "term": "bollocks",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0058",
+        "term": "bondage",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0059",
+        "term": "boner",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0060",
+        "term": "boob",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0061",
+        "term": "boobs",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0062",
+        "term": "booty call",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0063",
+        "term": "brown showers",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0064",
+        "term": "brunette action",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0065",
+        "term": "bukkake",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0066",
+        "term": "bulldyke",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0067",
+        "term": "bullet vibe",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0068",
+        "term": "bullshit",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0069",
+        "term": "bung hole",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0070",
+        "term": "bunghole",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0071",
+        "term": "busty",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0072",
+        "term": "butt",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0073",
+        "term": "buttcheeks",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0074",
+        "term": "butthole",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0075",
+        "term": "camel toe",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0076",
+        "term": "camgirl",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0077",
+        "term": "camslut",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0078",
+        "term": "camwhore",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0079",
+        "term": "carpet muncher",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0080",
+        "term": "carpetmuncher",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0081",
+        "term": "chocolate rosebuds",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0082",
+        "term": "cialis",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0083",
+        "term": "circlejerk",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0084",
+        "term": "cleveland steamer",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0085",
+        "term": "clit",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0086",
+        "term": "clitoris",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0087",
+        "term": "clover clamps",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0088",
+        "term": "clusterfuck",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0089",
+        "term": "cock",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0090",
+        "term": "cocks",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0091",
+        "term": "coprolagnia",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0092",
+        "term": "coprophilia",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0093",
+        "term": "cornhole",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0094",
+        "term": "coon",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0095",
+        "term": "coons",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0096",
+        "term": "creampie",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0097",
+        "term": "cum",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0098",
+        "term": "cumming",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0099",
+        "term": "cumshot",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0100",
+        "term": "cumshots",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0101",
+        "term": "cunnilingus",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0102",
+        "term": "cunt",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0103",
+        "term": "darkie",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0104",
+        "term": "date rape",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0105",
+        "term": "daterape",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0106",
+        "term": "deep throat",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0107",
+        "term": "deepthroat",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0108",
+        "term": "dendrophilia",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0109",
+        "term": "dick",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0110",
+        "term": "dildo",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0111",
+        "term": "dingleberry",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0112",
+        "term": "dingleberries",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0113",
+        "term": "dirty pillows",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0114",
+        "term": "dirty sanchez",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0115",
+        "term": "doggie style",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0116",
+        "term": "doggiestyle",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0117",
+        "term": "doggy style",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0118",
+        "term": "doggystyle",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0119",
+        "term": "dog style",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0120",
+        "term": "dolcett",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0121",
+        "term": "domination",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0122",
+        "term": "dominatrix",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0123",
+        "term": "dommes",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0124",
+        "term": "donkey punch",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0125",
+        "term": "double dong",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0126",
+        "term": "double penetration",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0127",
+        "term": "dp action",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0128",
+        "term": "dry hump",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0129",
+        "term": "dvda",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0130",
+        "term": "eat my ass",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0131",
+        "term": "ecchi",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0132",
+        "term": "ejaculation",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0133",
+        "term": "erotic",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0134",
+        "term": "erotism",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0135",
+        "term": "escort",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0136",
+        "term": "eunuch",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0137",
+        "term": "fag",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0138",
+        "term": "faggot",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0139",
+        "term": "fecal",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0140",
+        "term": "felch",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0141",
+        "term": "fellatio",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0142",
+        "term": "feltch",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0143",
+        "term": "female squirting",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0144",
+        "term": "femdom",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0145",
+        "term": "figging",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0146",
+        "term": "fingerbang",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0147",
+        "term": "fingering",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0148",
+        "term": "fisting",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0149",
+        "term": "foot fetish",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0150",
+        "term": "footjob",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0151",
+        "term": "frotting",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0152",
+        "term": "fuck",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0153",
+        "term": "fuck buttons",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0154",
+        "term": "fuckin",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0155",
+        "term": "fucking",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0156",
+        "term": "fucktards",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0157",
+        "term": "fudge packer",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0158",
+        "term": "fudgepacker",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0159",
+        "term": "futanari",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0160",
+        "term": "gangbang",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0161",
+        "term": "gang bang",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0162",
+        "term": "gay sex",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0163",
+        "term": "genitals",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0164",
+        "term": "giant cock",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0165",
+        "term": "girl on",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0166",
+        "term": "girl on top",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0167",
+        "term": "girls gone wild",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0168",
+        "term": "goatcx",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0169",
+        "term": "goatse",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0170",
+        "term": "god damn",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0171",
+        "term": "gokkun",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0172",
+        "term": "golden shower",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0173",
+        "term": "goodpoop",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0174",
+        "term": "goo girl",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0175",
+        "term": "goregasm",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0176",
+        "term": "grope",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0177",
+        "term": "group sex",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0178",
+        "term": "g-spot",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0179",
+        "term": "guro",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0180",
+        "term": "hand job",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0181",
+        "term": "handjob",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0182",
+        "term": "hard core",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0183",
+        "term": "hardcore",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0184",
+        "term": "hentai",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0185",
+        "term": "homoerotic",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0186",
+        "term": "honkey",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0187",
+        "term": "hooker",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0188",
+        "term": "horny",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0189",
+        "term": "hot carl",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0190",
+        "term": "hot chick",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0191",
+        "term": "how to kill",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0192",
+        "term": "how to murder",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0193",
+        "term": "huge fat",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0194",
+        "term": "humping",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0195",
+        "term": "incest",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0196",
+        "term": "intercourse",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0197",
+        "term": "jack off",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0198",
+        "term": "jail bait",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0199",
+        "term": "jailbait",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0200",
+        "term": "jelly donut",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0201",
+        "term": "jerk off",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0202",
+        "term": "jigaboo",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0203",
+        "term": "jiggaboo",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0204",
+        "term": "jiggerboo",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0205",
+        "term": "jizz",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0206",
+        "term": "juggs",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0207",
+        "term": "kike",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0208",
+        "term": "kinbaku",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0209",
+        "term": "kinkster",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0210",
+        "term": "kinky",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0211",
+        "term": "knobbing",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0212",
+        "term": "leather restraint",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0213",
+        "term": "leather straight jacket",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0214",
+        "term": "lemon party",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0215",
+        "term": "livesex",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0216",
+        "term": "lolita",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0217",
+        "term": "lovemaking",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0218",
+        "term": "make me come",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0219",
+        "term": "male squirting",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0220",
+        "term": "masturbate",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0221",
+        "term": "masturbating",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0222",
+        "term": "masturbation",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0223",
+        "term": "menage a trois",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0224",
+        "term": "milf",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0225",
+        "term": "missionary position",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0226",
+        "term": "mong",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0227",
+        "term": "motherfucker",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0228",
+        "term": "mound of venus",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0229",
+        "term": "mr hands",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0230",
+        "term": "muff diver",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0231",
+        "term": "muffdiving",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0232",
+        "term": "nambla",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0233",
+        "term": "nawashi",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0234",
+        "term": "negro",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0235",
+        "term": "neonazi",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0236",
+        "term": "nigga",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0237",
+        "term": "nigger",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0238",
+        "term": "nig nog",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0239",
+        "term": "nimphomania",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0240",
+        "term": "nipple",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0241",
+        "term": "nipples",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0242",
+        "term": "nsfw",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0243",
+        "term": "nsfw images",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0244",
+        "term": "nude",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0245",
+        "term": "nudity",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0246",
+        "term": "nutten",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0247",
+        "term": "nympho",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0248",
+        "term": "nymphomania",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0249",
+        "term": "octopussy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0250",
+        "term": "omorashi",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0251",
+        "term": "one cup two girls",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0252",
+        "term": "one guy one jar",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0253",
+        "term": "orgasm",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0254",
+        "term": "orgy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0255",
+        "term": "paedophile",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0256",
+        "term": "paki",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0257",
+        "term": "panties",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0258",
+        "term": "panty",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0259",
+        "term": "pedobear",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0260",
+        "term": "pedophile",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0261",
+        "term": "pegging",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0262",
+        "term": "penis",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0263",
+        "term": "phone sex",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0264",
+        "term": "piece of shit",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0265",
+        "term": "pikey",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0266",
+        "term": "pissing",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0267",
+        "term": "piss pig",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0268",
+        "term": "pisspig",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0269",
+        "term": "playboy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0270",
+        "term": "pleasure chest",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0271",
+        "term": "pole smoker",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0272",
+        "term": "ponyplay",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0273",
+        "term": "poof",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0274",
+        "term": "poon",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0275",
+        "term": "poontang",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0276",
+        "term": "punany",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0277",
+        "term": "poop chute",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0278",
+        "term": "poopchute",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0279",
+        "term": "porn",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0280",
+        "term": "porno",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0281",
+        "term": "pornography",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0282",
+        "term": "prince albert piercing",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0283",
+        "term": "pthc",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0284",
+        "term": "pubes",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0285",
+        "term": "pussy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0286",
+        "term": "queaf",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0287",
+        "term": "queef",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0288",
+        "term": "quim",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0289",
+        "term": "raghead",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0290",
+        "term": "raging boner",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0291",
+        "term": "rape",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0292",
+        "term": "raping",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0293",
+        "term": "rapist",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0294",
+        "term": "rectum",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0295",
+        "term": "reverse cowgirl",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0296",
+        "term": "rimjob",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0297",
+        "term": "rimming",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0298",
+        "term": "rosy palm",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0299",
+        "term": "rosy palm and her 5 sisters",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0300",
+        "term": "rusty trombone",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0301",
+        "term": "sadism",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0302",
+        "term": "santorum",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0303",
+        "term": "scat",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0304",
+        "term": "schlong",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0305",
+        "term": "scissoring",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0306",
+        "term": "semen",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0307",
+        "term": "sex",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0308",
+        "term": "sexcam",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0309",
+        "term": "sexo",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0310",
+        "term": "sexy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0311",
+        "term": "sexual",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0312",
+        "term": "sexually",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0313",
+        "term": "sexuality",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0314",
+        "term": "shaved beaver",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0315",
+        "term": "shaved pussy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0316",
+        "term": "shemale",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0317",
+        "term": "shibari",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0318",
+        "term": "shit",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0319",
+        "term": "shitblimp",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0320",
+        "term": "shitty",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0321",
+        "term": "shota",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0322",
+        "term": "shrimping",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0323",
+        "term": "skeet",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0324",
+        "term": "slanteye",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0325",
+        "term": "slut",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0326",
+        "term": "s&m",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0327",
+        "term": "smut",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0328",
+        "term": "snatch",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0329",
+        "term": "snowballing",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0330",
+        "term": "sodomize",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0331",
+        "term": "sodomy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0332",
+        "term": "spastic",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0333",
+        "term": "spic",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0334",
+        "term": "splooge",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0335",
+        "term": "splooge moose",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0336",
+        "term": "spooge",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0337",
+        "term": "spread legs",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0338",
+        "term": "spunk",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0339",
+        "term": "strap on",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0340",
+        "term": "strapon",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0341",
+        "term": "strappado",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0342",
+        "term": "strip club",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0343",
+        "term": "style doggy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0344",
+        "term": "suck",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0345",
+        "term": "sucks",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0346",
+        "term": "suicide girls",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0347",
+        "term": "sultry women",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0348",
+        "term": "swastika",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0349",
+        "term": "swinger",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0350",
+        "term": "tainted love",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0351",
+        "term": "taste my",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0352",
+        "term": "tea bagging",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0353",
+        "term": "threesome",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0354",
+        "term": "throating",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0355",
+        "term": "thumbzilla",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0356",
+        "term": "tied up",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0357",
+        "term": "tight white",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0358",
+        "term": "tit",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0359",
+        "term": "tits",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0360",
+        "term": "titties",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0361",
+        "term": "titty",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0362",
+        "term": "tongue in a",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0363",
+        "term": "topless",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0364",
+        "term": "tosser",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0365",
+        "term": "towelhead",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0366",
+        "term": "tranny",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0367",
+        "term": "tribadism",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0368",
+        "term": "tub girl",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0369",
+        "term": "tubgirl",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0370",
+        "term": "tushy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0371",
+        "term": "twat",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0372",
+        "term": "twink",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0373",
+        "term": "twinkie",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0374",
+        "term": "two girls one cup",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0375",
+        "term": "undressing",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0376",
+        "term": "upskirt",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0377",
+        "term": "urethra play",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0378",
+        "term": "urophilia",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0379",
+        "term": "vagina",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0380",
+        "term": "venus mound",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0381",
+        "term": "viagra",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0382",
+        "term": "vibrator",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0383",
+        "term": "violet wand",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0384",
+        "term": "vorarephilia",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0385",
+        "term": "voyeur",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0386",
+        "term": "voyeurweb",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0387",
+        "term": "voyuer",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0388",
+        "term": "vulva",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0389",
+        "term": "wank",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0390",
+        "term": "wetback",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0391",
+        "term": "wet dream",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0392",
+        "term": "white power",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0393",
+        "term": "whore",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0394",
+        "term": "worldsex",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0395",
+        "term": "wrapping men",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0396",
+        "term": "wrinkled starfish",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0397",
+        "term": "xx",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0398",
+        "term": "xxx",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0399",
+        "term": "yaoi",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0400",
+        "term": "yellow showers",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0401",
+        "term": "yiffy",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0402",
+        "term": "zoophilia",
+        "mode": "word",
+        "enabled": true
+      },
+      {
+        "id": "en-0403",
+        "term": "🖕",
+        "mode": "exact",
+        "enabled": true
+      }
+    ]
+  }
+}

@@ -27,6 +27,7 @@ const url=process.env.DAZI_TEST_DATABASE_URL;
    for(const port of [address.port,vercel.port])expect((await fetch(`http://127.0.0.1:${port}/api/profiles/${user.id}`)).status).toBe(404);
    expect((await app.inject({url:'/api/me',headers})).json().user.profilePublic).toBe(false);
    const board=await app.inject('/api/leaderboard?board=user&language=en&difficulty=beginner');expect(board.statusCode,board.body).toBe(200);expect(board.json().entries).toEqual([]);
+   const allDifficulty=await app.inject('/api/leaderboard?board=user&language=en');expect(allDifficulty.statusCode,allDifficulty.body).toBe(200);expect(allDifficulty.json().entries).toEqual([]);
   }finally{await handler.close();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
  });
 });

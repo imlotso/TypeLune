@@ -22,8 +22,8 @@ export function Dialog({ title, onClose, children, className = '', dismissible =
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); return; }
       if (event.key !== 'Tab' || !element) return;
-      const items = [...element.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], summary')]
-        .filter((item) => !item.matches(':disabled, [hidden], input[type="hidden"]') && !item.closest('[hidden]') &&
+      const items = [...element.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], summary, [tabindex="0"]')]
+        .filter((item) => !item.matches(':disabled, [hidden], [tabindex="-1"], input[type="hidden"]') && !item.closest('[hidden]') &&
           (item.tagName === 'SUMMARY' || !item.closest('details:not([open])')));
       if (!items.length) {
         event.preventDefault();

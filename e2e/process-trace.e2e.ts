@@ -28,7 +28,8 @@ test('keeps observed process samples across two devices and in the saved result'
   await reader.getByRole('dialog').getByRole('button', { name: '结束并查看成绩' }).click();
   const result = reader.getByRole('dialog', { name: '练习成绩' });
   await expect(result.getByRole('img', { name: '练习过程速度和错误分布' })).toBeVisible();
-  await result.locator('.process-chart').scrollIntoViewIfNeeded();
+  await result.getByRole('tab',{name:'过程',exact:true}).click();
+  await result.getByRole('tabpanel',{name:'过程',exact:true}).locator('.process-chart').scrollIntoViewIfNeeded();
   await reader.screenshot({ path: testInfo.outputPath('process-desktop-light.png') });
   await expect.poll(async () => {
     const items = (await (await other.request.get('/api/workspace')).json()).items;

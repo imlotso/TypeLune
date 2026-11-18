@@ -1,3 +1,5 @@
+import {ResultLayout} from './components/ResultLayout';
+import {GuestNicknameField} from './components/GuestNicknameField';
 import {saveSurfaceAppearance} from './lib/workspace';
 import {effectiveSurface,surfaceStyle,type SurfaceAppearance} from './lib/surface-appearance';
 import {saveAccountWallpaper} from './lib/account-wallpaper';
@@ -51,7 +53,6 @@ import { PracticeLines } from './components/PracticeLines';
 import { PersonalDataView } from './components/PersonalDataView';
 import { PersonalBestComparison } from './components/PersonalBestComparison';
 import { PaceIndicator } from './components/PaceIndicator';
-import { ProcessChart } from './components/ProcessChart';
 import { PresetsDialog } from './components/PresetsDialog';
 import { SettingsTransferDialog } from './components/SettingsTransferDialog';
 import { ShareCardDialog } from './components/ShareCardDialog';
@@ -1105,7 +1106,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
 
   return <div className={`app-shell${focused ? ' app-focused' : ''}`} ref={focusRoot} style={surfaceStyle(activeSurface)}>
     {!focused && <header className="site-header">
-      <button className="brand" onClick={() => navigate('practice')} aria-label={t("TypeLune 首页", "TypeLune home")}><BrandLogo /></button>
+      <a className="brand" href={preserveLanguageAddress('/')} onClick={event=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();navigate('practice');}} aria-label={t("TypeLune 首页", "TypeLune home")}><BrandLogo /></a>
       <nav aria-label={t("主要导航", "Main navigation")}>
         {(['practice', 'lessons', 'library', 'rankings', 'history'] as const).map((item) => <button key={item} className={view === item ? 'nav-active' : ''} aria-current={view === item ? 'page' : undefined} onClick={() => navigate(item)}>{actionNames[item]}</button>)}
         <div className="more-nav" ref={moreMenu}>
@@ -1198,7 +1199,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
         })} onPractice={selectArticle} />}
         {view === 'stats' && <StatsView records={records} coverage={!ready || (!!ownerId && !historyLoaded) ? 'loading' : historyError || !!workspace.error || (!!ownerId && (!workspace.cloudLoaded || workspace.syncState !== 'synced')) || hasUnloadedLocalHistory() ? 'partial' : ownerId ? 'complete' : 'local'} timeZone={workspace.settings.statisticsTimezone ?? browserStatisticsTimeZone()} timeZoneProvisional={!workspace.settings.statisticsTimezone} goalMinutes={workspace.settings.dailyGoalMinutes ?? 0} onSaveCalendar={workspace.settingsReady ? workspace.updateSettings : undefined}
           onOpenRecord={(id) => void afterPark(() => commitAddress(pathForRecord(id), 'history'))} />}
-        {view === 'feedback' && <FeedbackView ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} routeFeedbackId={routeFeedbackId} onOpenFeedback={openFeedback} onCloseFeedback={() => commitView('feedback')} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
+        {view === 'feedback' && <FeedbackView onClose={()=>navigate('practice')} ownerId={ownerId} draft={feedbackDraft} setDraft={setFeedbackDraft} routeFeedbackId={routeFeedbackId} onOpenFeedback={openFeedback} onCloseFeedback={() => commitView('feedback')} onLogin={(draft) => { onFeedbackHandoff(draft); setShowAuth(true); }} />}
         {view === 'account' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>{t("账号设置", "Account settings")}</h1></div>{authReady ? <><p>{t("请先登录", "Please sign in")}</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>{t("登录", "Sign in")}</button></> : <p role="status">{t("正在读取账号…", "Loading account…")}</p>}</section>}
         {view === 'data' && !user && <section className="content-panel feature-panel"><div className="content-heading"><h1>{t("个人数据", "Personal data")}</h1></div>{authReady ? <><p>{t("请先登录", "Please sign in")}</p><button type="button" className="outline-button" onClick={() => setShowAuth(true)}>{t("登录", "Sign in")}</button></> : <p role="status">{t("正在读取账号…", "Loading account…")}</p>}</section>}
         {view === 'data' && user && <PersonalDataView user={user} onClear={() => setShowLogout({ clear: true })} onCompacted={() => setShowRecovery('generation')} onGuestImport={() => setShowGuestImport(true)} onManageCapacity={manageCapacity} onResetSettings={() => workspace.remove('settings', 'preferences')} />}
@@ -1245,47 +1246,33 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
         }}>{confirmPractice.action === 'restart' ? t("确认重新开始", "Restart practice") : t("结束并查看成绩", "Finish and view result")}</button>
       </div>
     </Dialog>}
-    {showResult && result && <Dialog title={t("练习成绩", "Practice result")} onClose={() => setShowResult(false)}>
-      {result.offline ? <>{practice.canRetryOnline ? <><p className="dialog-intro">{t("成绩尚未同步", "Result not yet synced")}</p><p className="score-status">{t("可恢复提交", "Submission can be recovered")}</p></> : <p className="dialog-intro">{!result.custom && result.elapsedMs < 1000 ? t("用时不足 1 秒，不参与排行", "Under 1 second. Not ranked.") : t("个人练习，不参与排行", "Private practice. Not ranked.")}</p>}</> :
-        resultStatus.status ? <ScoreStatusView status={resultStatus.status} /> : resultStatus.loading ? <p role="status">{t("正在读取成绩状态…", "Loading result status…")}</p> : <div><p className="form-error" role="alert">{resultStatus.error || t("成绩状态暂不可用", "Result status unavailable")}</p><button type="button" className="text-button" onClick={resultStatus.retry}>{t("重试状态", "Retry status")}</button></div>}
-      <div className="result-metrics">
-        {result.language === 'en' ? <EnglishSpeed score={result.score} display="result" />
-          : <div><strong>{result.score.cpm}</strong><span>{t("字 / 分钟", "Chars / min")}</span></div>}
-        <div><strong>{result.score.accuracy}%</strong><span>{t("准确率", "Accuracy")}</span></div>
-        <div><strong>{typedCharacters.length} / {result.articleTotal}</strong><span>{t("已打 / 文章字数", "Typed / article chars")}</span>{practice.offset > 0 && <small>{t("本轮", "This round")} {result.score.total}  {t("字", "chars")}</small>}</div>
-        <div><strong>{result.errors}</strong><span>{t("错误字数", "Errors")}</span></div>
-        <div><strong>{result.backspaces}</strong><span>{t("退格次数", "Backspaces")}</span></div>
-        <div><strong>{formatTime(result.elapsedMs)}</strong><span>{t("有效用时", "Active time")}</span></div>
-      </div>
-      {result.record && <LessonResult record={result.record} onSelect={selectLesson} onReview={selectArticle} onCourse={() => navigate('lessons')} />}
+    {showResult && result && <Dialog title={t("练习成绩", "Practice result")} className="result-dialog" onClose={() => setShowResult(false)}>
+      <ResultLayout key={result.recordId ?? result.elapsedMs} result={result} article={result.record?.article ?? selection} typed={typedCharacters.length} offset={practice.offset}
+        status={<>{result.offline ? <>{practice.canRetryOnline ? <><p className="dialog-intro">{t("成绩尚未同步", "Result not yet synced")}</p><p className="score-status">{t("可恢复提交", "Submission can be recovered")}</p></> : <p className="dialog-intro">{!result.custom && result.elapsedMs < 1000 ? t("用时不足 1 秒，不参与排行", "Under 1 second. Not ranked.") : t("个人练习，不参与排行", "Private practice. Not ranked.")}</p>}</> :
+        resultStatus.status ? <ScoreStatusView status={resultStatus.status} /> : resultStatus.loading ? <p role="status">{t("正在读取成绩状态…", "Loading result status…")}</p> : <div><p className="form-error" role="alert">{resultStatus.error || t("成绩状态暂不可用", "Result status unavailable")}</p><button type="button" className="text-button" onClick={resultStatus.retry}>{t("重试状态", "Retry status")}</button></div>}</>} comparison={<>{result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? (hasUnloadedLocalHistory() ? 'partial' : 'local') :
+        historyCheckedFor !== result.recordId ? 'loading' : historyError || !workspace.cloudLoaded || workspace.syncState !== 'synced' || hasUnloadedLocalHistory() ? 'partial' : 'complete'} />}</>} course={<>{result.record && <LessonResult record={result.record} onSelect={selectLesson} onReview={selectArticle} onCourse={() => navigate('lessons')} />}
       {result.record && isAssessmentArticle(result.record.article) && <AssessmentPanel records={[result.record, ...records]} ownerId={ownerId} onSelect={selectArticle} />}
-      {result.record && (isAssessmentArticle(result.record.article) || isWeakKeyArticle(result.record.article)) && <button className="text-button" onClick={() => navigate('lessons')}>{t('课程目录', 'Course outline')}</button>}
-      {result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? (hasUnloadedLocalHistory() ? 'partial' : 'local') :
-        historyCheckedFor !== result.recordId ? 'loading' : historyError || !workspace.cloudLoaded || workspace.syncState !== 'synced' || hasUnloadedLocalHistory() ? 'partial' : 'complete'} />}
-      {result.record && <ProcessChart trace={result.record.processTrace} language={result.record.language} />}
-      {result.record && (result.record.mistakesTruncated || (result.record.mistakes?.length ?? 0) >= 500) && <p className="feature-muted" role="status">{t("错字样本可能不完整", "Mistake samples may be incomplete")}</p>}
+      {result.record && (isAssessmentArticle(result.record.article) || isWeakKeyArticle(result.record.article)) && <button className="text-button" onClick={() => navigate('lessons')}>{t('课程目录', 'Course outline')}</button>}</>} mistakes={<>{result.record && (result.record.mistakesTruncated || (result.record.mistakes?.length ?? 0) >= 500) && <p className="feature-muted" role="status">{t("错字样本可能不完整", "Mistake samples may be incomplete")}</p>}
       {roundDrillAvailable && <div className="round-mistake-actions">
         <label>{t("重复次数", "Repetitions")}<input type="number" min={1} max={10} step={1} value={mistakeRepeats} aria-invalid={!roundDrill} onChange={(event) => setMistakeRepeats(event.target.value)} /></label>
         <button className="outline-button" disabled={!roundDrill} onClick={() => { if (roundDrill) selectArticle(roundDrill); }}>{t("练习本轮错字", "Practice these mistakes")}</button>
       </div>}
       {mistakes.length > 0 && <details className="mistake-review"><summary>{t("错字回看 ·", "Review mistakes ·")} {mistakes.length > 30 ? `前 30 / ${mistakes.length}` : mistakes.length}  {t("处", "items")}</summary><ul>{mistakes.slice(0, 30).map((mistake) => <li key={mistake.index}><span>{t("第", "#")} {mistake.index + 1}  {t("字", "chars")}</span><span>{t("原文", "Source")} <b>{readableCharacter(mistake.expected)}</b></span><span>{t("输入", "Input")} <del>{readableCharacter(mistake.actual)}</del></span></li>)}</ul></details>}
-      {practice.canRetryOnline && <div className="rank-submit"><button className="primary-button" disabled={phase === 'restoring'} onClick={() => void practice.retryOnline()}>{phase === 'restoring' ? t("正在恢复…", "Restoring…") : t("重试上榜", "Retry submission")}</button></div>}
+      {mistakes.length===0 && <p className="feature-muted">{t("本轮没有可回看的错字", "No mistakes to review this round")}</p>}</>} leaderboard={<>{practice.canRetryOnline && <div className="rank-submit"><button className="primary-button" disabled={phase === 'restoring'} onClick={() => void practice.retryOnline()}>{phase === 'restoring' ? t("正在恢复…", "Restoring…") : t("重试上榜", "Retry submission")}</button></div>}
       {practice.canRetryOnline && practice.feedback && <p className="form-error" role="alert">{practice.feedback}</p>}
       {!result.offline && result.eligible && !rankSubmitted && (!resultStatus.status || resultStatus.status.state === 'not_submitted') && <div className="rank-submit">
-        {!user && <label>{t("上榜昵称", "Leaderboard nickname")}<input value={nickname} maxLength={32} aria-invalid={!validGuestNickname(nickname)} onChange={(event) => setNickname(event.target.value)} /></label>}
-        {!user && !validGuestNickname(nickname) && <p className="form-error">{t("游客昵称须以 visitor 开头，最多 16 个字符。", "Guest names must start with visitor and use at most 16 characters.")}</p>}
+        {!user && <GuestNicknameField value={nickname} blocked={rankMessage==='昵称含有不允许使用的词，请更换昵称'} onChange={value=>{setNickname(value);setRankMessage('');}}/>}
         <button className="primary-button" disabled={busy || resultStatus.loading || (!user && (!validGuestNickname(nickname) || site.features?.guestLeaderboardEnabled === false))} onClick={() => void submitRank()}><Trophy size={20} /> {busy ? t("提交中…", "Submitting…") : t("提交到排行榜", "Submit to leaderboard")}</button>
         {!user && site.features?.guestLeaderboardEnabled === false && <p className="form-error" role="status">{t("游客上榜已关闭。", "Guest leaderboard submissions are disabled.")}</p>}
       </div>}
-      {rankMessage && (!rankSubmitted || !resultStatus.status) && <p className={rankSubmitted ? 'form-notice' : 'form-error'} role={rankSubmitted ? 'status' : 'alert'}>{rankSubmitted && <CheckCircle size={18} />} {rankMessage}</p>}
-      {result.record && <div className="feature-actions"><button className="outline-button" disabled={!shareData} onClick={() => { setShowResult(false); setShowShare(true); }}>{t("分享成绩", "Share result")}</button></div>}
-      {result.record && !shareData && <p className="form-error" role="status">{t("无法生成分享卡", "Could not create share card")}</p>}
-      <div className={`result-actions result-navigation${result.continuation ? ' with-continuation' : ''}`}>
+      {rankMessage && (!rankSubmitted || !resultStatus.status) && <p className={rankSubmitted ? 'form-notice' : 'form-error'} role={rankSubmitted ? 'status' : 'alert'}>{rankSubmitted && <CheckCircle size={18} />} <SystemMessage text={rankMessage}/></p>}</>} actions={<><div className={`result-actions result-navigation${result.continuation ? ' with-continuation' : ''}`}>
         {result.continuation && <button className="primary-button" onClick={() => continueDraft(result.continuation!)}>{t("继续本篇", "Continue article")}</button>}
         <button className="outline-button" onClick={() => resetPractice(selection, true)}>{t("再练一次", "Try again")}</button>
         {!focused && !resultTraining && <button className="text-button" onClick={nextArticle}>{t("下一篇", "Next article")} <ArrowRight size={16} aria-hidden="true" /></button>}
         {!focused && !resultTraining && <button className="text-button" onClick={() => navigate('rankings')}>{t("排行榜", "Rankings")}</button>}
-      </div>
+            {result.record && <><button className="outline-button" disabled={!shareData} onClick={() => { setShowResult(false); setShowShare(true); }}>{t("分享成绩", "Share result")}</button></>}
+      {result.record && !shareData && <p className="form-error" role="status">{t("无法生成分享卡", "Could not create share card")}</p>}
+      </div></>}/>
     </Dialog>}
     {showShare && shareData && <ShareCardDialog data={shareData} theme={theme} onClose={() => { setShowShare(false); setShowResult(true); }} />}
   </div>;

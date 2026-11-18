@@ -1,3 +1,4 @@
+import {preserveLanguageAddress} from '../lib/seo';
 import { useI18n } from '../lib/i18n';
 import { LanguageToggle } from './LanguageToggle';
 import { WorkspaceI18nProvider } from './WorkspaceI18nProvider';
@@ -61,12 +62,12 @@ function AdminWorkspaceContent({ user, onLogout, onPreview, workspace }: Props &
 
   return <div className="administration-app">
     <header className="administration-header">
-      <div className="administration-brand"><BrandLogo /><span className="administration-badge">{t('管理端', 'Administration')}</span></div>
+      <div className="administration-brand"><a href={preserveLanguageAddress('/')} aria-label={t('TypeLune 首页','TypeLune home')} onClick={event=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();leave(onPreview);}}><BrandLogo /></a><span className="administration-badge">{t('管理端', 'Administration')}</span></div>
       <div className="administration-actions">
         <LanguageToggle />
         <button className="outline-button" disabled={busy} onClick={() => leave(onPreview)}><ArrowSquareOut size={18} aria-hidden="true" />{t('预览网站', 'Preview site')}</button>
         <button className="administration-theme" disabled={!workspace.settingsReady} aria-label={theme === 'dark' ? t('切换至日间模式', 'Switch to light mode') : t('切换至夜间模式', 'Switch to dark mode')} aria-pressed={theme === 'dark'} onClick={toggleTheme}>
-          {theme === 'dark' ? <Sun size={20} aria-hidden="true" /> : <MoonStars size={20} aria-hidden="true" />}<span>{theme === 'dark' ? t('日间', 'Light') : t('夜间', 'Dark')}</span>
+          {theme === 'dark' ? <Sun size={20} aria-hidden="true" /> : <MoonStars size={20} aria-hidden="true" />}
         </button>
         <button className="outline-button administration-account" title={t('退出登录', 'Sign out')} disabled={busy} onClick={() => leave(() => void logout())}><UserCircle size={20} aria-hidden="true" /><span>{user.username}</span><SignOut size={17} aria-hidden="true" /><span>{t('退出登录', 'Sign out')}</span></button>
       </div>

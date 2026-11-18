@@ -113,3 +113,11 @@ npm run db:postgres -- export /安全路径/新回滚快照.sqlite
 Vercel 构建会执行 `scripts/vercel-runtime-check.ts`，先验证当前数据库结构和应用启动，再发布函数；不会在正常请求或启动时执行 DDL。`TYPELUNE_INSTALL_SEO=production`（或 `preview`）是一次性的显式 SEO 表安装开关，只允许与当前 Vercel 环境相同的值，安装成功后应移除。
 
 需要新建隔离预览时，将分支级 `DAZI_DATABASE_SCHEMA` 设置为 `typelune_preview_` 前缀的专用名称，同时显式设置 `TYPELUNE_INIT_PREVIEW` 为同一名称。此操作仅允许在 Preview 环境创建该命名空间、执行现有迁移、安装扩展并初始化公共文章；不复制生产账户、记录或私有数据。初始化成功后移除 `TYPELUNE_INIT_PREVIEW`，保留分支的 schema 设置。该开关不能用于生产或 `public` schema。
+
+## 昵称过滤词库扩展
+
+在已明确选择并确认的目标数据库上执行 `npm run db:postgres -- nickname-policy`，添加独立的 `nickname_policy` 表，并一次性导入中英文初始词包。安装可重复执行，已有后台配置不会被覆盖；不修改原迁移版本或现有用户与成绩。
+
+Vercel 构建也可显式设置 `TYPELUNE_INSTALL_NICKNAME_POLICY=preview` 或 `production`，必须与该部署环境一致；成功安装后将此变量清空。正常函数启动不执行 PostgreSQL DDL。旧数据库未安装时，现有练习与登录保持可用，后台昵称过滤页会提示尚未安装。
+
+初始过滤开关为关闭，所选语言为空。管理员在“昵称过滤”中查看中英文词包，按需增删、编辑匹配方式、导入 TXT/JSON 或导出备份，然后选择词包并开启。输入框中固定的 `visitor` 不参与游客后缀过滤。启用后服务端检查新注册名、修改后的公开昵称和排行榜提交；不追溯删除已有历史记录。词库来源及 CC BY 4.0 许可见 [昵称词库归属](licenses/nickname-wordlists.md)。

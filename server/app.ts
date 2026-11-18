@@ -1,3 +1,4 @@
+import {createNicknamePolicy,registerNicknamePolicyAdmin,nicknameBlockedMessage} from './nickname-policy.js';
 import { createSeoSettings, registerSeoAdminRoutes, registerSeoPublicSettings } from './seo-settings.js';
 import { createSeoRenderer, registerSeoPageRoutes } from './seo.js';
 import { mainRoute } from '../src/lib/routes.js';
@@ -253,6 +254,7 @@ export async function createApp(options: AppOptions) {
   }, feedbackUploads);
   const audit = createAdminAudit(db, now);
   const siteSettings = await createSiteSettings(db, audit);
+  const nicknamePolicy=await createNicknamePolicy(db,audit);
   const seoSettings = await createSeoSettings(db, audit, options.seoOrigin ?? process.env.VITE_SITE_URL ?? '');
   const seoRenderer = await createSeoRenderer({ store: seoSettings, db, catalog, templatePath: options.htmlTemplatePath ?? (options.staticRoot ? `${options.staticRoot}/app.html` : undefined), preview: options.seoPreview ?? process.env.VERCEL_ENV === 'preview' });
   const supportSettings = await createSupportSettings(db, audit);
@@ -319,7 +321,7 @@ export async function createApp(options: AppOptions) {
   const clearAccountSession = (request: FastifyRequest, reply: FastifyReply) => {
     if (expectedAccount(request) === undefined) reply.clearCookie('session', cookieOptions);
   };
-  registerAccountRoutes(app, { db, userFor, accountMatches, publicUser, clearSession: clearAccountSession });
+  registerAccountRoutes(app, { db, userFor, accountMatches, publicUser, clearSession: clearAccountSession, nicknameBlocked: name=>nicknamePolicy.blocked(name) });
   await registerAccountEmailRoutes(app, { db, now, codeSecret, mailer: smtp.mailer, userFor, accountMatches, clearSession: clearAccountSession });
   registerSessionRoutes(app, { db, now, hashSession: digest, userFor, accountMatches, clearSession: clearAccountSession });
   registerAccountDeletion(app, { db, now, userFor, accountMatches, clearSession: clearAccountSession });
@@ -395,6 +397,7 @@ export async function createApp(options: AppOptions) {
     registerAdminFeedbackRoutes(admin, feedbackStore, audit);
     registerCatalogRoutes(admin, catalog, audit);
     registerSiteSettingsRoutes(admin, siteSettings);
+    registerNicknamePolicyAdmin(admin,nicknamePolicy);
     registerSeoAdminRoutes(admin, seoSettings);
     registerSupportAdminRoutes(admin, supportSettings);
     registerSiteWallpaperAdmin(admin, siteWallpapers);
@@ -465,6 +468,7 @@ export async function createApp(options: AppOptions) {
       if ((await db.prepare(`SELECT id FROM users WHERE ${userEmailEquals} OR ${usernameEquals}`).get(storageEmail(email), username))) {
         return { error: '账号信息不可用，请检查后重试', status: 409 };
       }
+      if(await nicknamePolicy.blocked(username))return {error:nicknameBlockedMessage,status:400};
       if (!(await verifyCode(email, 'register', code))) return { error: '验证码错误或已过期', status: 400 };
       const bootstrap = email === adminEmail && !(await db.prepare("SELECT 1 FROM users WHERE role='admin' LIMIT 1").get());
       const account: User = { id: randomUUID(), username, email, password_hash: passwordHash, role: bootstrap ? 'admin' : 'user', auth_version: 0, display_name: username, avatar: null };
@@ -1138,6 +1142,7 @@ export async function createApp(options: AppOptions) {
       return { error: `昵称需为 1–${maxNicknameLength} 个字符`, code: 400 } as const;
     }
     if (guest && !validGuestNickname(nickname)) return { error: '游客昵称须以 visitor 开头', code: 400 } as const;
+    if(await nicknamePolicy.blocked(guest?nickname.slice(7):nickname))return {error:nicknameBlockedMessage,code:400} as const;
     const publishSince = Math.max(challenge.finished_at ?? 0, challenge.publish_recovered_at ?? 0);
     if (!isEligible(challenge)) return { error: '没有有效输入', code: 400 } as const;
     if (!publishSince || now() - publishSince > 10 * 60_000) {
@@ -1174,12 +1179,12 @@ export async function createApp(options: AppOptions) {
       if (!accountMatches(request, user)) return invalid(reply, '登录账号已变更', 403);
     }
     const query = request.query as Record<string, string>;
-    const { language, difficulty, period = 'all', articleId, mode = 'timed', strict = 'false', board = 'all' } = query;
+    const { language, difficulty = 'all', period = 'all', articleId, mode = 'timed', strict = 'false', board = 'all' } = query;
     const aggregate = query.duration === undefined && query.mode === undefined && query.strict === undefined && query.articleId === undefined;
     const page = Number(query.page ?? 1); const pageSize = aggregate ? 10 : 100; const offset = (page - 1) * pageSize;
     const duration = Number(query.duration);
     if (!Number.isSafeInteger(page) || page < 1 || page > 100000) return invalid(reply, '分页参数无效');
-    if (!['zh', 'en'].includes(language) || !difficulties.includes(difficulty as Difficulty) ||
+    if (!['zh', 'en'].includes(language) || (difficulty !== 'all' && !difficulties.includes(difficulty as Difficulty)) ||
       !['all', 'week', 'month'].includes(period) || !['all', 'guest', 'user'].includes(board) || !isPracticeMode(mode) || !['true', 'false'].includes(strict) ||
       (!aggregate && mode === 'timed' && !isValidDuration(duration)) ||
       (articleId !== undefined && !(await catalog.hasHistorical(articleId, language as Language, difficulty as Difficulty)))) {
@@ -1195,7 +1200,7 @@ export async function createApp(options: AppOptions) {
           ROW_NUMBER() OVER (PARTITION BY owner ORDER BY speed DESC, accuracy DESC, finished_at, id) AS owner_rank
         FROM challenges
         WHERE published=1 AND status='finished' AND ranking_removed=0 AND language=@language
-          AND difficulty=@difficulty AND (@aggregate=1 OR (mode=@mode AND strict=@strict)) AND finished_at>=@since
+          AND (@difficulty='all' OR difficulty=@difficulty) AND (@aggregate=1 OR (mode=@mode AND strict=@strict)) AND finished_at>=@since
           AND nickname IS NOT NULL AND speed IS NOT NULL
           AND (@board='all' OR (@board='guest' AND owner LIKE 'g:%') OR (@board='user' AND owner LIKE 'u:%'))
           AND (@duration IS NULL OR duration=@duration) AND (@articleId IS NULL OR article_id=@articleId)

@@ -127,6 +127,6 @@ it('requires explicit opt-out before uploads and returns to the built-in fallbac
  render(<BackgroundDialog theme="light" value={saved} useSiteDefault onSave={onSave} onClose={()=>{}}/>);
  expect((screen.getByRole('checkbox',{name:'跟随全站壁纸刷新'}) as HTMLInputElement).checked).toBe(true);upload('blocked.png');expect(prepareBackgroundImage).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole('checkbox',{name:'跟随全站壁纸刷新'}));upload('own.png');await screen.findByText('own.png');
- fireEvent.click(screen.getByRole('checkbox',{name:'跟随全站壁纸刷新'}));expect(screen.getByRole('img',{name:'背景预览'}).getAttribute('src')).toBe('/assets/lake-default.webp');fireEvent.click(screen.getByRole('button',{name:'保存',exact:true}));
+ fireEvent.click(screen.getByRole('checkbox',{name:'跟随全站壁纸刷新'}));expect(screen.getByRole('img',{name:'背景预览'}).getAttribute('src')).toBe('/assets/lake-default.webp');fireEvent.click(screen.getByRole('button',{name:'保存'}));
  await waitFor(()=>expect(onSave).toHaveBeenCalledWith(expect.objectContaining({image:'/assets/lake-default.webp'}),'off',true,true));
 });
