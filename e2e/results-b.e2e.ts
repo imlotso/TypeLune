@@ -199,6 +199,8 @@ test("keeps English WPM, CPM and explanation readable in dark mobile results", a
   await expect(
     dialog.getByRole("group", { name: "English speed", exact: true }),
   ).toBeVisible();
+  await expect(dialog.locator(".result-article p")).toContainText("English · Custom · Timed 5 min");
+  await expect(dialog.locator(".result-article p")).not.toContainText("Beginner");
   await page.setViewportSize({ width: 390, height: 844 });
   await dialog
     .getByRole("button", { name: "About English speed", exact: true })

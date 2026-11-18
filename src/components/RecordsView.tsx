@@ -12,6 +12,7 @@ import { useScoreStatus } from '../hooks/useScoreStatus';
 import { ScoreStatusView, scoreStatusText } from './ScoreStatusView';
 import { Dialog } from './Dialog';
 import { ProcessChart } from './ProcessChart';
+import { isCustomPracticeArticle } from '../lib/practice-kind';
 
 type Props = {
   records: PracticeRecord[];
@@ -66,6 +67,7 @@ const dateText = (date: Date) => date.toLocaleString(locale === 'zh' ? 'zh-CN' :
         <h3>{recordTitle(record)}</h3>
         <div className="feature-meta">
           {article?.author && <span>{article.author}</span>}
+          {isCustomPracticeArticle(article) && <span>{t("自定义", "Custom")}</span>}
           <time dateTime={date.toISOString()}>{dateText(date)}</time>
           <span>{record.mode === 'article' ? t("整篇", "Full article") : t(`限时 ${record.duration / 60} 分钟`, `Timed ${record.duration / 60} min`)}</span>
           {record.strict && <span>{t("严格纠错", "Strict correction")}</span>}
@@ -165,7 +167,7 @@ const dateText = (date: Date) => date.toLocaleString(locale === 'zh' ? 'zh-CN' :
             <div className="record-title-row"><input type="checkbox" aria-label={t(`选择《${title}》`, `Select ${title}`)} checked={chosen.has(id)} disabled={!chosen.has(id) && selectedRecords.length >= 100} onChange={(event) => setChosen((current) => { const next = new Set(current); if (event.target.checked) next.add(id); else next.delete(id); return next; })} /><h2>{title}</h2></div>
             <div className="feature-meta">
               <time dateTime={date.toISOString()}>{dateText(date)}</time>
-              {record.article && <span>{languageNames[record.language]} · {difficultyNames[record.difficulty]}</span>}
+              {record.article && <span>{languageNames[record.language]} · {isCustomPracticeArticle(record.article) ? t("自定义", "Custom") : difficultyNames[record.difficulty]}</span>}
               {record.localOnly && <span>{record.article?.custom || (record.offset ?? 0) > 0 ? t("个人练习", "Personal practice") : t("本机记录", "Local record")}</span>}
               {record.legacyIdConflict && <span>{t("记录标识冲突", "Record ID conflict")}</span>}
               {record.scoreStatus && <span>{scoreStatusText(record.scoreStatus, locale)}</span>}
