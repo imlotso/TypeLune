@@ -11,6 +11,10 @@ import type { SmtpConfiguration } from './smtp.js';
 /** Create one Fastify instance per warm Function, retrying failed cold starts. */
 export function createVercelHandler(env: NodeJS.ProcessEnv = process.env) {
   let pending: Promise<Awaited<ReturnType<typeof createApp>>> | undefined;
+  // An upstream CDN can present the Vercel alias as Host. Pin the browser
+  // origin to the production domain supplied by Vercel, never a request header.
+  const proxiedPublicOrigin = env.VERCEL_ENV === 'production' && env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined;
   async function app() {
     if (!pending) {
       pending = (async () => {
@@ -27,7 +31,8 @@ export function createVercelHandler(env: NodeJS.ProcessEnv = process.env) {
         }
         const instance = await createApp({ databaseUrl, postgresSchema: env.DAZI_DATABASE_SCHEMA || 'public', codeSecret,
           visitGeoSource: env.VERCEL === '1' ? 'vercel' : undefined,
-          adminEmail: env.ADMIN_EMAIL, secureCookies: true, trustProxy: trustImmediateProxy, smtp, onDatabasePool: attachDatabasePool, seoOrigin: env.VITE_SITE_URL ?? '', seoPreview: env.VERCEL_ENV === 'preview', htmlTemplatePath: resolve('dist/client/app.html') });
+          adminEmail: env.ADMIN_EMAIL, secureCookies: true, trustProxy: trustImmediateProxy, proxiedPublicOrigin,
+          smtp, onDatabasePool: attachDatabasePool, seoOrigin: env.VITE_SITE_URL ?? '', seoPreview: env.VERCEL_ENV === 'preview', htmlTemplatePath: resolve('dist/client/app.html') });
         try { await instance.ready(); } catch (error) { await instance.close(); throw error; }
         return instance;
       })().catch((error) => { pending = undefined; throw error; });

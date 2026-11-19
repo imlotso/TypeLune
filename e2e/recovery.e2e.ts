@@ -128,9 +128,13 @@ test('recovers an account-synced online draft on a second device', async ({ page
 });
 
 test('retries a completed offline score and submits it after connectivity returns', async ({ page }) => {
-  let disconnected = true;
+  let connection: 'offline' | 'blocked' | 'online' = 'offline';
   await page.route('**/api/tests/start', (route) => route.abort('failed'));
-  await page.route('**/api/tests/recover', (route) => disconnected ? route.abort('failed') : route.continue());
+  await page.route('**/api/tests/recover', (route) => {
+    if (connection === 'offline') return route.abort('failed');
+    if (connection === 'blocked') return route.fulfill({ status: 403, json: { error: '请求来源无效' } });
+    return route.continue();
+  });
   await page.goto('/');
   const target = await page.locator('.line-source').evaluateAll((lines) => lines.map((line) => line.getAttribute('data-text')).join(''));
   await page.getByRole('textbox', { name: '当前行输入' }).fill('我');
@@ -138,9 +142,12 @@ test('retries a completed offline score and submits it after connectivity return
   await page.getByRole('textbox', { name: '当前行输入' }).fill(target!);
   const result = page.getByRole('dialog', { name: '练习成绩' });
   await expect(result.getByText('成绩尚未同步')).toBeVisible();
-  await expect(result.getByRole('button', { name: '重试上榜' })).toBeVisible();
-  disconnected = false;
-  await result.getByRole('button', { name: '重试上榜' }).click();
+  const retry = result.getByRole('button', { name: '重试上榜' });
+  connection = 'blocked';
+  await retry.click();
+  await expect(result.getByRole('alert')).toHaveText('恢复请求被拒绝，成绩已保存在本机。');
+  connection = 'online';
+  await retry.click();
   await expect(result.getByRole('button', { name: '提交到排行榜' })).toBeVisible();
   await result.getByRole('textbox', { name: '上榜昵称' }).fill('-恢复后重试');
   const submitted = page.waitForResponse((response) => response.url().endsWith('/api/leaderboard') && response.request().method() === 'POST');

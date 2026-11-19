@@ -367,7 +367,10 @@ suite('the PostgreSQL application on independent instances', () => {
       } });
       expect(registration.statusCode).toBe(200);
     }
-    const env = { DATABASE_URL: '', CODE_SECRET: 'x'.repeat(32), DAZI_DATABASE_SCHEMA: schema };
+    const env = {
+      DATABASE_URL: '', CODE_SECRET: 'x'.repeat(32), DAZI_DATABASE_SCHEMA: schema,
+      VERCEL_ENV: 'production', VERCEL_PROJECT_PRODUCTION_URL: 'typing.test',
+    };
     const handler = createVercelHandler(env);
     const server = createServer(handler);
     server.listen(0, '127.0.0.1');
@@ -393,6 +396,25 @@ suite('the PostgreSQL application on independent instances', () => {
       expect(login.headers.get('set-cookie')).toMatch(/HttpOnly/);
       expect(login.headers.get('set-cookie')).toMatch(/Secure/);
       expect(login.headers.get('set-cookie')).toMatch(/SameSite=Strict/i);
+      const { articles } = (await apps[0].inject('/api/articles')).json<{ articles: { id: string; text: string }[] }>();
+      const article = articles.find(({ id }) => id === 'zh-beginner-1')!;
+      const clientId = randomUUID();
+      const recovery = (origin: string, fetchSite: string) => fetch(endpoint + '/api/handler?__dazi_path=tests%2Frecover', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json', origin, 'sec-fetch-site': fetchSite,
+          'x-forwarded-proto': 'https', 'x-workspace-owner': 'guest',
+        },
+        body: JSON.stringify({
+          clientId, recoveryKey: 'R'.repeat(43), claimId: randomUUID(), expectedClaimVersion: 0, recoveryRequestId: randomUUID(),
+          articleId: article.id, target: article.text, duration: 60, mode: 'timed', strict: false, elapsedMs: 5000,
+        }),
+      });
+      expect((await recovery('https://typing.test', 'same-site')).status).toBe(403);
+      expect((await recovery('https://other.test', 'same-origin')).status).toBe(403);
+      const proxied = await recovery('https://typing.test', 'same-origin');
+      expect(proxied.status).toBe(200);
+      expect(await proxied.json()).toMatchObject({ id: clientId, status: 'paused', claimVersion: 1 });
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       await handler.close();

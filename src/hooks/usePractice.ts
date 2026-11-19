@@ -640,7 +640,9 @@ export function usePractice(config: PracticeConfig, initialDraft: PracticeDraft 
         if (expectedPhase === 'paused') persist(attempt, true);
       } else if (!handleRecoveryConflict(attempt, error)) {
         attempt.offline = true;
-        setFeedback(error instanceof ApiError && error.status === 404 ? '文章或账号状态已变化，无法恢复上榜。' : '网络暂不可用，进度暂存本机。');
+        if (error instanceof ApiError && error.status === 403) setFeedback('恢复请求被拒绝，成绩已保存在本机。');
+        else if (error instanceof ApiError && error.status === 404) setFeedback('文章或账号状态已变化，无法恢复上榜。');
+        else setFeedback('网络暂不可用，进度暂存本机。');
       }
       return undefined;
     }

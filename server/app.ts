@@ -69,6 +69,7 @@ export type AppOptions = {
   adminEmail?: string;
   staticRoot?: string;
   trustProxy?: boolean | ((address: string, hop: number) => boolean);
+  proxiedPublicOrigin?: string;
   visitGeoSource?: 'vercel';
   seoOrigin?: string;
   seoPreview?: boolean;
@@ -308,6 +309,7 @@ export async function createApp(options: AppOptions) {
     }
     return payload;
   });
+  const proxiedPublicOrigin = options.proxiedPublicOrigin && URL.parse(options.proxiedPublicOrigin)?.origin;
   app.addHook('onRequest', async (request, reply) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return;
     const fetchSite = request.headers['sec-fetch-site'];
@@ -315,7 +317,9 @@ export async function createApp(options: AppOptions) {
     if (request.headers.origin === undefined) return;
     try {
       const origin = new URL(request.headers.origin);
-      if (origin.origin !== request.headers.origin || origin.protocol !== `${request.protocol}:` || origin.host !== request.headers.host) return invalid(reply, '请求来源无效', 403);
+      const directOrigin = `${request.protocol}://${request.headers.host}`;
+      if (!['http:', 'https:'].includes(origin.protocol) || origin.origin !== request.headers.origin ||
+        (origin.origin !== directOrigin && origin.origin !== proxiedPublicOrigin)) return invalid(reply, '请求来源无效', 403);
     } catch { return invalid(reply, '请求来源无效', 403); }
   });
 
