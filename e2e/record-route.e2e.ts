@@ -1,12 +1,14 @@
 import { expect, test } from './fixtures';
 import type { Page } from '@playwright/test';
 
-async function makeRecord(page: Page) {
+async function makeRecord(page: Page, accountName?: string) {
   await page.goto('/library');
+  await expect(page.getByRole('button', { name: accountName ?? '登录', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: '新建文章' }).click();
-  await page.getByRole('dialog').waitFor();
-  const guestNotice = page.getByRole('dialog', { name: '游客文章仅保存在本机' });
-  if (await guestNotice.isVisible()) await guestNotice.getByRole('button', { name: '我已知晓，继续创建' }).click();
+  if (!accountName) {
+    const guestNotice = page.getByRole('dialog', { name: '游客文章仅保存在本机' });
+    await guestNotice.getByRole('button', { name: '我已知晓，继续创建' }).click();
+  }
   const editor = page.getByRole('dialog', { name: '新建文章' });
   await editor.getByLabel('标题').fill('私人记录标题');
   await editor.getByLabel('正文').fill('山海');
@@ -46,7 +48,7 @@ test('does not expose an account record when another account opens its address',
     expect((await request.post('/api/auth/register', { data: { email, username, password: 'record-password-123', code } })).ok()).toBe(true);
   }
   await register(page.request, 'record_owner');
-  const path = await makeRecord(page);
+  const path = await makeRecord(page, 'record_owner');
   await expect.poll(async () => (await (await page.request.get('/api/workspace')).json()).items.some((item: { kind: string; deleted?: boolean }) => item.kind === 'record' && !item.deleted)).toBe(true);
   const other = await browser.newContext({ baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
   await register(other.request, 'record_other');
