@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { documentContentSecurityPolicy, trustImmediateProxy } from '../server/security-headers';
 import { brotliCompressSync, brotliDecompressSync, gzipSync, gunzipSync } from 'node:zlib';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,9 +26,11 @@ it('protects API responses including errors from caching, framing and sniffing',
 
 it('rejects cross-site mutations even when Origin is absent, while accepting same-origin calls', async () => {
   app = await createApp({ databasePath: ':memory:', secureCookies: false });
-  const response = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { 'sec-fetch-site': 'cross-site' } });
-  expect(response.statusCode).toBe(403);
-  expect(response.headers['cache-control']).toBe('no-store');
+  for (const site of ['cross-site', 'same-site']) {
+    const response = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { 'sec-fetch-site': site } });
+    expect(response.statusCode).toBe(403);
+    expect(response.headers['cache-control']).toBe('no-store');
+  }
   const sameOrigin = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { 'sec-fetch-site': 'same-origin' } });
   expect(sameOrigin.statusCode).toBe(200);
 });
@@ -62,7 +67,7 @@ it('serves distinct public entry pages, revalidates HTML, caches only hashed ass
 
 it('requires the same origin scheme behind a trusted HTTPS proxy and rejects credential-bearing Origins', async () => {
   app = await createApp({ databasePath: ':memory:', secureCookies: true, trustProxy: true });
-  for (const origin of ['http://typing.test', 'https://user@typing.test']) {
+  for (const origin of ['http://typing.test', 'https://user@typing.test', 'https://typing.test/path']) {
     const response = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: {
       host: 'typing.test', 'x-forwarded-proto': 'https', origin,
     } });
@@ -82,4 +87,34 @@ it('applies cache and browser protections to rate-limit failures too', async () 
   expect(limited.headers['cache-control']).toBe('no-store');
   expect(limited.headers['x-content-type-options']).toBe('nosniff');
   expect(limited.headers['x-frame-options']).toBe('DENY');
+});
+
+it('rejects malformed code purposes before consuming the mailbox budget', async () => {
+  const sent: string[] = [];
+  app = await createApp({ databasePath: ':memory:', mailer: { async sendCode(_email, _code, purpose) { sent.push(purpose); } } });
+  const send = (purpose: unknown) => app.inject({ method: 'POST', url: '/api/auth/code', payload: { email: 'fixture@example.test', purpose } });
+  for (const purpose of [null, ['register'], { label: 'register' }, 1, 'other']) expect((await send(purpose)).statusCode).toBe(400);
+  expect(sent).toEqual([]);
+  expect((await send('register')).statusCode).toBe(200);
+  expect(sent).toEqual(['register']);
+});
+
+it('pins document script execution to same-origin scripts and the theme hash at both entry points', () => {
+  const html = readFileSync('index.html', 'utf8');
+  const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1];
+  const hash = createHash('sha256').update(script).digest('base64');
+  const edge = JSON.parse(readFileSync('vercel.json', 'utf8')) as { routes: Array<{ headers: Record<string, string> }> };
+  expect(edge.routes[0].headers['Content-Security-Policy']).toBe(documentContentSecurityPolicy);
+  expect(documentContentSecurityPolicy).toContain(`script-src 'self' 'sha256-${hash}'`);
+  expect(documentContentSecurityPolicy).toContain("connect-src 'self'");
+});
+
+it('uses the connecting ingress and its nearest forwarded address for rate limits', async () => {
+  app = await createApp({ databasePath: ':memory:', trustProxy: trustImmediateProxy, mailer: { async sendCode() {} } });
+  const send = (prefix: string, email: string) => app.inject({ method: 'POST', url: '/api/auth/code',
+    headers: { 'x-forwarded-for': `${prefix}, 198.51.100.10` }, payload: { email, purpose: 'login' } });
+  for (let index = 0; index < 8; index++) expect((await send('203.0.113.1', `fixture-${index}@example.test`)).statusCode).toBe(200);
+  const limited = await send('203.0.113.2', 'another@example.test');
+  expect(limited.statusCode).toBe(429);
+  expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
 });

@@ -1,3 +1,4 @@
+import { trustImmediateProxy } from './security-headers.js';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createApp } from './app.js';
@@ -39,7 +40,7 @@ const app = await createApp({
   codeSecret,
   adminEmail: process.env.ADMIN_EMAIL,
   staticRoot: production ? resolve('dist/client') : undefined,
-  trustProxy: process.env.TRUST_PROXY === 'true',
+  trustProxy: process.env.TRUST_PROXY === 'true' ? trustImmediateProxy : false,
   smtp,
 });
 const port = Number(process.env.PORT || 3001);

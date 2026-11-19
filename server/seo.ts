@@ -60,7 +60,7 @@ export async function createSeoRenderer({ store, db, catalog, templatePath, prev
       .replace(/<meta\b[^>]*(?:name|property)=["'](?:description|keywords|robots|google-site-verification|msvalidate\.01|og:[^"']+|twitter:[^"']+)["'][^>]*>/giu, '')
       .replace(/<link\b[^>]*rel=["'](?:canonical|alternate)["'][^>]*>/giu, '');
     if (favicon) result = result.replace(/<link\b[^>]*rel=["']icon["'][^>]*>/giu, '');
-    result = result.replace('</head>', head + '</head>').replace(/<div id="root"><\/div>/u, `<div id="root">${body}</div>`).replace('</body>', bootstrap + '</body>');
+    result = result.replace('</head>', () => head + '</head>').replace(/<div id="root"><\/div>/u, () => `<div id="root">${body}</div>`).replace('</body>', () => bootstrap + '</body>');
     if (!found) reply.code(404);
     reply.header('Cache-Control', 'no-store').header('Content-Language', language).header('X-Robots-Tag', indexing ? 'index, follow' : 'noindex, follow');
     return reply.type('text/html; charset=utf-8').send(result);

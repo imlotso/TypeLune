@@ -1,3 +1,4 @@
+import { documentContentSecurityPolicy } from './security-headers.js';
 import {createNicknamePolicy,registerNicknamePolicyAdmin,nicknameBlockedMessage} from './nickname-policy.js';
 import { createSeoSettings, registerSeoAdminRoutes, registerSeoPublicSettings } from './seo-settings.js';
 import { createSeoRenderer, registerSeoPageRoutes } from './seo.js';
@@ -65,7 +66,7 @@ export type AppOptions = {
   codeSecret?: string;
   adminEmail?: string;
   staticRoot?: string;
-  trustProxy?: boolean;
+  trustProxy?: boolean | ((address: string, hop: number) => boolean);
   visitGeoSource?: 'vercel';
   seoOrigin?: string;
   seoPreview?: boolean;
@@ -289,7 +290,7 @@ export async function createApp(options: AppOptions) {
   app.addHook('onSend', async (request, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('X-Frame-Options', 'DENY');
-    if (!reply.hasHeader('Content-Security-Policy')) reply.header('Content-Security-Policy', "base-uri 'self'; object-src 'none'; frame-ancestors 'none'");
+    if (!reply.hasHeader('Content-Security-Policy')) reply.header('Content-Security-Policy', documentContentSecurityPolicy);
     reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
     reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     if (request.url.startsWith('/api/')) {
@@ -299,13 +300,13 @@ export async function createApp(options: AppOptions) {
     return payload;
   });
   app.addHook('onRequest', async (request, reply) => {
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers['sec-fetch-site'] === 'cross-site') {
-      return invalid(reply, '请求来源无效', 403);
-    }
-    if (request.method === 'GET' || request.method === 'HEAD' || !request.headers.origin) return;
+    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return;
+    const fetchSite = request.headers['sec-fetch-site'];
+    if (fetchSite === 'cross-site' || fetchSite === 'same-site') return invalid(reply, '请求来源无效', 403);
+    if (request.headers.origin === undefined) return;
     try {
       const origin = new URL(request.headers.origin);
-      if (origin.username || origin.password || origin.protocol !== `${request.protocol}:` || origin.host !== request.headers.host) return invalid(reply, '请求来源无效', 403);
+      if (origin.origin !== request.headers.origin || origin.protocol !== `${request.protocol}:` || origin.host !== request.headers.host) return invalid(reply, '请求来源无效', 403);
     } catch { return invalid(reply, '请求来源无效', 403); }
   });
 
@@ -439,9 +440,10 @@ export async function createApp(options: AppOptions) {
     const body = bodyOf(request);
     const email = cleanEmail(body.email);
     const purpose = body.purpose;
+    if (purpose !== 'register' && purpose !== 'login' && purpose !== 'reset') return invalid(reply, '请输入有效邮箱');
     const registration = purpose === 'register' ? await readRegistration() : undefined;
     if (registration && !registration.enabled) return invalid(reply, '当前已关闭注册', 403);
-    if (!isValidEmail(email) || !['register', 'login', 'reset'].includes(String(purpose))) return invalid(reply, '请输入有效邮箱');
+    if (!isValidEmail(email)) return invalid(reply, '请输入有效邮箱');
     if (registration) {
       const denial = registrationDenial(registration.enabled, registration.settings, email);
       if (denial) return invalid(reply, denial, 403);
@@ -456,7 +458,7 @@ export async function createApp(options: AppOptions) {
     // Deliver the same kind of message to every valid address so SMTP errors and
     // response timing do not disclose whether the account exists. Ineligible
     // requests receive an unusable code, even if account state later changes.
-    const codeHash = eligible ? getCodeHash(email, String(purpose), code) : randomBytes(32).toString('hex');
+    const codeHash = eligible ? getCodeHash(email, purpose, code) : randomBytes(32).toString('hex');
     const issuedAt = now();
     const issueCode = () => db.prepare(`INSERT INTO email_codes(email,purpose,code_hash,created_at,expires_at,attempts) VALUES (?,?,?,?,?,0)
       ON CONFLICT(email,purpose) DO UPDATE SET code_hash=excluded.code_hash,created_at=excluded.created_at,expires_at=excluded.expires_at,attempts=0
@@ -469,7 +471,7 @@ export async function createApp(options: AppOptions) {
     }).immediate() : await issueCode();
     if ('denial' in issued) return invalid(reply, issued.denial, 403);
     if (!issued.changes) return invalid(reply, '请稍后再获取验证码', 429);
-    try { await mailer.sendCode(email, code, String(purpose)); }
+    try { await mailer.sendCode(email, code, purpose); }
     catch {
       (await db.prepare('DELETE FROM email_codes WHERE email = ? AND purpose = ? AND code_hash = ?').run(storageEmail(email), purpose, codeHash));
       return invalid(reply, '邮件发送失败，请稍后再试', 503);

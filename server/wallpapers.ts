@@ -1,16 +1,31 @@
 import type { FastifyInstance } from 'fastify';
-import { EnvHttpProxyAgent } from 'undici';
+import { lookup } from 'node:dns';
+import type { LookupFunction } from 'node:net';
+import { Agent, EnvHttpProxyAgent } from 'undici';
+import { isPublicAddress } from './public-address.js';
 import { defaultBackground, type BackgroundConfig } from '../src/lib/background.js';
 import { isWallpaperStyle, isWallhavenImageUrl, wallpaperStyles, wallpaperWorkTimeoutMs, type WallpaperStyle } from '../src/lib/wallpaper-policy.js';
 
-const proxyAgent = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy ? new EnvHttpProxyAgent() : undefined;
+const publicLookup: LookupFunction = (host, options, callback) => {
+  lookup(host, { ...options, all: true }, (error, addresses) => {
+    if (error) return callback(error, '', 0);
+    if (!addresses.length || !addresses.every(({ address }) => isPublicAddress(address))) {
+      return callback(new Error('Wallpaper provider must resolve to public addresses'), '', 0);
+    }
+    if (options.all) return callback(null, addresses);
+    callback(null, addresses[0].address, addresses[0].family);
+  });
+};
+const connect = { lookup: publicLookup };
+const dispatcher = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy
+  ? new EnvHttpProxyAgent({ connect }) : new Agent({ connect });
 const banned = /bikini|lingerie|swimwear|underwear|cleavage|nude|nudity|erotic|sexy|sensual|suggestive|see.through|wet clothing|bedroom|bondage|fetish/i;
 export const wallpaperHeaders = { 'User-Agent': 'TypeLune-Wallpapers/1.0', Accept: 'application/json' };
 export async function boundedFetch(url: string, max: number, allowedHost: string, signal?: AbortSignal,accept='application/json') {
   const parsed = new URL(url);
   if (parsed.protocol !== 'https:' || parsed.hostname !== allowedHost || parsed.username || parsed.password || parsed.port) throw new Error('Invalid image destination');
   const timeout = AbortSignal.timeout(15_000);
-  const response = await fetch(url, { ...(proxyAgent ? { dispatcher: proxyAgent } : {}), headers: {...wallpaperHeaders,Accept:accept}, redirect: 'error', signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+  const response = await fetch(url, { ...{ dispatcher }, headers: {...wallpaperHeaders,Accept:accept}, redirect: 'error', signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
   if (!response.ok || Number(response.headers.get('content-length') || 0) > max) { await response.body?.cancel(); throw new Error('Wallpaper provider unavailable'); }
   if (!response.body) throw new Error('Empty wallpaper response');
   const chunks: Uint8Array[] = []; let size = 0;

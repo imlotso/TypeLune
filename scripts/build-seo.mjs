@@ -20,10 +20,10 @@ for (const [path, values] of Object.entries(pages)) for (const language of langu
   const [title, description] = values.slice(offset, offset + 2);
   const navigation = Object.entries(pages).map(([target, labels]) => `<a href="${target}?tl=${language}">${escape(labels[offset])}</a>`).join(' · ');
   const canonical = origin ? `<link rel="canonical" href="${escape(localizedUrl(path, language))}" /><meta property="og:url" content="${escape(localizedUrl(path, language))}" />${languages.map(alternate => `<link rel="alternate" hreflang="${alternate}" href="${escape(localizedUrl(path, alternate))}" />`).join('')}<link rel="alternate" hreflang="x-default" href="${escape(localizedUrl(path, 'zh-CN'))}" />` : '';
-  const html = template.replace(/<html\b[^>]*>/iu, `<html lang="${language}">`).replace(/<title>.*?<\/title>/s, `<title>${escape(title)}</title>`)
-    .replace(/<meta name="description" content="[^"]*"\s*\/>/, `<meta name="description" content="${escape(description)}" />`)
-    .replace('</head>', `<meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}" /><meta property="og:type" content="website" /><meta property="og:site_name" content="TypeLune" /><meta property="og:title" content="${escape(title)}" /><meta property="og:description" content="${escape(description)}" />${canonical}</head>`)
-    .replace('<div id="root"></div>', `<div id="root"><main><h1>${escape(title)}</h1><p>${escape(description)}</p><nav aria-label="${language === 'en' ? 'Navigation' : '导航'}">${navigation}</nav></main></div>`);
+  const html = template.replace(/<html\b[^>]*>/iu, `<html lang="${language}">`).replace(/<title>.*?<\/title>/s, () => `<title>${escape(title)}</title>`)
+    .replace(/<meta name="description" content="[^"]*"\s*\/>/, () => `<meta name="description" content="${escape(description)}" />`)
+    .replace('</head>', () => `<meta name="robots" content="${indexable ? 'index, follow' : 'noindex, nofollow'}" /><meta property="og:type" content="website" /><meta property="og:site_name" content="TypeLune" /><meta property="og:title" content="${escape(title)}" /><meta property="og:description" content="${escape(description)}" />${canonical}</head>`)
+    .replace('<div id="root"></div>', () => `<div id="root"><main><h1>${escape(title)}</h1><p>${escape(description)}</p><nav aria-label="${language === 'en' ? 'Navigation' : '导航'}">${navigation}</nav></main></div>`);
   const name = path === '/' ? 'home' : path.slice(1);
   await writeFile(`dist/client/seo/${name}.${language}.html`, html);
   if (language === 'zh-CN') await writeFile(path === '/' ? 'dist/client/index.html' : `dist/client/seo/${name}.html`, html);

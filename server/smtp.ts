@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 import { Resolver } from 'node:dns/promises';
-import { BlockList, isIP } from 'node:net';
+import { isPublicAddress } from './public-address.js';
 import type { AsyncDatabase } from './database/types.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import nodemailer from 'nodemailer';
@@ -42,26 +42,7 @@ class SmtpError extends Error {
   constructor(message: string, readonly status = 400) { super(message); }
 }
 
-const blockedV4 = new BlockList();
-for (const [ip, bits] of [
-  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16],
-  ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.88.99.0', 24], ['192.168.0.0', 16],
-  ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 3],
-] as const) blockedV4.addSubnet(ip, bits);
-const globalV6 = new BlockList();
-globalV6.addSubnet('2000::', 3, 'ipv6');
-const blockedV6 = new BlockList();
-for (const [ip, bits] of [['2001::', 23], ['2001:db8::', 32], ['2002::', 16], ['3fff::', 20]] as const) {
-  blockedV6.addSubnet(ip, bits, 'ipv6');
-}
-
-export function isPublicSmtpAddress(address: string) {
-  switch (isIP(address)) {
-    case 4: return !blockedV4.check(address);
-    case 6: return globalV6.check(address, 'ipv6') && !blockedV6.check(address, 'ipv6');
-    default: return false;
-  }
-}
+export { isPublicAddress as isPublicSmtpAddress } from './public-address.js';
 
 async function resolvePublicSmtpHost(host: string) {
   const resolver = new Resolver({ timeout: 2_000, tries: 1 });
@@ -70,7 +51,7 @@ async function resolvePublicSmtpHost(host: string) {
   const records = await Promise.allSettled([resolver.resolve4(host), resolver.resolve6(host)]);
   const addresses = records.flatMap((result) => result.status === 'fulfilled' ? result.value : []);
   if (!addresses.length) throw new SmtpError('无法解析 SMTP 主机');
-  if (!addresses.every(isPublicSmtpAddress)) throw new SmtpError('SMTP 主机须解析为公网地址');
+  if (!addresses.every(isPublicAddress)) throw new SmtpError('SMTP 主机须解析为公网地址');
   return addresses[0];
 }
 

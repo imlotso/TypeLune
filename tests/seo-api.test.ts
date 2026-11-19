@@ -124,3 +124,15 @@ it('lets public branding images be fetched but respects global and preview index
   expect((await app.inject('/api/site/seo/images/logo')).headers['x-robots-tag']).toBe('noindex, nofollow');
   expect((await app.inject('/api/site/seo')).headers['x-robots-tag']).toBe('noindex, nofollow');
 });
+
+it('renders persisted replacement metacharacters and angle brackets literally', async () => {
+  const next = await read();
+  next.settings.homeTitle.en = 'R&D $& $` <em>TypeLune</em>';
+  next.settings.description.en = 'Practice $& safely';
+  expect((await save(next)).statusCode).toBe(200);
+  const html = (await app.inject('/?tl=en')).body;
+  expect(html).toContain('<title>R&amp;D $&amp; $` &lt;em&gt;TypeLune&lt;/em&gt;</title>');
+  expect(html).toContain('<p>Practice $&amp; safely</p>');
+  expect(html.match(/<!doctype html>/gi)).toHaveLength(1);
+  expect(html.match(/<\/head>/gi)).toHaveLength(1);
+});
