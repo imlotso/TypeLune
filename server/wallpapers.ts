@@ -75,6 +75,7 @@ export async function fetchWallhavenBackground(options: WallpaperRequest, signal
 export function registerWallpapers(app: FastifyInstance) {
   const cache = new Map<string, BackgroundConfig>();
   const pending = new Map<string, Promise<BackgroundConfig>>();
+  const maxPending = 8;
   app.get('/api/wallpapers/daily', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { kind = 'nature', theme = 'dark', width, height, exclude, id } = request.query as Record<string, string>;
     if (!isWallpaperStyle(kind) || !['light', 'dark'].includes(theme) || (id !== undefined && !/^[a-z0-9]{6}$/.test(id))) return reply.code(400).send({ error: '壁纸选项无效' });
@@ -87,9 +88,14 @@ export function registerWallpapers(app: FastifyInstance) {
     const key = [day, kind, adaptive ? resolution : 'fixed', exclude ?? 'daily', id ?? ''].join(':');
     try {
       if (!cache.has(key)) {
-        if (!pending.has(key)) pending.set(key, fetchWallhavenBackground({ kind, display: adaptive ? target : undefined, exclude: excluded, id }).then(value => {
-          if (cache.size >= 16) cache.delete(cache.keys().next().value!); cache.set(key, value); return value;
-        }).finally(() => pending.delete(key)));
+        if (!pending.has(key)) {
+          if (pending.size >= maxPending) {
+            return reply.code(503).header('Retry-After', '5').send({ error: '每日壁纸暂不可用，当前背景已保留' });
+          }
+          pending.set(key, fetchWallhavenBackground({ kind, display: adaptive ? target : undefined, exclude: excluded, id }).then(value => {
+            if (cache.size >= 16) cache.delete(cache.keys().next().value!); cache.set(key, value); return value;
+          }).finally(() => pending.delete(key)));
+        }
         await pending.get(key);
       }
       const value = cache.get(key)!;

@@ -31,6 +31,37 @@ it('allows retry after recovery',async()=>{
  vi.stubGlobal('fetch',vi.fn(async(url:string)=>url.includes('/search?')?(++searches===1?new Response('unavailable',{status:503}):new Response(JSON.stringify({data:[source]}))):new Response(JSON.stringify({data:source}))));
  expect((await app.inject('/api/wallpapers/daily')).statusCode).toBe(503);expect((await app.inject('/api/wallpapers/daily')).statusCode).toBe(200);await app.close();
 });
+it('bounds concurrent provider lookups while sharing a pending lookup and allowing later retries', async () => {
+  const app = Fastify();
+  registerWallpapers(app);
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  const fetcher = vi.fn(async (url: string) => {
+    await pending;
+    return Response.json({ data: row(url.split('/').pop()) });
+  });
+  vi.stubGlobal('fetch', fetcher);
+
+  const request = async (index: number, theme = 'light') =>
+    app.inject(`/api/wallpapers/daily?id=${String(index).padStart(6, '0')}&theme=${theme}`);
+  const active = Array.from({ length: 8 }, (_, index) => request(index));
+  try {
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(8));
+    const shared = request(0, 'dark');
+    const busy = await request(8);
+    expect(busy.statusCode).toBe(503);
+    expect(busy.headers['retry-after']).toBe('5');
+    expect(fetcher).toHaveBeenCalledTimes(8);
+    release();
+    expect((await Promise.all([...active, shared])).map(({ statusCode }) => statusCode)).toEqual(Array(9).fill(200));
+    expect((await request(8)).statusCode).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(9);
+  } finally {
+    release();
+    await Promise.allSettled(active);
+    await app.close();
+  }
+});
 it('rejects malformed, untrusted and mismatched image destinations',()=>{
  const source=row();for(const path of ['not-a-url','http://w.wallhaven.cc/full/ab/wallhaven-ab12cd.jpg','https://example.test/image.jpg',source.path+'?redirect=x',source.path.replace('ab12cd','aaaaaa')])expect(validWallpaper({...source,path},'nature')).toBe(false);
  expect(validWallpaper({...source,tags:{}},'nature')).toBe(false);expect(validWallpaper({...source,dimension_x:Infinity},'nature')).toBe(false);
