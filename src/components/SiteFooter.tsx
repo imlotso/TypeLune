@@ -40,10 +40,10 @@ export function SiteFooter({ ready, onNavigate }: { ready: boolean; onNavigate: 
   const available = support?.enabled && !!(support.alipay || support.wechat);
   const links: [MainView, string][] = [['help', t('使用帮助', 'Help')], ['feedback', t('功能反馈', 'Feedback')], ['privacy', t('隐私政策', 'Privacy')], ['terms', t('服务条款', 'Terms')], ['about', t('关于与联系', 'About & contact')]];
   return <>
-    <footer className="site-footer site-footer-updated">
-      <div className="footer-links">{links.map(([page, label]) => <button key={page} className="text-button" disabled={!ready} onClick={() => onNavigate(page)}>{label}</button>)}
+    <footer className="site-footer">
+      <nav className="footer-links" aria-label={t('页脚导航', 'Footer navigation')}>{links.map(([page, label]) => <button key={page} className="text-button" disabled={!ready} onClick={() => onNavigate(page)}>{label}</button>)}
         {available && <button className="text-button support-button" onClick={() => { setEnlarged(null); setOpen(true); load(); }}>{t('支持 TypeLune', 'Support TypeLune')}</button>}
-      </div>
+      </nav>
       <span className="site-attribution">Powered by <a href="https://www.sitetalk.net" target="_blank" rel="noopener noreferrer">SiteTalk</a></span>
     </footer>
     {open && <Dialog title={t('支持 TypeLune', 'Support TypeLune')} onClose={() => setOpen(false)} className="support-dialog">

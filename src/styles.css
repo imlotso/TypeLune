@@ -125,7 +125,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .session-list li { display: flex; justify-content: space-between; gap: 10px; align-items: start; }
 .session-list small { display: block; margin-top: 4px; color: var(--typing-muted); }
 .cleanup-warning { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding: 12px 16px; border: 1px solid var(--typing-border); border-radius: 12px; background: var(--typing-input); color: var(--typing-text); }
-.site-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 20px; padding: 16px; color: var(--typing-muted); }
 .site-info { max-width: 900px; line-height: 1.7; }
 .site-info section { margin-top: 22px; }
 .site-info h2 { margin: 0 0 6px; font-size: 16px; }
