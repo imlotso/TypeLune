@@ -22,6 +22,8 @@ import { useI18n } from './lib/i18n';
 import { LanguageToggle } from './components/LanguageToggle';
 import { WorkspaceI18nProvider } from './components/WorkspaceI18nProvider';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { ArrowLeft } from '@phosphor-icons/react/ArrowLeft';
+import { ShareNetwork } from '@phosphor-icons/react/ShareNetwork';
 import { ArrowCounterClockwise } from '@phosphor-icons/react/ArrowCounterClockwise';
 import { ArrowRight } from '@phosphor-icons/react/ArrowRight';
 import { BookOpen } from '@phosphor-icons/react/BookOpen';
@@ -71,6 +73,7 @@ import { lessonArticle, lessonCopy, lessonForArticle, type Lesson } from './lib/
 import { canDiscardSavedDraft, continuationDraftId, deleteLocalHistory, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, recoveryDraftFromSaved, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useSiteFeatures } from './hooks/useSiteFeatures';
+import { usePublicPageVisit } from './hooks/usePublicPageVisit';
 import { useScoreStatus } from './hooks/useScoreStatus';
 import { shortcutNames, useShortcuts, type ShortcutAction } from './hooks/useShortcuts';
 import { api, apiPages, ApiError, type User } from './lib/api';
@@ -248,6 +251,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
   const authCompleted = useRef(false);
   const [directAdmin] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
   const [view, setView] = useState<View>(() => feedbackResume ? 'feedback' : directAdmin ? 'practice' : mainRoute(window.location.pathname));
+  usePublicPageVisit(window.location.pathname, authReady && !user?.isAdmin);
   useEffect(() => { updatePageMetadata(window.location.pathname, locale); }, [view, locale]);
   const profileReturn = useRef('/rankings');
   const [routeProfileId, setRouteProfileId] = useState(() => profileIdFromPath(window.location.pathname));
@@ -1246,7 +1250,8 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
         }}>{confirmPractice.action === 'restart' ? t("确认重新开始", "Restart practice") : t("结束并查看成绩", "Finish and view result")}</button>
       </div>
     </Dialog>}
-    {showResult && result && <Dialog title={t("练习成绩", "Practice result")} className="result-dialog" onClose={() => setShowResult(false)}>
+    {showResult && result && <Dialog title={t("练习成绩", "Practice result")} className="result-dialog" onClose={() => setShowResult(false)}
+      leadingAction={<button type="button" className="icon-button result-back" aria-label={t("返回练习", "Back to practice")} onClick={() => setShowResult(false)}><ArrowLeft size={22} aria-hidden="true" /></button>}>
       <ResultLayout key={result.recordId ?? result.elapsedMs} result={result} article={result.record?.article ?? selection} typed={typedCharacters.length} offset={practice.offset}
         status={<>{result.offline ? <>{practice.canRetryOnline ? <><p className="dialog-intro">{t("成绩尚未同步", "Result not yet synced")}</p><p className="score-status">{t("可恢复提交", "Submission can be recovered")}</p></> : <p className="dialog-intro">{!result.custom && result.elapsedMs < 1000 ? t("用时不足 1 秒，不参与排行", "Under 1 second. Not ranked.") : t("个人练习，不参与排行", "Private practice. Not ranked.")}</p>}</> :
         resultStatus.status ? <ScoreStatusView status={resultStatus.status} /> : resultStatus.loading ? <p role="status">{t("正在读取成绩状态…", "Loading result status…")}</p> : <div><p className="form-error" role="alert">{resultStatus.error || t("成绩状态暂不可用", "Result status unavailable")}</p><button type="button" className="text-button" onClick={resultStatus.retry}>{t("重试状态", "Retry status")}</button></div>}</>} comparison={<>{result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? (hasUnloadedLocalHistory() ? 'partial' : 'local') :
@@ -1266,11 +1271,11 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
         {!user && site.features?.guestLeaderboardEnabled === false && <p className="form-error" role="status">{t("游客上榜已关闭。", "Guest leaderboard submissions are disabled.")}</p>}
       </div>}
       {rankMessage && (!rankSubmitted || !resultStatus.status) && <p className={rankSubmitted ? 'form-notice' : 'form-error'} role={rankSubmitted ? 'status' : 'alert'}>{rankSubmitted && <CheckCircle size={18} />} <SystemMessage text={rankMessage}/></p>}</>} actions={<><div className={`result-actions result-navigation${result.continuation ? ' with-continuation' : ''}`}>
-        {result.continuation && <button className="primary-button" onClick={() => continueDraft(result.continuation!)}>{t("继续本篇", "Continue article")}</button>}
-        <button className="outline-button" onClick={() => resetPractice(selection, true)}>{t("再练一次", "Try again")}</button>
+        {result.continuation && <button className="primary-button" onClick={() => continueDraft(result.continuation!)}><Play size={17} weight="fill" aria-hidden="true" />{t("继续本篇", "Continue article")}</button>}
+        <button className="outline-button" onClick={() => resetPractice(selection, true)}><ArrowCounterClockwise size={19} aria-hidden="true" />{t("再练一次", "Try again")}</button>
         {!focused && !resultTraining && <button className="text-button" onClick={nextArticle}>{t("下一篇", "Next article")} <ArrowRight size={16} aria-hidden="true" /></button>}
         {!focused && !resultTraining && <button className="text-button" onClick={() => navigate('rankings')}>{t("排行榜", "Rankings")}</button>}
-            {result.record && <><button className="outline-button" disabled={!shareData} onClick={() => { setShowResult(false); setShowShare(true); }}>{t("分享成绩", "Share result")}</button></>}
+            {result.record && <><button className="outline-button result-share" disabled={!shareData} onClick={() => { setShowResult(false); setShowShare(true); }}><ShareNetwork size={17} aria-hidden="true" />{t("分享成绩", "Share result")}</button></>}
       {result.record && !shareData && <p className="form-error" role="status">{t("无法生成分享卡", "Could not create share card")}</p>}
       </div></>}/>
     </Dialog>}

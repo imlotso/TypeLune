@@ -37,8 +37,11 @@ import { validGuestNickname } from '../src/lib/leaderboard.js';
 import { catalogSnapshotKey, type ArticleSnapshot, type PracticeMode, type RankingEntry } from '../src/lib/models.js';
 import { recoveryIdPattern, recoveryKeyPattern, syncBodyLimit, validateWorkspaceItems, WorkspaceChangedError, WorkspaceClientUpdateRequiredError, WorkspaceConflictError, WorkspaceCursorError, WorkspaceGenerationError, WorkspaceLimitError, WorkspacePageSizeError, WorkspacePaginationRequiredError } from './workspace.js';
 import { AdminAccessError, createAdminAudit, migrateAdministration, registerAdminRoutes } from './admin.js';
+import { createDashboardVisits, registerDashboardVisits } from './dashboard-visits.js';
+import { createOverviewActivity } from './dashboard-overview.js';
 import { createCatalogStore, registerCatalogRoutes } from './catalog.js';
 import { createSiteSettings, registerSiteSettingsRoutes } from './site-settings.js';
+import { createRegistrationPolicy, emptyRegistrationPolicy, registerRegistrationPolicyAdmin, registrationDenial } from './registration-policy.js';
 import { createSmtpSettings, type Mailer, type SmtpConfiguration, type SmtpDelivery } from './smtp.js';
 import { isValidEmail, isValidPassword, isValidUsername } from '../src/lib/account-validation.js';
 import { migrateAccounts, registerAccountRoutes, type AccountUser } from './account.js';
@@ -46,7 +49,7 @@ import { registerAccountEmailRoutes } from './account-email.js';
 import { createFeedbackStore, registerAdminFeedbackRoutes, registerFeedbackRoutes } from './feedback.js';
 import { createFeedbackUploadStore, registerFeedbackUploadRoutes } from './feedback-upload.js';
 import { describeSessionDevice, migrateSessions, registerSessionRoutes } from './account-sessions.js';
-import { registerAccountDeletion } from './account-delete.js';
+import { registerAccountDeletion, registerAdminAccountDeletion } from './account-delete.js';
 
 export type { Mailer } from './smtp.js';
 export type AppOptions = {
@@ -63,6 +66,7 @@ export type AppOptions = {
   adminEmail?: string;
   staticRoot?: string;
   trustProxy?: boolean;
+  visitGeoSource?: 'vercel';
   seoOrigin?: string;
   seoPreview?: boolean;
   htmlTemplatePath?: string;
@@ -253,7 +257,13 @@ export async function createApp(options: AppOptions) {
     return { ...metadata, text: content, custom: false };
   }, feedbackUploads);
   const audit = createAdminAudit(db, now);
+  const dashboardVisits = await createDashboardVisits(db);
   const siteSettings = await createSiteSettings(db, audit);
+  const registrationPolicy = await createRegistrationPolicy(db, audit);
+  async function readRegistration() {
+    const { settings: { registrationEnabled: enabled } } = await siteSettings.read();
+    return { enabled, settings: enabled ? (await registrationPolicy.read()).settings : emptyRegistrationPolicy };
+  }
   const nicknamePolicy=await createNicknamePolicy(db,audit);
   const seoSettings = await createSeoSettings(db, audit, options.seoOrigin ?? process.env.VITE_SITE_URL ?? '');
   const seoRenderer = await createSeoRenderer({ store: seoSettings, db, catalog, templatePath: options.htmlTemplatePath ?? (options.staticRoot ? `${options.staticRoot}/app.html` : undefined), preview: options.seoPreview ?? process.env.VERCEL_ENV === 'preview' });
@@ -393,10 +403,13 @@ export async function createApp(options: AppOptions) {
       if (error instanceof AdminAccessError) return invalid(reply, error.message, error.statusCode);
       return sendUnexpectedError(error, reply);
     });
-    registerAdminRoutes(admin, { db, now, audit, publishedArticleCount: async () => (await catalog.counts()).published, saveScore });
+    registerAdminRoutes(admin, { db, now, audit, readOverviewActivity: createOverviewActivity(db, dashboardVisits),
+      publishedArticleCount: async () => (await catalog.counts()).published, saveScore });
+    registerAdminAccountDeletion(admin, db, audit);
     registerAdminFeedbackRoutes(admin, feedbackStore, audit);
     registerCatalogRoutes(admin, catalog, audit);
     registerSiteSettingsRoutes(admin, siteSettings);
+    registerRegistrationPolicyAdmin(admin, registrationPolicy);
     registerNicknamePolicyAdmin(admin,nicknamePolicy);
     registerSeoAdminRoutes(admin, seoSettings);
     registerSupportAdminRoutes(admin, supportSettings);
@@ -410,6 +423,7 @@ export async function createApp(options: AppOptions) {
   }, { prefix: '/api/admin' });
 
   registerSeoPublicSettings(app, seoSettings, options.seoPreview ?? process.env.VERCEL_ENV === 'preview');
+  registerDashboardVisits(app, dashboardVisits, now, options.visitGeoSource);
   registerSiteWallpaperPublic(app, siteWallpapers);
   registerSeoPageRoutes(app, seoRenderer);
 
@@ -425,8 +439,13 @@ export async function createApp(options: AppOptions) {
     const body = bodyOf(request);
     const email = cleanEmail(body.email);
     const purpose = body.purpose;
-    if (purpose === 'register' && !(await siteSettings.read()).settings.registrationEnabled) return invalid(reply, '当前已关闭注册', 403);
+    const registration = purpose === 'register' ? await readRegistration() : undefined;
+    if (registration && !registration.enabled) return invalid(reply, '当前已关闭注册', 403);
     if (!isValidEmail(email) || !['register', 'login', 'reset'].includes(String(purpose))) return invalid(reply, '请输入有效邮箱');
+    if (registration) {
+      const denial = registrationDenial(registration.enabled, registration.settings, email);
+      if (denial) return invalid(reply, denial, 403);
+    }
     const previous = (await db.prepare('SELECT created_at FROM email_codes WHERE email = ? AND purpose = ?').get(storageEmail(email), purpose)) as { created_at: number } | undefined;
     if (previous && now() - previous.created_at < 60_000) return invalid(reply, '请稍后再获取验证码', 429);
     const mailer = (await smtp.mailer());
@@ -439,10 +458,16 @@ export async function createApp(options: AppOptions) {
     // requests receive an unusable code, even if account state later changes.
     const codeHash = eligible ? getCodeHash(email, String(purpose), code) : randomBytes(32).toString('hex');
     const issuedAt = now();
-    const issued = await db.prepare(`INSERT INTO email_codes(email,purpose,code_hash,created_at,expires_at,attempts) VALUES (?,?,?,?,?,0)
+    const issueCode = () => db.prepare(`INSERT INTO email_codes(email,purpose,code_hash,created_at,expires_at,attempts) VALUES (?,?,?,?,?,0)
       ON CONFLICT(email,purpose) DO UPDATE SET code_hash=excluded.code_hash,created_at=excluded.created_at,expires_at=excluded.expires_at,attempts=0
       WHERE email_codes.created_at<=excluded.created_at-60000`)
       .run(storageEmail(email), purpose, codeHash, issuedAt, issuedAt + 10 * 60_000);
+    const issued = registration ? await db.transaction(async () => {
+      const current = await readRegistration();
+      const denial = registrationDenial(current.enabled, current.settings, email);
+      return denial ? { denial } : issueCode();
+    }).immediate() : await issueCode();
+    if ('denial' in issued) return invalid(reply, issued.denial, 403);
     if (!issued.changes) return invalid(reply, '请稍后再获取验证码', 429);
     try { await mailer.sendCode(email, code, String(purpose)); }
     catch {
@@ -453,18 +478,23 @@ export async function createApp(options: AppOptions) {
   });
 
   app.post('/api/auth/register', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
-    if (!(await siteSettings.read()).settings.registrationEnabled) return invalid(reply, '当前已关闭注册', 403);
+    const policy = await readRegistration();
+    if (!policy.enabled) return invalid(reply, '当前已关闭注册', 403);
     const body = bodyOf(request);
     const email = cleanEmail(body.email);
     const username = typeof body.username === 'string' ? body.username.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const code = typeof body.code === 'string' ? body.code : '';
     if (!isValidEmail(email) || !isValidUsername(username) || !isValidPassword(password)) return invalid(reply, '用户名需为 3–24 位字母、数字、下划线或连字符，密码为 10–128 位');
+    const denial = registrationDenial(policy.enabled, policy.settings, email);
+    if (denial) return invalid(reply, denial, 403);
     if ((await db.prepare(`SELECT id FROM users WHERE ${userEmailEquals} OR ${usernameEquals}`).get(storageEmail(email), username))) return invalid(reply, '账号信息不可用，请检查后重试', 409);
     if (!(await verifyCode(email, 'register', code, false))) return invalid(reply, '验证码错误或已过期');
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const registration = await db.transaction(async (): Promise<{ user: User } | { error: string; status: number }> => {
-      if (!(await siteSettings.read()).settings.registrationEnabled) return { error: '当前已关闭注册', status: 403 };
+      const current = await readRegistration();
+      const denial = registrationDenial(current.enabled, current.settings, email);
+      if (denial) return { error: denial, status: 403 };
       if ((await db.prepare(`SELECT id FROM users WHERE ${userEmailEquals} OR ${usernameEquals}`).get(storageEmail(email), username))) {
         return { error: '账号信息不可用，请检查后重试', status: 409 };
       }

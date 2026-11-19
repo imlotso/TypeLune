@@ -3,6 +3,8 @@ import { dirname, join, resolve } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import {wallpaperTables} from '../wallpaper-schema.js';
+import { dashboardVisitsTable } from '../dashboard-visits.js';
+import { registrationPolicyTable } from '../registration-policy.js';
 import type { Client } from 'pg';
 import { createApp } from '../app.js';
 import { decodeEmail } from '../database/email.js';
@@ -56,7 +58,7 @@ export async function exportSqlite(client: Client, destination: string, target: 
     const version = await client.query<{ version: number; checksum: string }>('SELECT version,checksum FROM dazi_schema_migrations ORDER BY version');
     if (!schemaMatches(version.rows)) throw new Error('Unsupported PostgreSQL schema version');
     const extensions: string[] = [];
-    for (const table of ['support_settings', 'seo_settings','nickname_policy',...wallpaperTables]) {
+    for (const table of ['support_settings', 'seo_settings','nickname_policy',...wallpaperTables,dashboardVisitsTable,registrationPolicyTable]) {
       if ((await client.query('SELECT to_regclass($1) AS name', [table])).rows[0]?.name) extensions.push(table);
     }
     const dataTables = [...baseDataTables, ...extensions];

@@ -40,6 +40,7 @@ export const privacySections = [
   ['公开成绩', '公开榜单展示昵称、头像和成绩，不展示邮箱。游客上榜使用提交时的昵称。个人主页默认公开日夜壁纸及在线练习统计，可在账号设置关闭；私人文章、输入正文和草稿不进入公开主页。开启每日壁纸后，服务端会请求 Wallhaven 图片，图片权利归原作者。'],
   ['反馈截图', '提交的反馈、截图及补充内容保存在服务端，仅提交者和有权限的管理员可查看；内部备注仅管理员可查看。'],
   ['数据处理', '服务端使用必要的 Cookie 维持会话和游客练习，并处理请求信息以执行访问控制与频率限制。管理操作会记录审计事件。'],
+  ['访问统计', '开启访问统计时，公开页面按日期、页面类别及托管平台提供的大致国家和地区进行汇总，用于了解站点使用情况。汇总数据按 90 天滚动清理，不保存访问者的 IP 地址、账号或完整网址，并遵循浏览器的全局隐私控制和禁止跟踪信号。'],
   ['删除与联系', '删除记录会撤回关联的公开成绩。服务端保留必要的随机记录标识和删除登记，防止旧设备重新上传或恢复成绩；账号注销会删除账号及其云资料，并清除账号关联的删除登记。离线设备和已有备份副本不会即时清除。可通过站内反馈或关于页面的联系邮箱联系。'],
 ] as const;
 
@@ -65,6 +66,7 @@ export const privacySectionsEn = [
  ['Public results', 'Public leaderboards show nicknames, avatars and results, not email addresses. Guest entries use the nickname provided on submission. Profiles share day/night wallpapers and online practice statistics by default; disable public viewing in account settings. Private articles, typed text and drafts are not included. Enabling daily wallpapers makes the server request images from Wallhaven; image rights remain with their original owners.'],
  ['Feedback screenshots', 'Submitted feedback, screenshots and updates are stored on the server and are visible only to the submitter and authorized administrators. Internal notes are visible only to administrators.'],
  ['Data processing', 'The server uses necessary cookies for sessions and guest practice, and processes request information for access control and rate limiting. Management operations are recorded in audit events.'],
+ ['Traffic statistics', 'When traffic statistics are enabled, public page views are aggregated by date, page category and the approximate country and region supplied by the hosting platform. Aggregates follow a rolling 90-day cleanup and contain no visitor IP addresses, accounts or full URLs. Browser Global Privacy Control and Do Not Track signals are respected.'],
  ['Deletion & contact', 'Deleting records withdraws their linked public results. The server retains necessary random record identifiers and deletion registrations to prevent old devices from uploading them again or restoring results. Account deletion removes the account, its cloud data and related deletion registrations. Offline devices and existing backup copies are not cleared immediately. Contact the operator through site feedback or the email on the About page.'],
 ] as const;
 export const termsSectionsEn = [

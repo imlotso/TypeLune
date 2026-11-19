@@ -191,6 +191,60 @@ describe('site settings on the production API', () => {
     expect((await register(email)).statusCode).toBe(200);
   });
 
+  it('enforces registration lists before mail delivery and when redeeming an already issued code', async () => {
+    const rulesUrl = '/api/admin/users/registration-policy';
+    const issuedEmail = 'reader@outbound.test';
+    expect((await requestCode(issuedEmail)).statusCode).toBe(200);
+    const settings = {
+      allowedDomains: ['@EXAMPLE.TEST', 'example.test', 'bücher.test'],
+      deniedDomains: ['.mail.example.test'],
+      deniedEmails: ['Suspended@Example.Test'],
+    };
+    expect((await app.inject(rulesUrl)).statusCode).toBe(403);
+    expect((await post(rulesUrl, { settings: { ...settings, allowedDomains: ['https://example.test'] }, revision: 0 }, admin)).statusCode).toBe(400);
+    expect((await post(rulesUrl, { settings, revision: 0 }, admin)).json()).toEqual({
+      settings: { allowedDomains: ['example.test', 'xn--bcher-kva.test'], deniedDomains: ['mail.example.test'], deniedEmails: ['suspended@example.test'] },
+      revision: 1,
+    });
+    expect((await post(rulesUrl, { settings, revision: 0 }, admin)).statusCode).toBe(409);
+    expect((await app.inject({ url, headers: admin })).json()).toEqual({ settings: defaults, revision: 0 });
+    expect((await register(issuedEmail)).statusCode).toBe(403);
+    for (const email of ['suspended@example.test', 'reader@mx.mail.example.test', 'reader@fakeexample.test']) {
+      expect((await requestCode(email)).statusCode).toBe(403);
+      expect(codes.has(`${email}:register`)).toBe(false);
+    }
+    expect((await requestCode('visitor@sub.example.test')).statusCode).toBe(200);
+    expect((await register('visitor@sub.example.test')).statusCode).toBe(200);
+    expect((await requestCode('books@bücher.test')).statusCode).toBe(200);
+    expect((await requestCode(adminEmail, 'login')).statusCode).toBe(200);
+    await changeSettings({ reviewThresholdZh: 200 });
+    expect((await app.inject({ url: rulesUrl, headers: admin })).json()).toMatchObject({ revision: 1, settings: { deniedEmails: ['suspended@example.test'] } });
+    expect((await app.inject('/api/site/features')).payload).not.toContain('suspended@example.test');
+    const audit = await app.inject({ url: '/api/admin/audit', headers: admin });
+    expect(audit.payload).not.toContain('suspended@example.test');
+    expect(audit.json().entries).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'settings.registration.update' })]));
+  });
+
+  it('checks policy revisions again during registration without consuming the blocked code', async () => {
+    const email = 'reader@example.test';
+    expect((await requestCode(email)).statusCode).toBe(200);
+    const rulesUrl = '/api/admin/users/registration-policy';
+    const block = { allowedDomains: [], deniedDomains: [], deniedEmails: [email] };
+    const hash = argon2.hash.bind(argon2);
+    const hashing = vi.spyOn(argon2, 'hash').mockImplementationOnce(async (value, options) => {
+      expect((await post(rulesUrl, { settings: block, revision: 0 }, admin)).statusCode).toBe(200);
+      return hash(value, options);
+    });
+    try {
+      expect((await register(email)).statusCode).toBe(403);
+      expect(hashing).toHaveBeenCalledOnce();
+    } finally {
+      hashing.mockRestore();
+    }
+    expect((await post(rulesUrl, { settings: { ...block, deniedEmails: [] }, revision: 1 }, admin)).statusCode).toBe(200);
+    expect((await register(email)).statusCode).toBe(200);
+  });
+
   it('blocks new guest sessions while allowing existing recovery and gives leaderboard publication its own switch', async () => {
     const clientId = randomUUID();
     const recoveryKey = randomBytes(32).toString('base64url');

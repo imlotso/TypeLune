@@ -23,6 +23,7 @@ export const reasonLabels: Record<string, string> = {
 };
 const actionLabels: Record<string, string> = {
   'user.bootstrap': '初始化管理员', 'user.disable': '停用账号', 'user.enable': '启用账号', 'user.promote': '设为管理员', 'user.demote': '撤销管理员', 'user.revoke_sessions': '退出所有会话',
+  'user.delete': '删除账号', 'settings.registration.update': '更新注册邮箱规则',
   'article.create': '新建文章', 'article.update': '编辑文章', 'article.publish': '发布文章',
   'article.archive': '归档文章', 'article.delete': '删除文章',
   'score.approve': '通过成绩', 'score.reject': '拒绝成绩', 'score.remove': '下架成绩',
@@ -153,7 +154,7 @@ export function AuditRows({ entries, label }: { entries: Audit[]; label: string 
 }
 
 export type Confirmation = {
-  title: string; action: string; target: string; requireReason?: boolean; note?: string; allowPublicMessage?: boolean;
+  title: string; action: string; target: string; requireReason?: boolean; note?: string; allowPublicMessage?: boolean; danger?: boolean;
   submit: (reason: string, publicMessage?: string) => Promise<unknown>;
 };
 
@@ -196,7 +197,8 @@ export function ConfirmationForm({ confirmation, busy, setBusy, onCancel, onSucc
     {error && <p className="form-error" role="alert">{<SystemMessage text={error} />}</p>}
     <div className="feature-actions">
       <button type="button" className="outline-button" ref={cancel} disabled={busy} onClick={onCancel}>{at("取消")}</button>
-      <button className="primary-button" disabled={busy || (needsReason && !reason.trim())}>{busy ? at('处理中…') : `${locale === 'en' ? 'Confirm ' : '确认'}${at(confirmation.action)}`}</button>
+      <button className={confirmation.danger ? 'primary-button admin-user-confirm-delete' : 'primary-button'}
+        disabled={busy || (needsReason && !reason.trim())}>{busy ? at('处理中…') : `${locale === 'en' ? 'Confirm ' : '确认'}${at(confirmation.action)}`}</button>
     </div>
   </form>;
 }

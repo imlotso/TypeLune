@@ -1,11 +1,16 @@
-import { SystemMessage } from '../SystemMessage';
 import { useAdminText } from './i18n';
 import { useState } from 'react';
+import { EnvelopeSimple } from '@phosphor-icons/react/EnvelopeSimple';
+import { UsersThree } from '@phosphor-icons/react/UsersThree';
+import { Trash } from '@phosphor-icons/react/Trash';
+import { useAdminNavigation } from '../AdminNavigationGuard';
 import { Dialog } from '../Dialog';
+import { RegistrationPolicyPanel } from './RegistrationPolicyPanel';
 import {
   adminWrite, ConfirmationForm, DateTime, LoadState, Metrics, Pagination, QueryField, ScrollList, SelectField,
   useAdminList, useAdminResource, type AdminProps, type Confirmation,
 } from './common';
+import '../../admin-users.css';
 
 type UserRow = { id: string; username: string; email: string; role: 'admin' | 'user'; status: 'active' | 'disabled'; createdAt: number };
 type UserDetail = UserRow & { activeSessions: number; finishedPractices: number; publishedScores: number; lastPracticeAt: number | null };
@@ -55,6 +60,15 @@ function UserDialog({ ownerId, id, onClose, onChange }: AdminProps & { id: strin
     });
   }
 
+  function deleteAccount() {
+    if (!user || user.role !== 'user' || user.id === ownerId) return;
+    setConfirmation({
+      title: at('删除账号'), action: '删除', target: user.username, danger: true,
+      note: at('将永久删除账号、练习记录、公开成绩、同步资料和反馈，并结束全部会话。'),
+      submit: (reason) => adminWrite(ownerId, `${path}/delete`, { reason }),
+    });
+  }
+
   return <Dialog key={confirmation?.title ?? 'detail'} title={confirmation?.title ?? at('用户详情')} dismissible={!busy}
     onClose={confirmation ? () => setConfirmation(undefined) : onClose}>
     {confirmation
@@ -70,10 +84,11 @@ function UserDialog({ ownerId, id, onClose, onChange }: AdminProps & { id: strin
             [at('最近练习'), user.lastPracticeAt != null ? <DateTime value={user.lastPracticeAt} compact /> : '—'],
             [at('完成练习'), user.finishedPractices], [at('已发布成绩'), user.publishedScores], [at('活跃会话'), user.activeSessions],
           ]} />
-          {user.id !== ownerId && <div className="feature-actions">
+          {user.id !== ownerId && <div className="feature-actions admin-user-detail-actions">
             {user.status === 'active' && user.activeSessions > 0 && <button className="outline-button" onClick={revokeSessions}>{at("退出所有会话")}</button>}
             <button className="outline-button" disabled={user.role === 'user' && user.status === 'disabled'} onClick={changeRole}>{user.role === 'admin' ? at('撤销管理员') : at('设为管理员')}</button>
             <button className="outline-button" onClick={changeStatus}>{user.status === 'active' ? at('停用') : at('启用')}</button>
+            {user.role === 'user' && <button className="outline-button admin-user-delete" onClick={deleteAccount}><Trash size={16} aria-hidden="true" />{at('删除账号')}</button>}
           </div>}
         </div>
         : <LoadState error={error} retry={retry} />}
@@ -84,22 +99,46 @@ export function UsersPanel({ ownerId }: AdminProps) {
   const { at, locale } = useAdminText();
   const list = useAdminList<UserRow>(ownerId, '/users');
   const [selected, setSelected] = useState<string>();
+  const [showPolicy, setShowPolicy] = useState(false);
+  const navigate = useAdminNavigation();
   return <>
-    <div className="admin-filters feature-filters">
-      <QueryField label={at("用户名或邮箱")} maxLength={254} onSearch={(value) => list.filter('q', value)} />
-      <SelectField label={at("账号状态")} options={Object.entries(statuses)} all value={list.filters.status ?? ''} onChange={(value) => list.filter('status', value)} />
-      <SelectField label={at("角色")} options={Object.entries(roles)} all value={list.filters.role ?? ''} onChange={(value) => list.filter('role', value)} />
+    <div className="admin-users-header">
+      <h2>{at('用户管理')}</h2>
+      <div className="admin-users-switch">
+        <button type="button" aria-pressed={!showPolicy} onClick={() => showPolicy && navigate(() => setShowPolicy(false))}>
+          <UsersThree size={19} aria-hidden="true" />{at('用户列表')}
+        </button>
+        <button type="button" aria-pressed={showPolicy} onClick={() => setShowPolicy(true)}>
+          <EnvelopeSimple size={18} aria-hidden="true" />{at('注册邮箱规则')}
+        </button>
+      </div>
     </div>
-    {!list.data ? <LoadState error={list.error} retry={list.retry} /> : <>
-      {list.data.entries.length ? <ScrollList label={at("用户列表")}>{list.data.entries.map((user) => <li className="feature-row" key={user.id}>
-        <div className="feature-row-main">
-          <h3>{user.username}</h3>
-          <div className="feature-meta"><span>{user.email}</span><span>{at(roles[user.role])}</span><span>{at(statuses[user.status])}</span></div>
-        </div>
-        <button className="outline-button feature-action-button" aria-label={`${user.username} ${locale === 'en' ? 'details' : '详情'}`} onClick={() => setSelected(user.id)}>{at("详情")}</button>
-      </li>)}</ScrollList> : <p className="admin-load-state feature-muted">{at("暂无匹配用户")}</p>}
-      <Pagination data={list.data} setPage={list.setPage} />
-    </>}
+    <div className="admin-users-list" hidden={showPolicy}>
+      <div className="admin-filters feature-filters">
+        <QueryField label={at("用户名或邮箱")} maxLength={254} onSearch={(value) => list.filter('q', value)} />
+        <SelectField label={at("账号状态")} options={Object.entries(statuses)} all value={list.filters.status ?? ''} onChange={(value) => list.filter('status', value)} />
+        <SelectField label={at("角色")} options={Object.entries(roles)} all value={list.filters.role ?? ''} onChange={(value) => list.filter('role', value)} />
+      </div>
+      {!list.data ? <LoadState error={list.error} retry={list.retry} /> : <>
+        {list.data.entries.length ? <ScrollList label={at("用户列表")}>{list.data.entries.map((user) => <li className="feature-row admin-account-row" key={user.id}>
+          <div className="feature-row-main">
+            <h3>{user.username}</h3>
+            <span className="feature-muted admin-account-email">{user.email}</span>
+          </div>
+          <div className="admin-account-badges">
+            <span className={`admin-account-role is-${user.role}`}>{at(roles[user.role])}</span>
+            <span className={`admin-account-status is-${user.status}`}>{at(statuses[user.status])}</span>
+          </div>
+          <div className="admin-account-time">
+            <span className="feature-muted">{at('注册时间')}</span>
+            <DateTime value={user.createdAt} compact />
+          </div>
+          <button className="outline-button feature-action-button" aria-label={`${user.username} ${locale === 'en' ? 'details' : '详情'}`} onClick={() => setSelected(user.id)}>{at("详情")}</button>
+        </li>)}</ScrollList> : <p className="admin-load-state feature-muted">{at("暂无匹配用户")}</p>}
+        <Pagination data={list.data} setPage={list.setPage} />
+      </>}
+    </div>
+    {showPolicy && <RegistrationPolicyPanel ownerId={ownerId} />}
     {selected && <UserDialog ownerId={ownerId} id={selected} onClose={() => setSelected(undefined)} onChange={list.refresh} />}
   </>;
 }

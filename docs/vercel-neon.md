@@ -38,6 +38,10 @@ npm run db:postgres -- migrate
 npm run db:postgres -- support
 # SEO 配置同样使用独立可选表，不改既有 site_settings JSON。
 npm run db:postgres -- seo
+# 概览的访客地区与浏览量使用独立汇总表。
+npm run db:postgres -- dashboard
+# 账号注册的邮件地址和域名限制使用独立规则表。
+npm run db:postgres -- registration-policy
 # 全新空库二选一：载入内置文章，或导入经过核验的 SQLite 快照。
 npm run db:postgres -- seed
 # npm run db:postgres -- import /安全路径/源快照.sqlite
@@ -50,6 +54,12 @@ npm run db:postgres -- seed
 `seo` 显式安装独立的 `seo_settings` 表，可重复执行，不改 schema 1/2 迁移记录或 `site_settings` 的内容。已有站点先备份并确认目标，只运行 `npm run db:postgres -- seo`；不要重跑 `seed`。未安装时网站按部署默认 SEO 配置正常提供双语 HTML 与 sitemap，后台可读取默认配置并显示“存储尚未安装”，写入返回 `503 / SEO_STORAGE_NOT_READY`。安装完成后重新加载后台即可配置，无需冷启动时建表。
 
 备份与恢复必须包含 `seo_settings` 中的双语元数据、图片、索引及 sitemap 配置。SQLite 导入/导出会校验并完整保留这张可选表；旧源没有该表时，导入仍会拒绝覆盖目标已有 SEO 配置。旧应用回滚可以保留并忽略独立 SEO 表，不会因旧版对 `site_settings` 严格解析而失败。后台 SEO 的“正式网站地址”优先于构建/部署变量 `VITE_SITE_URL`；首次安装前以该公开变量作为默认值。
+
+`dashboard` 安装 `site_visit_daily` 汇总表，可重复执行。已有库安装后，公开前台的新增浏览才开始计入访问量。后台概览用 UTC 划分日期，可查看最近 7 天或 30 天。Vercel 函数从平台请求头读取国家和省州代码。缺少地理信息的浏览仍计入总量，自托管默认只统计浏览量。汇总不保存账户、IP 地址或完整网址，随新访问滚动清理 90 天以前的数据。已存在的汇总可随 SQLite 导入、导出与备份迁移。
+
+已有 Vercel 环境也可用 `TYPELUNE_INSTALL_DASHBOARD=preview` 或 `production` 安装汇总表，值须与部署环境一致。构建日志确认安装后，将此变量与本轮使用的 `TYPELUNE_INSTALL_REGISTRATION_POLICY` 清空。
+
+`registration-policy` 安装独立的 `registration_policy` 表，可重复执行。现有库安装后可在后台用户页编辑规则。未安装时保留站点原有注册开关行为，管理规则的接口返回 503。独立表随备份和 SQLite 导入、导出保留，旧应用可忽略该表并继续读取原有站点设置。显式初始化隔离 Vercel Preview 时会安装该表。已有环境也可在对应 Vercel 环境中设置 `TYPELUNE_INSTALL_REGISTRATION_POLICY=preview` 或 `production`，让构建检查调用安装命令。
 
 没有 SMTP 可用于新空库时，可在明确确认目标后创建**首位**管理员。该命令仅接受标准输入的一行密码，且数据库中已有管理员时拒绝执行；它会写审计记录：
 
@@ -121,3 +131,11 @@ Vercel 构建会执行 `scripts/vercel-runtime-check.ts`，先验证当前数据
 Vercel 构建也可显式设置 `TYPELUNE_INSTALL_NICKNAME_POLICY=preview` 或 `production`，必须与该部署环境一致；成功安装后将此变量清空。正常函数启动不执行 PostgreSQL DDL。旧数据库未安装时，现有练习与登录保持可用，后台昵称过滤页会提示尚未安装。
 
 初始过滤开关为关闭，所选语言为空。管理员在“昵称过滤”中查看中英文词包，按需增删、编辑匹配方式、导入 TXT/JSON 或导出备份，然后选择词包并开启。输入框中固定的 `visitor` 不参与游客后缀过滤。启用后服务端检查新注册名、修改后的公开昵称和排行榜提交；不追溯删除已有历史记录。词库来源及 CC BY 4.0 许可见 [昵称词库归属](licenses/nickname-wordlists.md)。
+
+## HTTP 协议与排查
+
+TypeLune 的 Fastify API 使用普通 HTTP 请求与响应。Neon 连接使用独立的 PostgreSQL/TLS 连接。当前的练习同步、成绩提交和后台查询无需 WebSocket 长连接或 gRPC。
+
+- 浏览器的 HTTP/2 和 HTTP/3 在域名最外层的 CDN 边缘协商。如果域名使用 Cloudflare 代理，浏览器到 Cloudflare 的 HTTP/3 与 Cloudflare 到 Vercel 的 HTTP/2 回源是两条独立的连接。配置回源前先确认实际 DNS 和代理拓扑。 [Vercel CDN](https://vercel.com/docs/cdn) · [Cloudflare HTTP/3](https://developers.cloudflare.com/speed/optimization/protocol/http3/) · [Cloudflare HTTP/2 回源](https://developers.cloudflare.com/speed/optimization/protocol/http2-to-origin/)
+- Vercel Functions 支持 WebSocket，但连接受函数最大执行时长约束，客户端需要处理断开与重连。将来若有实时协作等需求，再实现独立升级路由。当前 Vercel Node HTTP 入口未实现 gRPC 服务，若将来需要原生 gRPC，应选用支持 HTTP/2 framing 和 trailers 的独立服务及代理。 [Vercel WebSockets](https://vercel.com/docs/functions/websockets) · [gRPC over HTTP/2](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md)
+- 遇到 `ERR_HTTP2_PROTOCOL_ERROR` 时，记录失败的实际 URL、时间、网络和浏览器 DevTools 中的协议、状态与请求 ID。用相同 URL 核对 `curl --http2`、`curl --http1.1`，并在能直连 UDP 443 的网络用 `curl --http3-only` 核对。用 `x-vercel-id` 和代理请求 ID 对照日志，检查 ALPN、压缩和响应截断等可能性。`Alt-Svc: h3` 表示边缘公布了 HTTP/3 服务，成功握手需要单独验证。

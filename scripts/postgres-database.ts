@@ -10,6 +10,11 @@ import { repairCatalogPunctuation } from '../server/catalog-punctuation-repair';
 import { bootstrapPostgresAdmin } from '../server/postgres/bootstrap';
 import { nicknamePolicySchema,defaultNicknamePolicy } from '../server/nickname-policy';
 import { wallpaperSchema } from '../server/wallpaper-schema';
+import { dashboardVisitsSchema } from '../server/dashboard-visits';
+import { registrationPolicySchema } from '../server/registration-policy';
+
+const actions = ['migrate', 'import', 'export', 'seed', 'bootstrap', 'support', 'seo', 'wallpaper', 'nickname-policy', 'dashboard', 'registration-policy', 'repair-punctuation'];
+const actionError = `Use ${actions.slice(0, -1).join(', ')} or ${actions.at(-1)}`;
 
 async function readPassword() {
   if (process.stdin.isTTY) throw new Error('Supply the administrator password through standard input');
@@ -26,7 +31,7 @@ async function readPassword() {
 
 async function main() {
   const action = process.argv[2];
-  if (action !== 'migrate' && action !== 'import' && action !== 'export' && action !== 'seed' && action !== 'bootstrap' && action !== 'support' && action !== 'seo' && action !== 'wallpaper' && action !== 'nickname-policy' && action !== 'repair-punctuation') throw new Error('Use migrate, import, export, seed, bootstrap, support, seo, wallpaper, nickname-policy or repair-punctuation');
+  if (!actions.includes(action)) throw new Error(actionError);
   const connectionString = process.env.DATABASE_URL;
   const database = process.env.DAZI_DATABASE_NAME;
   const schema = process.env.DAZI_DATABASE_SCHEMA;
@@ -45,16 +50,19 @@ async function main() {
     if (action === 'migrate') {
       await migratePostgres(client, { database, schema });
       console.log('PostgreSQL schema is ready.');
-    } else if (action === 'support' || action === 'seo' || action === 'wallpaper' || action === 'nickname-policy') {
+    } else if (action === 'support' || action === 'seo' || action === 'wallpaper' || action === 'nickname-policy' || action === 'dashboard' || action === 'registration-policy') {
       await client.query('BEGIN');
       try {
         await assertPostgresTarget(client, { database, schema });
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))', ['dazi.schema.migration', schema]);
-        await client.query(action === 'nickname-policy' ? nicknamePolicySchema : action === 'wallpaper' ? wallpaperSchema : readFileSync(new URL(action === 'seo' ? '../server/postgres/seo-settings.sql' : '../server/postgres/support-settings.sql', import.meta.url), 'utf8'));
+        const schemaSql = action === 'registration-policy' ? registrationPolicySchema : action === 'dashboard' ? dashboardVisitsSchema
+          : action === 'nickname-policy' ? nicknamePolicySchema : action === 'wallpaper' ? wallpaperSchema
+          : readFileSync(new URL(action === 'seo' ? '../server/postgres/seo-settings.sql' : '../server/postgres/support-settings.sql', import.meta.url), 'utf8');
+        await client.query(schemaSql);
         if (action === 'wallpaper' && process.env.TYPELUNE_ENABLE_SITE_WALLPAPER === 'true') await client.query('INSERT INTO wallpaper_settings(id,settings,revision) VALUES(1,$1,1) ON CONFLICT(id) DO NOTHING', [JSON.stringify({ enabled: true, styles: ['nature'] })]);
         if(action==='nickname-policy')await client.query('INSERT INTO nickname_policy(id,settings,revision) VALUES(1,$1,1) ON CONFLICT(id) DO NOTHING',[JSON.stringify(defaultNicknamePolicy)]);
         await client.query('COMMIT');
-        console.log(action === 'nickname-policy' ? 'Nickname policy extension is ready.' : action === 'seo' ? 'SEO settings extension is ready.' : action === 'wallpaper' ? 'Wallpaper extension is ready.' : 'Support settings extension is ready.');
+        console.log(`${{ dashboard: 'Dashboard visits', 'nickname-policy': 'Nickname policy', 'registration-policy': 'Registration email rules', seo: 'SEO settings', wallpaper: 'Wallpaper', support: 'Support settings' }[action]} extension is ready.`);
       } catch (error) { await client.query('ROLLBACK'); throw error; }
     } else if (action === 'import') {
       const { counts } = await importSqlite(client, source, { database, schema });
@@ -88,7 +96,7 @@ main().catch((error: unknown) => {
   // Database drivers can include SQL parameters, hostnames, and credentials in
   // their diagnostics. Only print fixed, explicitly safe operator messages.
   const safe = error instanceof Error && [
-    'Use migrate, import, export, seed, bootstrap, support, seo, wallpaper, nickname-policy or repair-punctuation',
+    actionError,
     'DATABASE_URL and an explicitly confirmed target database/schema are required',
     'An explicit SQLite source path is required',
     'An explicit SQLite destination is required',

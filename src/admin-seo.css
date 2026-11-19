@@ -1,0 +1,239 @@
+.admin-seo {
+  --seo-surface: color-mix(in srgb, var(--typing-input) 85%, var(--typing-row));
+  --seo-tint: color-mix(in srgb, var(--typing-accent) 9%, var(--typing-input));
+  gap: 14px;
+  margin-top: 0;
+}
+
+.seo-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--typing-border);
+  background: var(--seo-surface);
+}
+
+.seo-toolbar h2 {
+  margin: 0;
+  color: var(--typing-text);
+  font-size: clamp(18px, 2vw, 23px);
+  font-weight: 800;
+}
+
+.seo-save-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  font-size: 13px;
+}
+
+.seo-save-actions button { min-height: 36px; padding: 6px 15px; }
+.seo-unsaved { color: var(--typing-muted); }
+.seo-saved { color: var(--typing-accent); }
+
+.seo-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(235px, 29%);
+  align-items: start;
+  gap: 16px;
+}
+
+.seo-sections, .seo-rail {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.seo-card, .seo-shortcuts, .seo-search-preview, .seo-public-links {
+  min-width: 0;
+  border: 1px solid var(--typing-border);
+  border-radius: 14px;
+  background: var(--seo-surface);
+}
+
+.seo-card {
+  padding: clamp(14px, 2vw, 23px);
+  scroll-margin-top: 74px;
+}
+
+.seo-card h3, .seo-search-preview h3 {
+  margin: 0;
+  color: var(--typing-text);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.seo-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.seo-section-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--seo-tint);
+  color: var(--typing-accent);
+}
+
+.seo-card fieldset {
+  display: grid;
+  gap: 13px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.seo-card fieldset:disabled { opacity: .65; }
+.admin-seo .feature-form-pair { gap: 13px; }
+.admin-seo :is(input, select, textarea):focus-visible, .admin-seo a:focus-visible, .seo-image-picker:focus-within {
+  outline: 2px solid var(--typing-accent);
+  outline-offset: 2px;
+}
+
+.admin-seo .seo-toggle {
+  display: flex;
+  align-items: center;
+  align-self: end;
+  justify-content: space-between;
+  gap: 9px;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid var(--typing-border);
+  border-radius: 10px;
+  background: var(--typing-input);
+  cursor: pointer;
+}
+
+.admin-seo input[type='checkbox'] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--typing-accent);
+}
+
+.seo-image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.seo-image-field {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--typing-border);
+  border-radius: 11px;
+  font-size: 12px;
+}
+
+.seo-image-preview {
+  display: grid;
+  height: 60px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--seo-tint);
+  color: var(--typing-muted);
+}
+
+.seo-image-preview img { width: 100%; height: 60px; object-fit: contain; }
+.seo-image-actions { display: flex; gap: 5px 8px; flex-wrap: wrap; align-items: center; }
+.admin-seo .seo-image-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  border: 1px solid var(--typing-border);
+  border-radius: 7px;
+  padding: 4px 7px;
+  background: var(--typing-input);
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.admin-seo .seo-image-picker input {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.seo-image-actions .text-button { padding: 3px 0; font-size: inherit; }
+.seo-note { color: var(--typing-muted); font-size: 12px; }
+.seo-subgroup { padding-top: 13px; border-top: 1px solid var(--typing-border); }
+.seo-card .seo-languages { display: flex; align-items: center; flex-wrap: wrap; column-gap: 17px; }
+.seo-languages legend { margin-bottom: 7px; padding: 0; font-size: 13px; font-weight: 700; }
+.admin-seo .seo-languages label { display: flex; align-items: center; gap: 6px; }
+
+.seo-rail { position: sticky; top: 76px; }
+.seo-shortcuts, .seo-public-links { padding: 8px; }
+.seo-shortcuts a, .seo-public-links a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 37px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: var(--typing-text);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.seo-shortcuts a:hover, .seo-public-links a:hover { background: var(--seo-tint); }
+.seo-shortcuts svg, .seo-public-links svg { flex: none; color: var(--typing-accent); }
+.seo-public-links a { justify-content: space-between; }
+.seo-search-preview { display: grid; gap: 9px; padding: 14px; }
+.seo-preview-site { display: flex; align-items: center; gap: 8px; color: var(--typing-muted); font-size: 12px; }
+.seo-preview-site > span:last-child { display: grid; min-width: 0; overflow-wrap: anywhere; }
+.seo-preview-site strong { color: var(--typing-text); }
+.seo-preview-favicon {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  flex: none;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--seo-tint);
+}
+
+.seo-preview-favicon img { width: 100%; height: 100%; object-fit: contain; }
+.seo-preview-title { color: var(--typing-accent); font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.seo-search-preview p { color: var(--typing-muted); font-size: 12px; overflow-wrap: anywhere; }
+
+@media (max-width: 800px) {
+  .seo-layout { grid-template-columns: minmax(0, 1fr); }
+  .seo-rail { position: static; grid-row: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .seo-public-links { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 3px 8px; }
+}
+
+@media (max-width: 510px) {
+  .admin-seo .feature-form-pair { grid-template-columns: minmax(0, 1fr); }
+  .seo-rail { display: contents; }
+  .seo-shortcuts { grid-row: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .seo-toolbar { padding-inline: 3px; }
+  .seo-image-field { padding: 6px; }
+  .seo-image-actions svg { display: none; }
+  .seo-card { scroll-margin-top: 100px; }
+}

@@ -122,6 +122,38 @@ describe('administrator console API', () => {
     expect((await get('/api/admin/audit', admin.cookie)).json().entries[0]).toMatchObject({ action: 'user.revoke_sessions', reason: '用户设备遗失' });
   });
 
+  it('deletes an ordinary account once, retires its attempts and anonymizes the audit', async () => {
+    const admin = await register('owner');
+    const reader = await register('reader');
+    const anotherAdmin = await register('editor');
+    const target = (id: string) => `/api/admin/users/${id}/delete`;
+    const reason = '账户持有人请求';
+    expect((await post(`/api/admin/users/${anotherAdmin.id}/role`, admin.cookie, { role: 'admin', reason })).statusCode).toBe(200);
+    expect((await post(target(anotherAdmin.id), admin.cookie, { reason })).statusCode).toBe(409);
+    expect((await post(target(admin.id), admin.cookie, { reason })).statusCode).toBe(409);
+    expect((await post(target(reader.id), reader.cookie, { reason })).statusCode).toBe(403);
+    expect((await post(target(reader.id), admin.cookie, { reason: ' ' })).statusCode).toBe(400);
+    const start = await post('/api/tests/start', reader.cookie, { articleId: 'en-beginner-1', duration: 60 });
+    expect(start.statusCode).toBe(200);
+    const attempt = start.json().id;
+    await post(`/api/admin/users/${reader.id}/sessions/revoke`, admin.cookie, { reason: reader.email });
+    const current = await login(reader.username);
+    expect(current.statusCode).toBe(200);
+    const responses = await Promise.all([post(target(reader.id), admin.cookie, { reason }), post(target(reader.id), admin.cookie, { reason })]);
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 404]);
+    expect((await get('/api/me', current.cookies[0].value)).json().user).toBeNull();
+    expect((await login(reader.username)).statusCode).toBe(401);
+    expect((await get('/api/admin/users/' + reader.id, admin.cookie)).statusCode).toBe(404);
+    const audit = await get('/api/admin/audit?targetType=user', admin.cookie);
+    expect(audit.json().entries[0]).toMatchObject({ action: 'user.delete', reason, targetLabel: '已删除账号' });
+    expect(audit.payload).not.toContain(reader.id);
+    expect(audit.payload).not.toContain(reader.email);
+    const database = new Database(path);
+    expect(database.prepare('SELECT id FROM retired_attempts WHERE id=?').get(attempt)).toEqual({ id: attempt });
+    expect(database.prepare('SELECT id FROM challenges WHERE id=?').get(attempt)).toBeUndefined();
+    database.close();
+  });
+
   it('bootstraps an existing verified account when first configured and revokes older sessions', async () => {
     await app.close();
     app = await open('');

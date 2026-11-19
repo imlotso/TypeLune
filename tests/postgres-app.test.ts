@@ -9,6 +9,7 @@ import { PostgresDatabase } from '../server/postgres/database';
 import { AsyncPostgres } from '../server/database/postgres';
 import { seedPostgresCatalog } from '../server/postgres/seed';
 import { createVercelHandler } from '../server/vercel';
+import { registrationPolicySchema } from '../server/registration-policy';
 
 const url = process.env.DAZI_TEST_DATABASE_URL;
 const suite = url ? describe : describe.skip;
@@ -315,6 +316,48 @@ suite('the PostgreSQL application on independent instances', () => {
       expect(response.body).not.toContain(schema);
       expect(response.body).not.toContain('disposable-local-test');
     } finally { await setup.query('ALTER TABLE unavailable_articles RENAME TO public_articles'); }
+  });
+  it('shares registration rules and permanently removes an ordinary account across instances', async () => {
+    const ip = { 'x-forwarded-for': '203.0.113.80' };
+    const headers = { ...ip, cookie: adminCookie };
+    const policy = '/api/admin/users/registration-policy';
+    const requestCode = (email: string) => apps[1].inject({ method: 'POST', url: '/api/auth/code', headers: ip, payload: { email, purpose: 'register' } });
+    const register = (email: string, username: string) => apps[1].inject({ method: 'POST', url: '/api/auth/register', headers: ip,
+      payload: { email, username, password: 'long-password-123', code: codes.get(email) } });
+    const blockedEmail = 'blocked@example.test';
+    const allowedEmail = 'temporary@sub.example.test';
+    const siteSettingsBefore = (await setup.query('SELECT settings,revision FROM site_settings')).rows;
+    expect((await apps[0].inject({ url: policy, headers })).statusCode).toBe(503);
+    expect((await apps[0].inject({ method: 'POST', url: policy, headers, payload: {} })).statusCode).toBe(503);
+    expect((await requestCode(blockedEmail)).statusCode).toBe(200);
+    await setup.query(registrationPolicySchema);
+    await setup.query(registrationPolicySchema);
+    const loaded = await apps[0].inject({ url: policy, headers });
+    expect(loaded.statusCode).toBe(200);
+    const rules = await apps[0].inject({ method: 'POST', url: policy, headers, payload: {
+      revision: loaded.json().revision,
+      settings: { allowedDomains: ['example.test'], deniedDomains: ['mail.example.test'], deniedEmails: [blockedEmail] },
+    } });
+    expect(rules.statusCode).toBe(200);
+    expect((await setup.query('SELECT settings,revision FROM site_settings')).rows).toEqual(siteSettingsBefore);
+    expect((await register(blockedEmail, 'blocked_account')).statusCode).toBe(403);
+    expect((await requestCode('temporary@mail.example.test')).statusCode).toBe(403);
+    expect((await requestCode(allowedEmail)).statusCode).toBe(200);
+    const account = await register(allowedEmail, 'temporary_account');
+    expect(account.statusCode).toBe(200);
+    const id = account.json().user.id;
+    const cookie = account.cookies[0].name + '=' + account.cookies[0].value;
+    const start = await apps[1].inject({ method: 'POST', url: '/api/tests/start', headers: { ...ip, cookie },
+      payload: { articleId: 'zh-beginner-1', duration: 60 } });
+    expect(start.statusCode).toBe(200);
+    const attempt = start.json().id;
+    const deleteAccount = (app: typeof apps[number]) => app.inject({ method: 'POST', url: `/api/admin/users/${id}/delete`, headers, payload: { reason: '测试删除' } });
+    const deletions = await Promise.all(apps.map(deleteAccount));
+    expect(deletions.map((response) => response.statusCode).sort()).toEqual([200, 404]);
+    expect((await apps[1].inject({ url: '/api/me', headers: { ...ip, cookie } })).json().user).toBeNull();
+    expect((await setup.query('SELECT 1 FROM challenges WHERE id=$1', [attempt])).rowCount).toBe(0);
+    expect((await setup.query('SELECT 1 FROM retired_attempts WHERE id=$1', [attempt])).rowCount).toBe(1);
+    expect((await setup.query("SELECT COUNT(*)::int AS count FROM admin_audit WHERE action='user.delete' AND target_id<>$1", [id])).rows[0].count).toBe(1);
   });
   it('serves same-origin HTTP with secure cookies and recovers from a failed cold start', async () => {
     if (!(await setup.query("SELECT 1 FROM users WHERE username='AdminUser'")).rowCount) {

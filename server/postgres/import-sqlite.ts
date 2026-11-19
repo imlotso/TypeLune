@@ -1,5 +1,7 @@
 import Database from 'better-sqlite3';
 import {wallpaperSchema,wallpaperTables} from '../wallpaper-schema.js';
+import { dashboardVisitsSchema, dashboardVisitsTable } from '../dashboard-visits.js';
+import { registrationPolicySchema, registrationPolicyTable } from '../registration-policy.js';
 import { createHash, type Hash } from 'node:crypto';
 import type { Client } from 'pg';
 import { assertPostgresTarget, type ExpectedTarget } from './migrate.js';
@@ -44,7 +46,7 @@ export async function importSqlite(client: Client, path: string, target: Expecte
       throw new Error('SQLite integrity or foreign-key validation failed');
     }
     const sourceTables = (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>).map(({ name }) => name);
-    const dataTables = [...baseDataTables, ...['support_settings', 'seo_settings', 'nickname_policy', ...wallpaperTables].filter(table => sourceTables.includes(table))];
+    const dataTables = [...baseDataTables, ...['support_settings', 'seo_settings', 'nickname_policy', ...wallpaperTables, dashboardVisitsTable, registrationPolicyTable].filter(table => sourceTables.includes(table))];
     const unknown = sourceTables.filter((name) => !dataTables.some((table) => table === name));
     if (unknown.length) throw new Error('SQLite source contains unsupported tables');
     for (const table of dataTables) {
@@ -62,6 +64,10 @@ export async function importSqlite(client: Client, path: string, target: Expecte
     }
     if(wallpaperTables.some(table=>sourceTables.includes(table)))await client.query(wallpaperSchema);
     for(const table of wallpaperTables){if(!dataTables.includes(table)&&(await client.query('SELECT to_regclass($1) AS name',[table])).rows[0]?.name)dataTables.push(table);}
+    if (sourceTables.includes(dashboardVisitsTable)) await client.query(dashboardVisitsSchema);
+    if (!dataTables.includes(dashboardVisitsTable) && (await client.query('SELECT to_regclass($1) AS name', [dashboardVisitsTable])).rows[0]?.name) dataTables.push(dashboardVisitsTable);
+    if (sourceTables.includes(registrationPolicyTable)) await client.query(registrationPolicySchema);
+    if (!dataTables.includes(registrationPolicyTable) && (await client.query('SELECT to_regclass($1) AS name', [registrationPolicyTable])).rows[0]?.name) dataTables.push(registrationPolicyTable);
     await client.query(`LOCK TABLE ${[...dataTables, 'rate_limit_entries'].map(quote).join(',')} IN ACCESS EXCLUSIVE MODE`);
     for (const table of dataTables) {
       const result = await client.query(`SELECT 1 FROM ${quote(table)} LIMIT 1`);

@@ -17,6 +17,7 @@ import { encodeEmail } from '../server/database/email';
 
 const url = process.env.DAZI_TEST_DATABASE_URL;
 const suite = url ? describe : describe.skip;
+const registrationRules = { allowedDomains: ['example.test'], deniedDomains: ['mail.example.test'], deniedEmails: ['blocked@example.test'] };
 
 // This test creates and removes only its uniquely named schema in an explicitly
 // supplied disposable database; it never connects to an implicit default.
@@ -78,6 +79,8 @@ suite('PostgreSQL migration and SQLite import', () => {
     sqlite.prepare(`INSERT INTO feedback_upload_chunks(user_id,request_id,file_index,chunk_index,chunk_count,name,mime,total_bytes,digest,bytes,created_at)
       VALUES ('u1','upload-test',0,0,1,'pending.png','image/png',4,?,?,1)`).run('a'.repeat(64), Buffer.from([4, 5, 6, 255]));
     sqlite.prepare('INSERT INTO nickname_policy(id,settings,revision) VALUES(1,?,3)').run(JSON.stringify({...defaultNicknamePolicy,enabled:true,languages:['en']}));
+    sqlite.prepare('INSERT INTO registration_policy(id,settings,revision) VALUES(1,?,4)').run(JSON.stringify(registrationRules));
+    sqlite.prepare('INSERT INTO site_visit_daily(day,page,country,region,views) VALUES (?,?,?,?,?)').run(1795046400000, 'practice', 'US', 'CA', 17);
     sqlite.prepare('INSERT INTO wallpaper_settings(id,settings,revision) VALUES(1,?,1)').run(JSON.stringify({enabled:true,styles:['nature','forest']}));
     sqlite.prepare('INSERT INTO background_files(id,user_id,name,mime,width,height,digest,bytes,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run('00000000-0000-4000-8000-000000000001','u1','lossless.webp','image/webp',1,1,'a'.repeat(64),Buffer.from([0,1,2,255]),1);
     sqlite.prepare('INSERT INTO retired_attempts(id) VALUES (?)').run('retired-test');
@@ -150,6 +153,9 @@ suite('PostgreSQL migration and SQLite import', () => {
     expect((await client.query('SELECT revision FROM support_settings')).rows[0].revision).toBe('7');
     expect(result.counts.users).toBe(2);
     expect(result.counts.nickname_policy).toBe(1);
+    expect(result.counts.registration_policy).toBe(1);
+    expect((await client.query('SELECT settings,revision FROM registration_policy')).rows[0]).toEqual({ settings: JSON.stringify(registrationRules), revision: '4' });
+    expect(result.counts.site_visit_daily).toBe(1);
     expect(JSON.parse((await client.query('SELECT settings FROM nickname_policy')).rows[0].settings)).toMatchObject({enabled:true,languages:['en']});
     expect(result.counts.public_articles).toBeGreaterThanOrEqual(40);
     expect(result.counts.workspace_items).toBe(2);
@@ -187,6 +193,10 @@ suite('PostgreSQL migration and SQLite import', () => {
     const exported = await exportSqlite(client, rollbackPath, target);
     expect(exported.counts.users).toBe(2);
     const restored = new Database(rollbackPath);
+    expect(exported.counts.site_visit_daily).toBe(1);
+    expect(exported.counts.registration_policy).toBe(1);
+    expect(restored.prepare('SELECT settings,revision FROM registration_policy').get()).toEqual({ settings: JSON.stringify(registrationRules), revision: 4 });
+    expect(restored.prepare('SELECT page,country,region,views FROM site_visit_daily').get()).toEqual({ page: 'practice', country: 'US', region: 'CA', views: 17 });
     expect(exported.counts.seo_settings).toBe(1);
     expect(restored.prepare('SELECT revision FROM seo_settings').get()).toEqual({revision:5});
     expect(JSON.parse((restored.prepare('SELECT settings FROM seo_settings').get() as {settings:string}).settings)).toEqual(defaultSeoSettings('https://roundtrip.example'));

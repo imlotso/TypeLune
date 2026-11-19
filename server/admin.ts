@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { difficulties, type Difficulty, type Language } from '../src/data/articles.js';
 import { registerLeaderboardAdministration } from './leaderboard-admin.js';
+import type { createOverviewActivity } from './dashboard-overview.js';
 
 export type AdminActor = { id: string; username: string; authVersion: number };
 type TargetType = 'user' | 'article' | 'score' | 'setting' | 'feedback';
@@ -112,6 +113,7 @@ type RankableChallenge = {
 type Options = {
   db: AsyncDatabase;
   now: () => number;
+  readOverviewActivity: ReturnType<typeof createOverviewActivity>;
   publishedArticleCount: () => Promise<number>;
   audit: ReturnType<typeof createAdminAudit>;
   saveScore: (challenge: RankableChallenge) => Promise<void>;
@@ -132,7 +134,7 @@ function decodeReasons(value: string) {
   } catch { return []; }
 }
 
-export function registerAdminRoutes(app: FastifyInstance, { db, now, publishedArticleCount, audit, saveScore }: Options) {
+export function registerAdminRoutes(app: FastifyInstance, { db, now, readOverviewActivity, publishedArticleCount, audit, saveScore }: Options) {
   const findUser = db.prepare(`SELECT ${accountFields} FROM users WHERE id=?`);
   const auditRecent = db.prepare(`SELECT ${auditFields} FROM admin_audit ORDER BY id DESC LIMIT 8`);
   const summary = db.prepare(`
@@ -181,10 +183,16 @@ export function registerAdminRoutes(app: FastifyInstance, { db, now, publishedAr
     return { ok: true } as const;
   });
 
-  app.get('/overview', async () => ({
-    metrics: { ...(await summary.get({ since: now() - 7 * 86_400_000 })) as object, publishedArticles: await publishedArticleCount() },
-    recentActions: (await auditRecent.all()),
-  }));
+  app.get('/overview', async (request, reply) => {
+    const range = z.object({ days: z.enum(['7', '30']).default('7') }).safeParse(request.query);
+    if (!range.success) return invalid(reply, '无效的统计日期范围');
+    const time = now();
+    const [metrics, publishedArticles, recentActions, activity] = await Promise.all([
+      summary.get({ since: time - 7 * 86_400_000 }), publishedArticleCount(), auditRecent.all(),
+      readOverviewActivity(time, range.data.days === '30' ? 30 : 7),
+    ]);
+    return { metrics: { ...metrics, publishedArticles }, recentActions, activity };
+  });
 
   app.get('/users', async (request, reply) => {
     const parsed = userQuery.safeParse(request.query);

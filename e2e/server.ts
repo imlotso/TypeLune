@@ -10,6 +10,7 @@ import { migratePostgres } from '../server/postgres/migrate';
 import { seedPostgresCatalog } from '../server/postgres/seed';
 import {nicknamePolicySchema} from '../server/nickname-policy';
 import { wallpaperSchema } from '../server/wallpaper-schema';
+import { registrationPolicySchema } from '../server/registration-policy';
 
 // Test-only server: real app and an isolated database, with an in-memory mailbox.
 const directory = mkdtempSync(join(tmpdir(), 'dazi-e2e-'));
@@ -34,6 +35,7 @@ if (postgresUrl) {
   await setup.query(readFileSync(new URL('../server/postgres/seo-settings.sql', import.meta.url), 'utf8'));
   await setup.query(wallpaperSchema);
   await setup.query(nicknamePolicySchema);
+  await setup.query(registrationPolicySchema);
   const database = new PostgresDatabase(postgresUrl, schema);
   try { await seedPostgresCatalog(new AsyncPostgres(database)); } finally { await database.close(); }
 }

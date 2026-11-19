@@ -1,0 +1,142 @@
+.admin-users-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-bottom: 16px;
+}
+
+.admin-users-header h2 {
+  margin: 0;
+  font-size: clamp(17px, 2vw, 22px);
+}
+
+.admin-users-switch {
+  display: inline-flex;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--typing-border);
+  border-radius: 12px;
+  background: var(--typing-row);
+}
+
+.admin-users-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 5px 12px;
+  color: var(--typing-muted);
+  background: transparent;
+  font-weight: 650;
+}
+
+.admin-users-switch button[aria-pressed='true'] {
+  border-color: var(--typing-border);
+  color: var(--typing-text);
+  background: var(--typing-input);
+}
+
+.admin-users-switch button:hover { color: var(--typing-text); }
+
+.admin-users-list .admin-account-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(128px, .58fr) minmax(105px, .46fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.admin-account-row .feature-row-main { min-width: 0; }
+.admin-account-email { font-size: 12px; overflow-wrap: anywhere; }
+.admin-account-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+
+.admin-account-badges > span {
+  padding: 3px 8px;
+  border: 1px solid var(--typing-border);
+  border-radius: 999px;
+  color: var(--typing-text);
+  background: var(--typing-input);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.admin-account-badges .is-admin { background: var(--typing-active); }
+.admin-account-badges .is-active { color: #286045; border-color: #bedacb; background: #edf7f1; }
+.admin-account-badges .is-disabled { color: #903747; border-color: #edcbd2; background: #fff0f3; }
+[data-theme='dark'] .admin-account-badges .is-active { color: #a8e2c4; border-color: #3d6b59; background: #253c36; }
+[data-theme='dark'] .admin-account-badges .is-disabled { color: #ffc0c9; border-color: #795461; background: #492e3c; }
+
+.admin-account-time { display: grid; gap: 2px; font-size: 12px; }
+.admin-account-time > span { font-size: 11px; }
+.admin-account-row > button { justify-self: end; }
+.admin-user-detail-actions .admin-user-delete { display: inline-flex; align-items: center; gap: 5px; color: #903747; border-color: #d99aa7; }
+[data-theme='dark'] .admin-user-detail-actions .admin-user-delete { color: #ffc0c9; border-color: #9f6070; }
+.feature-form .admin-user-confirm-delete { color: #fff; background: #a63449; }
+.feature-form .admin-user-confirm-delete:not(:disabled):hover { background: #8d2b3d; }
+
+.admin-registration-policy-help { margin: 0; font-size: 13px; }
+.admin-registration-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-registration-policy .admin-registration-field {
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--typing-border);
+  border-radius: 14px;
+  background: var(--typing-row);
+}
+
+.admin-registration-field > span { display: flex; align-items: center; gap: 8px; }
+.admin-registration-field svg { flex: none; color: var(--typing-accent); }
+.admin-registration-policy .admin-registration-field textarea {
+  min-height: 126px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  resize: vertical;
+}
+
+.admin-registration-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.admin-registration-footer > p { margin-right: auto; }
+.admin-users-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .admin-registration-fields { grid-template-columns: 1fr; }
+  .admin-users-list .admin-account-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .admin-account-row .feature-row-main { grid-column: 1 / -1; }
+  .admin-account-row > button { grid-column: 2; grid-row: 2 / span 2; }
+  .admin-account-time { display: flex; flex-wrap: wrap; gap: 3px 5px; }
+}
+
+@media (max-width: 450px) {
+  .admin-users-switch { width: 100%; }
+  .admin-users-switch button { flex: 1; padding-inline: 5px; }
+}

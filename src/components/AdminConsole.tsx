@@ -1,7 +1,6 @@
 import {NicknamePolicyPanel} from './admin/NicknamePolicyPanel';
 import { SeoSettingsPanel } from './admin/SeoSettingsPanel';
 import { SupportSettingsPanel } from './admin/SupportSettingsPanel';
-import { SystemMessage } from './SystemMessage';
 import { useAdminText } from './admin/i18n';
 import { useAdminRoute } from '../hooks/useAdminRoute';
 import { useState } from 'react';
@@ -12,8 +11,9 @@ import { UsersPanel } from './admin/UsersPanel';
 import { SmtpPanel } from './admin/SmtpPanel';
 import { SiteSettingsPanel } from './admin/SiteSettingsPanel';
 import { FeedbackPanel } from './admin/FeedbackPanel';
+import { OverviewPanel } from './admin/OverviewPanel';
 import {
-  AuditRows, LoadState, Metrics, Pagination, QueryField, SelectField, targets, useAdminList, useAdminResource,
+  AuditRows, LoadState, Pagination, QueryField, SelectField, targets, useAdminList,
   type AdminProps, type Audit,
 } from './admin/common';
 import '../admin.css';
@@ -21,23 +21,6 @@ import '../admin.css';
 const tabs = [
   ['overview', '概览'], ['users', '用户'], ['articles', '文章'], ['scores', '成绩'], ['feedback', '反馈'], ['settings', '站点设置'], ['nicknames','昵称过滤'], ['seo', 'SEO'], ['support', '捐赠设置'], ['mail', '邮件'], ['audit', '操作日志'],
 ] as const;
-const labels = {
-  users: '注册账号', disabledUsers: '已停用账号', admins: '在任管理员', activeUsers7d: '近 7 天练习账号',
-  finishedPractices7d: '近 7 天在线练习', pendingScores: '待审核成绩', publishedScores: '已发布成绩', publishedArticles: '已发布文章',
-};
-type Overview = { metrics: Record<keyof typeof labels, number>; recentActions: Audit[] };
-
-function OverviewPanel({ ownerId }: AdminProps) {
-  const { at } = useAdminText();
-  const { data, error, retry } = useAdminResource<Overview>(ownerId, '/overview');
-  if (!data) return <LoadState error={error} retry={retry} />;
-  return <>
-    <Metrics entries={(Object.keys(labels) as (keyof typeof labels)[]).map((key) => [at(labels[key]), data.metrics[key]])} />
-    <h2 className="admin-section-heading">{at("最近操作")}</h2>
-    <AuditRows entries={data.recentActions} label={at("最近操作列表")} />
-  </>;
-}
-
 function AuditPanel({ ownerId }: AdminProps) {
   const { at } = useAdminText();
   const list = useAdminList<Audit>(ownerId, '/audit');

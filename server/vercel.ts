@@ -24,6 +24,7 @@ export function createVercelHandler(env: NodeJS.ProcessEnv = process.env) {
             username: env.SMTP_USER || '', password: env.SMTP_PASSWORD || '' };
         }
         const instance = await createApp({ databaseUrl, postgresSchema: env.DAZI_DATABASE_SCHEMA || 'public', codeSecret,
+          visitGeoSource: env.VERCEL === '1' ? 'vercel' : undefined,
           adminEmail: env.ADMIN_EMAIL, secureCookies: true, trustProxy: true, smtp, onDatabasePool: attachDatabasePool, seoOrigin: env.VITE_SITE_URL ?? '', seoPreview: env.VERCEL_ENV === 'preview', htmlTemplatePath: resolve('dist/client/app.html') });
         try { await instance.ready(); } catch (error) { await instance.close(); throw error; }
         return instance;

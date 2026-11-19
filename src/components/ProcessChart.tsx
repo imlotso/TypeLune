@@ -39,3 +39,33 @@ export function ProcessChart({ trace, language }: { trace?: ProcessTrace; langua
     <details><summary>{t("计算说明", "Calculation")}</summary><p>{t("各段按净正确字符增长和有效用时计算速度；增长为负时按零计算，英文每 5 个字符为 1 词。错误柱为每段新增的错误输入次数。稳定性为 100 × max(0, 1 − 分段速度的用时加权标准差 / 用时加权平均速度)，至少需要 3 段、15 秒，且不能有缺失或零平均速度。此指标与 Monkeytype 的稳定性并不等同。", "Segment speed uses the net increase in correct characters and active time, with negative growth treated as zero. English uses 5 characters per word. Error bars show new incorrect inputs. Consistency is 100 × max(0, 1 − time-weighted standard deviation / time-weighted mean speed). It requires 3 segments and 15 seconds with no missing data or zero mean speed. This is not the same as Monkeytype consistency.")}</p></details>
   </section>;
 }
+
+export function ProcessPreview({ trace, language }: { trace?: ProcessTrace; language: Language }) {
+  const { t } = useI18n();
+  const series = isProcessTrace(trace) ? analyzeProcessTrace(trace, language) : undefined;
+  const segments = series?.segments ?? [];
+  const stability = series?.stability;
+  const peak = Math.max(1, ...segments.map(segment => segment.speed));
+  const duration = segments.at(-1)?.to ?? 1;
+  const points = segments.map(segment => ({
+    x: 4 + 592 * (segment.from + segment.to) / (2 * duration),
+    y: 37 - 28 * segment.speed / peak,
+  }));
+  let curve = points.length > 0 ? `M${points[0].x},${points[0].y}` : '';
+  for (let index = 1; index < points.length; index++) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const middle = (previous.x + current.x) / 2;
+    curve += ` C${middle},${previous.y} ${middle},${current.y} ${current.x},${current.y}`;
+  }
+  return <section className="result-process-preview">
+    <div className="result-process-heading">
+      <h3>{t('练习过程', 'Practice timeline')}</h3>
+      <span>{t('稳定性', 'Consistency')} {stability == null ? <span aria-label={t('样本不足', 'Not enough samples')}>—</span> : <strong>{stability}%</strong>}</span>
+    </div>
+    {points.length ? <svg viewBox="0 0 600 44" preserveAspectRatio="none" role="img" aria-label={t('练习过程速度', 'Practice speed over time')}>
+      <path d={curve} vectorEffect="non-scaling-stroke" />
+      {points.length === 1 && <circle cx={points[0].x} cy={points[0].y} r="2.5" />}
+    </svg> : <p className="feature-muted">{t('暂无过程数据', 'No timeline data')}</p>}
+  </section>;
+}
