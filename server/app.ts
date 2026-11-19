@@ -786,7 +786,7 @@ export async function createApp(options: AppOptions) {
     }
   }
 
-  app.get('/api/articles', { compress: { encodings: ['gzip'] } }, async (request, reply) => {
+  app.get('/api/articles', { compress: { encodings: ['gzip'], zlibOptions: { level: 1 } } }, async (request, reply) => {
     const articles = (await catalog.listPublic()).map(({ content, ...article }) => ({ ...article, text: content, custom: false }));
     return boundedList(request, reply, 'articles', articles);
   });
