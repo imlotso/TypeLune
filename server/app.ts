@@ -9,6 +9,7 @@ import { createSupportSettings, registerSupportAdminRoutes, registerSupportPubli
 import { profileValue, registerPublicProfiles } from './profile.js';
 import {registerWallpaperImages, wallpaperImageRoute} from './wallpaper-images.js';
 import compress from '@fastify/compress';
+import { reportUnexpectedError } from './error-reporting.js';
 import { registerWallpapers } from './wallpapers.js';
 import { createSiteWallpapers, registerSiteWallpaperAdmin, registerSiteWallpaperPublic } from './site-wallpapers.js';
 import { createBackgroundFiles, registerBackgroundFiles, BackgroundFileError } from './background-files.js';
@@ -281,7 +282,8 @@ export async function createApp(options: AppOptions) {
     const status = error && typeof error === 'object' && 'statusCode' in error && typeof error.statusCode === 'number'
       ? error.statusCode : 500;
     if (status >= 400 && status < 500) return reply.code(status).send({ error: status === 429 ? '请求过于频繁' : '请求无法处理' });
-    return reply.code(500).send({ error: '服务暂时不可用，请稍后重试' });
+    return reply.header('X-Request-Id', reportUnexpectedError(error, 'api'))
+      .code(500).send({ error: '服务暂时不可用，请稍后重试' });
   };
   app.setErrorHandler((error, _request, reply) => sendUnexpectedError(error, reply));
   await app.register(cookie);

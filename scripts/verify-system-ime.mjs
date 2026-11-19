@@ -7,7 +7,7 @@ const keyScript = fileURLToPath(new URL('./verify-system-ime-x11.py', import.met
 const key = (...args) => execFileSync('python3', [keyScript, ...args], { encoding: 'utf8' });
 const browser = await chromium.launch({ executablePath: process.env.TYPING_IME_BROWSER || '/usr/bin/google-chrome', headless: false, args: ['--no-sandbox', '--ozone-platform=x11', '--password-store=basic'] });
 try {
-  const page = await browser.newPage();
+  const page = await browser.newPage({ locale: 'zh-CN' });
   await page.goto(process.env.TYPING_IME_URL);
   await page.getByRole('button', { name: '自定义文字' }).click();
   await page.getByRole('textbox', { name: '自定义文章内容' }).fill('你好\n世界再见');
@@ -20,8 +20,13 @@ try {
   });
   const input = page.getByRole('textbox', { name: '当前行输入' });
   await input.click();
-  const windows = execFileSync('xwininfo', ['-root', '-tree'], { encoding: 'utf8' });
-  const windowId = windows.match(/(0x[0-9a-f]+) "[^\"]*(?:Google Chrome|Chromium)"/i)?.[1];
+  await page.evaluate(() => { document.title = 'TypeLune IME verification'; });
+  let windowId;
+  for (let attempt = 0; attempt < 20 && !windowId; attempt++) {
+    const windows = execFileSync('xwininfo', ['-root', '-tree'], { encoding: 'utf8' });
+    windowId = windows.match(/(0x[0-9a-f]+) "TypeLune IME verification[^"]*"/i)?.[1];
+    if (!windowId) await page.waitForTimeout(100);
+  }
   if (!windowId) throw new Error('Cannot find the browser window on the isolated X display');
   key('focus', windowId);
   await input.focus();
@@ -59,11 +64,12 @@ try {
   await page.getByRole('button', { name: '继续练习' }).waitFor({ state: 'visible' });
   assert.equal(await page.getByTestId('typed-count').textContent(), '2');
   await page.getByRole('button', { name: '继续练习' }).click();
-  await page.getByRole('button', { name: '暂停练习' }).waitFor({ state: 'visible' });
+  await input.and(page.locator(':enabled')).waitFor({ state: 'visible' });
   key('focus', windowId);
   await page.getByRole('textbox', { name: '当前行输入' }).focus();
   execFileSync('fcitx5-remote', ['-s', 'pinyin']);
   key('Return');
+  await page.getByRole('button', { name: '暂停练习' }).waitFor({ state: 'visible' });
   await page.waitForTimeout(300);
   assert.equal(await page.getByTestId('typed-count').textContent(), '3');
   key('s', 'h', 'i', 'j', 'i', 'e', 'space');

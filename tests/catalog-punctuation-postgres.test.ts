@@ -6,7 +6,7 @@ import { AsyncPostgres } from '../server/database/postgres';
 import { PostgresDatabase } from '../server/postgres/database';
 import { punctuationRepairs, repairCatalogPunctuation } from '../server/catalog-punctuation-repair';
 
-const url=process.env.DAZI_DASH_TEST_PG_URL;
+const url = process.env.DAZI_DASH_TEST_PG_URL ?? process.env.DAZI_TEST_DATABASE_URL;
 const original=(id:string)=>{
   const text=articles.find(a=>a.id===id)!.content;
   return id==='zh-intermediate-6' ? text.replaceAll('\u2014\u2014','\u2500\u2500') : [1438,1454,2257].reduce((s,i)=>s.slice(0,i)+'\u2500\u2500'+s.slice(i+2),text);

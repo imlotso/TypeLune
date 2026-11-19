@@ -56,11 +56,19 @@ test('daily wallpaper preview saves, survives reload, and can be disabled withou
  await page.request.post('/api/auth/code',{data:{email,purpose:'register'}});const code=(await(await page.request.get('/__e2e__/email-code?email='+email+'&purpose=register')).json()).code;
  expect((await page.request.post('/api/auth/register',{data:{email,username,password,code}})).ok()).toBe(true);await page.goto('/');await expect(page.getByRole('button',{name:username,exact:true})).toBeVisible();
  async function open(){await page.getByRole('button',{name:'外观',exact:true}).click();await page.getByRole('button',{name:'日间背景图',exact:true}).click();}
- await open();await page.getByRole('checkbox',{name:'每日自动更新壁纸'}).check();await expect(page.getByRole('link',{name:'图片来源：Wallhaven ↗'})).toBeVisible();
+ await open();
+ await page.getByRole('checkbox',{name:'跟随全站壁纸刷新'}).uncheck();
+ await page.getByRole('checkbox',{name:'每日自动更新壁纸'}).check();await expect(page.getByRole('link',{name:'图片来源：Wallhaven ↗'})).toBeVisible();
  await expect(page.getByTestId('custom-background-image')).toHaveCount(0);await page.screenshot({path:screenshots+'/wallpaper-settings.png',fullPage:true});
  await page.getByRole('button',{name:'保存',exact:true}).click();await expect(page.getByRole('dialog',{name:'日间背景',exact:true})).toHaveCount(0);await expect(page.getByTestId('custom-background-image')).toBeVisible();await page.reload();await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src',background.image);
- await expect.poll(async()=>{const result=(await(await page.request.get('/api/workspace')).json()).items;return result?.find((item:any)=>item.kind==='settings')?.value?.wallpapers?.light;}).toBe('nature');
+ const readAutomatic = async () => {
+  const response = await page.request.get('/api/backgrounds/state?theme=light');
+  expect(response.ok()).toBe(true);
+  return (await response.json()).automatic;
+ };
+ await expect.poll(readAutomatic).toBe('nature');
  const otherContext=await browser.newContext({baseURL:test.info().project.use.baseURL,locale:'zh-CN',extraHTTPHeaders:{'X-Forwarded-For':clientIp}});expect((await otherContext.request.post('/api/auth/login',{data:{identifier:username,password}})).ok()).toBe(true);const other=await otherContext.newPage();await other.goto('/');await expect(other.getByTestId('custom-background-image')).toHaveAttribute('src',background.image);await otherContext.close();
  await open();await expect(page.getByRole('checkbox',{name:'每日自动更新壁纸'})).toBeChecked();await page.getByRole('checkbox',{name:'每日自动更新壁纸'}).uncheck();await page.getByRole('button',{name:'保存',exact:true}).click();await expect(page.getByRole('dialog',{name:'日间背景',exact:true})).toHaveCount(0);
  await page.reload();await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src',background.image);await open();await expect(page.getByRole('checkbox',{name:'每日自动更新壁纸'})).not.toBeChecked();
+ await expect.poll(readAutomatic).toBe('off');
 });

@@ -66,5 +66,10 @@
   },
   "engines": {
     "node": "22.x"
+  },
+  "overrides": {
+    "@vercel/routing-utils": {
+      "path-to-regexp": "6.3.0"
+    }
   }
 }

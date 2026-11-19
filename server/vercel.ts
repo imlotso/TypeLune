@@ -1,4 +1,5 @@
 import { trustImmediateProxy } from './security-headers.js';
+import { reportUnexpectedError } from './error-reporting.js';
 import { resolve } from 'node:path';
 import { seoPaths } from '../src/lib/seo-settings.js';
 import { articleIdFromPath } from '../src/lib/routes.js';
@@ -63,8 +64,9 @@ export function createVercelHandler(env: NodeJS.ProcessEnv = process.env) {
       }
       (await app()).server.emit('request', request, response);
     }
-    catch {
-      if (!response.headersSent) response.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    catch (error) {
+      const id = reportUnexpectedError(error, 'function');
+      if (!response.headersSent) response.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-request-id': id });
       response.end(JSON.stringify({ error: '服务暂时不可用，请稍后重试' }));
     }
   };

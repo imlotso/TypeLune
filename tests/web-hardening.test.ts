@@ -5,7 +5,7 @@ import { brotliCompressSync, brotliDecompressSync, gzipSync, gunzipSync } from '
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { createApp } from '../server/app';
 
 let app: Awaited<ReturnType<typeof createApp>>;
@@ -21,6 +21,27 @@ it('protects API responses including errors from caching, framing and sniffing',
     expect(response.headers['x-frame-options']).toBe('DENY');
     expect(response.headers['content-security-policy']).toContain("frame-ancestors 'none'");
     expect(response.headers['x-robots-tag']).toBe('noindex, nofollow');
+  }
+});
+
+it('correlates server failures without logging or returning error details', async () => {
+  app = await createApp({ databasePath: ':memory:' });
+  const sentinel = 'private-value-in-fixture';
+  app.get('/api/test-unavailable', async () => {
+    throw Object.assign(new Error(sentinel), { code: '42P01', detail: sentinel });
+  });
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const response = await app.inject({ url: '/api/test-unavailable', headers: { authorization: sentinel } });
+    expect(response.statusCode).toBe(500);
+    expect(response.body).not.toContain(sentinel);
+    const id = response.headers['x-request-id'];
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(log.mock.calls).toEqual([[JSON.stringify({
+      event: 'unexpected_request_error', scope: 'api', category: 'database', id,
+    })]]);
+  } finally {
+    log.mockRestore();
   }
 });
 

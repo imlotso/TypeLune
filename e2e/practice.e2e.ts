@@ -199,8 +199,10 @@ test('submits an online result, uses an admin account and publishes the reviewed
   const expectedSpeed = Math.round(total * 60_000 / finishData.elapsedMs * 100) / 100;
   expect(finishData.score).toMatchObject({ correct: total, total, accuracy: 100, cpm: expectedSpeed });
   const result = page.getByRole('dialog', { name: '练习成绩' });
-  await expect(result.getByText(`${total} / ${total}`)).toBeVisible();
-  await expect(result.locator('.result-speed > strong')).toContainText(String(expectedSpeed));
+  const resultNumbers = new Intl.NumberFormat('zh-CN');
+  const formattedTotal = resultNumbers.format(total);
+  await expect(result.getByText(`${formattedTotal} / ${formattedTotal}`, { exact: true })).toBeVisible();
+  await expect(result.locator('.result-speed > strong')).toHaveText(resultNumbers.format(expectedSpeed));
   await result.getByRole('textbox', { name: '上榜昵称' }).fill('-CI访客');
   const submitted = page.waitForResponse((response) => response.url().endsWith('/api/leaderboard') && response.request().method() === 'POST');
   await result.getByRole('button', { name: '提交到排行榜' }).click();

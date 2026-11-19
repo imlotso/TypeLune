@@ -24,7 +24,10 @@ test('uploads a near-5 MiB image in bounded requests and preserves the form afte
   expect(png.length).toBeGreaterThan(4.5 * 1024 * 1024);
   expect(png.length).toBeLessThanOrEqual(5 * 1024 * 1024);
   await page.locator('input[type=file]').setInputFiles({ name: 'large.png', mimeType: 'image/png', buffer: png });
+  const chunkFailure = page.waitForResponse((response) =>
+    response.url().endsWith('/api/feedback/uploads') && response.status() === 503);
   await page.getByRole('button', { name: '提交反馈' }).click();
+  await chunkFailure;
   await expect(page.getByRole('alert')).toHaveText('临时上传失败');
   await expect(page.getByLabel('标题', { exact: true })).toHaveValue('大图反馈');
   await expect(page.getByText('large.png')).toBeVisible();

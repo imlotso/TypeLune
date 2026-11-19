@@ -32,7 +32,9 @@ test('independently hides live metrics, keeps full results and synchronizes sett
   const english = result.getByRole('group', { name: '英文速度' });
   await expect(english.locator('.english-speed-value').nth(0)).toContainText('WPM');
   await expect(english.locator('.english-speed-value').nth(1)).toContainText('字符/分钟');
-  await expect(result.getByText('准确率', { exact: true })).toBeVisible();
+  const accuracy = result.locator('.result-accuracy');
+  await expect(accuracy.locator('.result-hero-label')).toHaveText('准确率');
+  await expect(accuracy.getByText('100%', { exact: true })).toBeVisible();
   await expect(result.getByText('有效用时', { exact: true })).toBeVisible();
 
   const second = await browser.newContext({ baseURL: test.info().project.use.baseURL, extraHTTPHeaders: { 'X-Forwarded-For': clientIp } });
