@@ -14,7 +14,10 @@ test('reflects public site switches while preserving a previously started guest 
     const started = page.waitForResponse((response) => response.url().endsWith('/api/tests/start') && response.request().method() === 'POST');
     await input.fill('我');
     expect((await started).status()).toBe(200);
+    const paused = page.waitForResponse((response) => response.url().endsWith('/pause') && response.request().method() === 'POST');
     await page.getByRole('button', { name: '暂停练习' }).click();
+    expect((await paused).status()).toBe(200);
+    await expect(page.getByRole('button', { name: '继续练习' })).toBeVisible();
     const closed = { ...initial.settings, registrationEnabled: false, guestPracticeEnabled: false, guestLeaderboardEnabled: false };
     expect((await admin.request.post('/api/admin/settings/site', { data: { settings: closed, revision: initial.revision } })).ok()).toBe(true);
     await page.reload();
