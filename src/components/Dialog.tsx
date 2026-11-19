@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from '@phosphor-icons/react/X';
 
-export function Dialog({ title, onClose, children, className = '', dismissible = true, leadingAction }: { title: string; onClose: () => void; children: ReactNode; className?: string; dismissible?: boolean; leadingAction?: ReactNode }) {
+export function Dialog({ title, onClose, children, className = '', dismissible = true, leadingAction, suspended = false, descriptionId }: { title: string; onClose: () => void; children: ReactNode; className?: string; dismissible?: boolean; leadingAction?: ReactNode; suspended?: boolean; descriptionId?: string }) {
   const { t, locale } = useI18n();
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -20,6 +20,7 @@ export function Dialog({ title, onClose, children, className = '', dismissible =
     const element = dialog.current;
     element?.querySelector<HTMLElement>('input, button')?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
+      if (element?.parentElement?.hasAttribute('inert')) return;
       if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); return; }
       if (event.key !== 'Tab' || !element) return;
       const items = [...element.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], summary, [tabindex="0"]')]
@@ -39,8 +40,8 @@ export function Dialog({ title, onClose, children, className = '', dismissible =
     document.addEventListener('keydown', onKeyDown);
     return () => { document.removeEventListener('keydown', onKeyDown); previous?.focus(); };
   }, [portalTarget]);
-  return createPortal(<div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeRef.current(); }}>
-    <div ref={dialog} className={`dialog ${className}`} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+  return createPortal(<div className="dialog-backdrop" inert={suspended} aria-hidden={suspended || undefined} onMouseDown={(event) => { if (event.target === event.currentTarget) closeRef.current(); }}>
+    <div ref={dialog} className={`dialog ${className}`} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
       <div className="dialog-heading">{leadingAction ? <div className="dialog-heading-leading">{leadingAction}<h2 id={titleId}>{title}</h2></div> : <h2 id={titleId}>{title}</h2>}<button className="icon-button" aria-label={t("关闭", "Close")} disabled={!dismissible} onClick={onClose}><X size={22} /></button></div>
       {children}
     </div>

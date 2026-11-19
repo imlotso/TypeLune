@@ -13,32 +13,47 @@ const fallbackMeasure = (character: string): number => /^[\x00-\x7f]$/.test(char
 const visibleText = (text: string) => text.replaceAll('\n', '↵');
 type RowProps = {
   line: PracticeLine; index: number; active: boolean; phase: PracticePhase;
-  awaitingResumeInput: boolean; typedValue: string; value: string; composing: boolean; blocked: boolean; inputStart: number;
+  awaitingResumeInput: boolean; typedValue: string; value: string; composing: boolean; blocked: boolean; protectedCount: number;
   controller: RefObject<Practice>; currentIndex: RefObject<number>;
   activeRow: RefObject<HTMLDivElement | null>; canStart: boolean; onStart?: () => void;
   setComposing: (value: boolean) => void;
 };
 
-const PracticeRow = memo(function PracticeRow({ line, index, active, phase, typedValue, value, composing, blocked, inputStart, controller, currentIndex, activeRow, setComposing, canStart, onStart, awaitingResumeInput }: RowProps) {
+const PracticeRow = memo(function PracticeRow({ line, index, active, phase, typedValue, value, composing, blocked, protectedCount, controller, currentIndex, activeRow, setComposing, canStart, onStart, awaitingResumeInput }: RowProps) {
  const {t}=useI18n();
   const actual = useMemo(() => splitCharacters(typedValue), [typedValue]);
   const completed = !blocked && actual.length === line.characters.length;
   const rowErrors = actual.filter((character, offset) => character !== line.characters[offset]).length;
-  const prefix = () => splitCharacters(controller.current.typed).slice(0, inputStart).join('');
+  const previousRows = () => splitCharacters(controller.current.typed).slice(0, line.start).join('');
+  const protectedText = actual.slice(0, protectedCount).join('');
+  // DOM selections use UTF-16 offsets, while practice progress uses graphemes.
+  const editableStart = protectedText.length;
+  function restoreProtectedText(field: HTMLTextAreaElement) {
+    if (!editableStart || field.value.startsWith(protectedText)) return false;
+    field.value = value;
+    field.setSelectionRange(editableStart, editableStart);
+    return true;
+  }
 
   // Software keyboards may emit beforeinput without any keydown/change on an
   // empty field. Handle that native event so correction also works on phones.
   useEffect(() => {
-    if (!active || (phase !== 'running' && !controller.current.awaitingResumeInput)) return;
+    if (!active || (phase !== 'running' && !awaitingResumeInput)) return;
     const field = controller.current.textareaRef.current;
     const beforeInput = (event: InputEvent) => {
-      if (event.inputType !== 'deleteContentBackward' || event.isComposing || composing || !field || field.value || line.start <= controller.current.offset) return;
-      event.preventDefault();
-      controller.current.deletePreviousCharacter();
+      if (!field || event.isComposing || composing) return;
+      if (event.inputType === 'deleteContentBackward' && !field.value && line.start > controller.current.offset) {
+        event.preventDefault();
+        controller.current.deletePreviousCharacter();
+      } else if (editableStart && event.inputType.endsWith('Backward') && field.selectionEnd <= editableStart) {
+        event.preventDefault();
+      } else if (field.selectionStart < editableStart) {
+        field.setSelectionRange(editableStart, Math.max(editableStart, field.selectionEnd));
+      }
     };
     field?.addEventListener('beforeinput', beforeInput);
     return () => field?.removeEventListener('beforeinput', beforeInput);
-  }, [active, phase, awaitingResumeInput, composing, line.start, inputStart, controller]);
+  }, [active, phase, awaitingResumeInput, composing, line.start, editableStart, controller]);
 
   return <div ref={active ? activeRow : undefined} className={`practice-line${active ? ' line-active' : ''}${completed ? ' line-completed' : ''}`} data-active={active}>
     <div className="line-marker" aria-label={t(`第 ${index + 1} 行${completed ? '已完成' : active ? '当前行' : '待输入'}`, `Line ${index + 1}: ${completed ? 'complete' : active ? 'current' : 'pending'}`)}>
@@ -57,27 +72,48 @@ const PracticeRow = memo(function PracticeRow({ line, index, active, phase, type
         aria-label={active ? t("当前行输入","Current line input") : t(`第 ${index + 1} 行输入`, `Line ${index + 1} input`)}
         value={value} disabled={!active || (phase !== 'running' && !controller.current.awaitingResumeInput && !(phase === 'ready' && canStart))}
         rows={1} wrap="off" spellCheck={false} autoComplete="off" autoCapitalize="off" autoCorrect="off"
-        onChange={(event) => { if (index === currentIndex.current) { if (phase === 'ready' && event.target.value) onStart?.(); controller.current.onChange(event, prefix()); } }}
-        onCompositionStart={() => { if (index === currentIndex.current && (phase === 'running' || phase === 'ready' || controller.current.awaitingResumeInput)) { setComposing(true); controller.current.onCompositionStart(); } }}
-        onCompositionEnd={(event) => { if (index === currentIndex.current) { if (phase === 'ready' && event.currentTarget.value) onStart?.(); controller.current.onCompositionEnd(event, prefix()); setComposing(false); } }}
+        onChange={event => {
+          if (index !== currentIndex.current || restoreProtectedText(event.currentTarget)) return;
+          if (phase === 'ready' && event.currentTarget.value) onStart?.();
+          controller.current.onChange(event, previousRows());
+        }}
+        onCompositionStart={event => {
+          if (index !== currentIndex.current || (phase !== 'running' && phase !== 'ready' && !controller.current.awaitingResumeInput)) return;
+          const field = event.currentTarget;
+          if (field.selectionStart < editableStart) field.setSelectionRange(editableStart, Math.max(editableStart, field.selectionEnd));
+          setComposing(true);
+          controller.current.onCompositionStart();
+        }}
+        onCompositionEnd={event => {
+          if (index !== currentIndex.current) return;
+          restoreProtectedText(event.currentTarget);
+          if (phase === 'ready' && event.currentTarget.value) onStart?.();
+          controller.current.onCompositionEnd(event, previousRows());
+          setComposing(false);
+        }}
         onKeyDown={(event) => {
           const practice = controller.current;
           if (composing || event.nativeEvent.isComposing || event.keyCode === 229) return;
-          if (event.key === 'Backspace' && !event.currentTarget.value && line.start > practice.offset) {
+          const field = event.currentTarget;
+          if (event.key === 'Backspace' && editableStart && field.selectionEnd <= editableStart) {
+            event.preventDefault(); return;
+          }
+          if (event.key === 'Backspace' && !field.value && line.start > practice.offset) {
             event.preventDefault(); practice.deletePreviousCharacter(); return;
           }
           practice.onKeyDown(event);
           if (event.key === 'Escape') { event.preventDefault(); void practice.pause(); }
           if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
-            const field = event.currentTarget;
-            const position = inputStart - line.start + splitCharacters(field.value.slice(0, field.selectionStart)).length;
+            const start = Math.max(editableStart, field.selectionStart);
+            const end = Math.max(editableStart, field.selectionEnd);
+            const position = splitCharacters(field.value.slice(0, start)).length;
             if (line.characters[position] === '\t') {
               event.preventDefault();
               if (phase === 'ready') onStart?.();
-              practice.updateTyped(prefix() + field.value.slice(0, field.selectionStart) + '\t' + field.value.slice(field.selectionEnd));
+              practice.updateTyped(previousRows() + field.value.slice(0, start) + '\t' + field.value.slice(end));
             }
           }
-          if (event.key === 'Enter' && !(line.text.endsWith('\n') && splitCharacters(event.currentTarget.value).length === line.end - inputStart - 1)) {
+          if (event.key === 'Enter' && !(line.text.endsWith('\n') && splitCharacters(field.value).length === line.characters.length - 1)) {
             event.preventDefault();
           }
         }}
@@ -142,7 +178,7 @@ export const PracticeLines = memo(function PracticeLines({ practice, title, read
     const input = practice.textareaRef.current;
     // A same-row IME edit owns its selection. Only a newly focused row should
     // move the caret to its end (including phrases committed across rows).
-    if (phase === 'running' && input && document.activeElement !== input) {
+    if ((phase === 'running' || practice.awaitingResumeInput) && input && document.activeElement !== input) {
       input.focus({ preventScroll: true });
       input.setSelectionRange(input.value.length, input.value.length);
     }
@@ -161,7 +197,7 @@ export const PracticeLines = memo(function PracticeLines({ practice, title, read
         row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       }
     }
-  }, [activeIndex, phase, lines, composing, practice.textareaRef, reader?.fontSize, reader?.lineHeight, reader?.visibleLines]);
+  }, [activeIndex, phase, lines, composing, practice.awaitingResumeInput, practice.textareaRef, reader?.fontSize, reader?.lineHeight, reader?.visibleLines]);
 
   const total = lines.at(-1)?.end ?? 0;
   const percent = total ? Math.min(100, Math.round(typedCharacters.length / total * 100)) : 0;
@@ -181,9 +217,9 @@ export const PracticeLines = memo(function PracticeLines({ practice, title, read
       {lines.map((line, index) => {
         const active = index === activeIndex;
         const typedValue = typedCharacters.slice(line.start, line.end).join('');
-        const inputStart = Math.max(line.start, offset);
         return <PracticeRow key={line.start} line={line} index={index} active={active} phase={phase}
-          awaitingResumeInput={practice.awaitingResumeInput} inputStart={inputStart} typedValue={typedValue} value={active ? rawCharacters.slice(inputStart).join('') : typedCharacters.slice(inputStart, line.end).join('')}
+          awaitingResumeInput={practice.awaitingResumeInput} protectedCount={active ? Math.max(0, offset - line.start) : 0}
+          typedValue={typedValue} value={active ? rawCharacters.slice(line.start).join('') : typedValue}
           blocked={active && wrong >= 0} composing={active && composing} controller={controller} currentIndex={currentIndex} activeRow={activeRow}
           setComposing={setComposing} canStart={canStart} onStart={onStart} />;
       })}

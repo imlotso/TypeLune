@@ -72,7 +72,7 @@ test("shows approved B layout, immutable prefix, tabs and working continuation o
   await expect(page.getByTestId("typed-count")).toHaveText("7");
   await page.getByRole("button", { name: "继续练习", exact: true }).click();
   await expect(input).toBeEnabled();
-  await expect(input).toHaveValue("");
+  await expect(input).toHaveValue("我与父亲不相见");
 });
 test("admin can inspect both imported packs, add, delete, export and enable selected languages", async ({
   page,
