@@ -14,12 +14,61 @@ test('page controls affect real panel, row, input and navigation paints; reset a
  for(const selector of ['.site-header','.typing-panel','.practice-line','.line-pair textarea'])expect(await alpha(page,selector)).toBe(0);expect(await alpha(page,'.workspace','::before')).toBe(0);await expect(page.locator('.line-source').first()).toHaveCSS('opacity','1');await expect(page.getByTestId('typed-count')).toHaveText('4');
  mkdirSync(shots,{recursive:true});await page.screenshot({path:shots+'/transparent-page.png'});
  await page.reload();expect(await alpha(page,'.site-header')).toBe(0);expect(await alpha(page,'.practice-line')).toBe(0);
- dialog=await appearance(page);await dialog.getByRole('button',{name:'日间背景图',exact:true}).click();const editor=page.getByRole('dialog',{name:'日间背景',exact:true});await expect(editor.getByRole('checkbox',{name:'跟随全站壁纸刷新',exact:true})).toBeChecked();await expect(editor.getByRole('button',{name:'上传图片',exact:true})).toBeDisabled();await editor.getByRole('slider',{name:'容器透明度',exact:true}).fill('50');expect(await alpha(page,'.practice-line')).toBeCloseTo(0.5,2);await editor.getByRole('button',{name:'取消',exact:true}).click();expect(await alpha(page,'.practice-line')).toBe(0);
+ dialog=await appearance(page);await dialog.getByRole('button',{name:'日间背景图',exact:true}).click();const editor=page.getByRole('dialog',{name:'日间背景',exact:true});await expect(editor.getByRole('checkbox',{name:'跟随全站壁纸刷新',exact:true})).toBeChecked();await expect(editor.getByLabel('背景图片',{exact:true})).toBeDisabled();await editor.getByRole('slider',{name:'容器透明度',exact:true}).fill('50');expect(await alpha(page,'.practice-line')).toBeCloseTo(0.5,2);await editor.getByRole('button',{name:'取消',exact:true}).click();expect(await alpha(page,'.practice-line')).toBe(0);
  dialog=await appearance(page);await dialog.getByRole('button',{name:'重置透明度和效果',exact:true}).click();await expect.poll(()=>alpha(page,'.practice-line')).toBeGreaterThan(0.95);await expect.poll(()=>alpha(page,'.site-header')).toBe(1);await dialog.getByRole('button',{name:'关闭',exact:true}).click();
  global=background('bbbbbb');await page.reload();await expect(page.getByTestId('custom-background-image')).toHaveAttribute('src',/\/image\/bbbbbb/);expect(external).toEqual([]);
  dialog=await appearance(page);await dialog.getByRole('button',{name:'夜间',exact:true}).click();await dialog.getByRole('slider',{name:'容器透明度',exact:true}).fill('35');await dialog.getByRole('slider',{name:'导航栏透明度',exact:true}).fill('60');await dialog.getByRole('button',{name:'关闭',exact:true}).click();await page.screenshot({path:shots+'/dark-page.png'});await expect(page.locator('html')).toHaveAttribute('data-theme','dark');expect(await alpha(page,'.site-header')).toBeCloseTo(.4,2);
  await page.setViewportSize({width:390,height:844});dialog=await appearance(page);await dialog.getByRole('slider',{name:'导航栏透明度',exact:true}).scrollIntoViewIfNeeded();expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);await page.screenshot({path:shots+'/mobile-appearance.png',fullPage:true});
 });
+
+test('guest wallpaper controls explain the site-follow lock and require saving the change', async ({ page }) => {
+  await page.goto('/');
+  async function openEditor() {
+    await (await appearance(page)).getByRole('button', { name: '日间背景图', exact: true }).click();
+  }
+  await openEditor();
+
+  const editor = page.getByRole('dialog', { name: '日间背景', exact: true });
+  const follow = editor.getByRole('checkbox', { name: '跟随全站壁纸刷新', exact: true });
+  const upload = editor.getByRole('button', { name: '上传图片', exact: true });
+  const provider = editor.getByRole('button', { name: '解锁 Wallhaven 壁纸选项', exact: true });
+  const prompt = page.getByRole('dialog', { name: '先关闭全站壁纸跟随', exact: true });
+  let pickerCount = 0;
+  page.on('filechooser', () => pickerCount++);
+
+  await expect(follow).toBeChecked();
+  await upload.click();
+  await expect(prompt).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+  await page.keyboard.press('Shift+Tab');
+  await expect(prompt.getByRole('button', { name: '关闭跟随', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(prompt).toHaveCount(0);
+  await expect(upload).toBeFocused();
+  await expect(follow).toBeChecked();
+
+  await provider.click({ position: { x: 8, y: 30 } });
+  await expect(prompt).toBeVisible();
+  expect(pickerCount).toBe(0);
+  await prompt.getByRole('button', { name: '关闭跟随', exact: true }).click();
+  await expect(follow).not.toBeChecked();
+  await expect(follow).toBeFocused();
+  await expect(editor.getByRole('button', { name: '获取今日壁纸' })).toBeEnabled();
+  await Promise.all([page.waitForEvent('filechooser'), upload.click()]);
+  await editor.getByRole('button', { name: '取消', exact: true }).click();
+  await openEditor();
+  await expect(follow).toBeChecked();
+
+  await upload.click();
+  await prompt.getByRole('button', { name: '关闭跟随', exact: true }).click();
+  await editor.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  await page.reload();
+  await openEditor();
+  await expect(follow).not.toBeChecked();
+  await expect(editor.getByLabel('背景图片', { exact: true })).toBeEnabled();
+});
+
 test('a failed shared image keeps the last loaded picture and user effects while retrying',async({page})=>{
  let global=background(),fail=true;await page.clock.install();
  await page.route('**/api/site/wallpaper?*',r=>r.fulfill({json:{enabled:true,background:global,serverTime:Date.now()}}));

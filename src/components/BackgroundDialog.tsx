@@ -5,9 +5,11 @@ import { fetchDailyWallpaper, wallpaperDisplay } from '../lib/daily-wallpaper';
 import { wallpaperStyles, wallpaperStyleNames, type WallpaperStyle } from '../lib/wallpaper-policy';
 import { SystemMessage } from './SystemMessage';
 import { useI18n } from '../lib/i18n';
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useId, useRef, useState, type DragEvent } from 'react';
 import { ImageSquare } from '@phosphor-icons/react/ImageSquare';
 import { ArrowCounterClockwise } from '@phosphor-icons/react/ArrowCounterClockwise';
+import { GlobeHemisphereWest } from '@phosphor-icons/react/GlobeHemisphereWest';
+import { LockSimple } from '@phosphor-icons/react/LockSimple';
 import { defaultBackground, backgroundPresentation, prepareBackgroundImage, prepareBackgroundUploadPreview, type BackgroundConfig, type BackgroundTheme, type BackgroundImage } from '../lib/background';
 import { uploadBackground, discardBackgroundUpload } from '../lib/background-upload';
 import { Dialog } from './Dialog';
@@ -30,6 +32,10 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
 
   const [automatic, setAutomatic] = useState(autoMode);
   const [followingSite,setFollowingSite]=useState(useSiteDefault??false);
+  const [showFollowPrompt, setShowFollowPrompt] = useState(false);
+  const followToggle = useRef<HTMLInputElement>(null);
+  const followHintId = useId();
+  const followPromptId = useId();
   const [adaptDisplay, setAdaptDisplay] = useState(adaptive);
   const [display, setDisplay] = useState(wallpaperDisplay);
   const seen = useRef<string[]>([]);
@@ -78,6 +84,19 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
     cancelProcessing();
     onClose();
   }
+  function setWallpaperSource(follow: boolean) {
+    cancelProcessing();
+    discardStaged();
+    setUploadFile(undefined);
+    setFollowingSite(follow);
+    setAutomatic('off');
+    setDraft(previous => {
+      const shared = siteDefaultValue ?? defaultBackground(theme, { image: '/assets/lake-default.webp', name: 'TypeLune', width: 2560, height: 1440 });
+      return follow ? { ...shared, ...(previous ? backgroundPresentation(previous) : {}) } : previous ?? shared;
+    });
+    setDirty(true);
+    setError('');
+  }
   async function choose(file?: File) {
     if (!file || savingRef.current || followingSite) return;
     cancelProcessing();
@@ -111,7 +130,11 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
   }
   function drop(event: DragEvent) {
     event.preventDefault(); setDragging(false);
-    if (savingRef.current||followingSite) return;
+    if (savingRef.current) return;
+    if (followingSite) {
+      if (event.dataTransfer.files.length) setShowFollowPrompt(true);
+      return;
+    }
     if (event.dataTransfer.files.length !== 1) { setError(t("一次选择一张图片", "Choose one image at a time")); return; }
     void choose(event.dataTransfer.files[0]);
   }
@@ -145,7 +168,11 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
     ['positionX', t("水平位置", "Horizontal position"), 100, '%'], ['positionY', t("垂直位置", "Vertical position"), 100, '%'], ['blur', t("模糊", "Blur"), 12, 'px'], ['shade', t("遮罩", "Overlay"), 80, '%'],
   ] as const;
 
-  return <Dialog title={theme === 'dark' ? t("夜间背景", "Dark mode background") : t("日间背景", "Light mode background")} onClose={close} dismissible={!saving} className="background-dialog">
+  const wallpaperLocked = followingSite && !saving && !processing;
+  const followLabel = t('跟随全站壁纸刷新', 'Follow site wallpaper updates');
+  const uploadLabel = t('上传图片', 'Upload image');
+
+  return <><Dialog title={theme === 'dark' ? t("夜间背景", "Dark mode background") : t("日间背景", "Light mode background")} onClose={close} dismissible={!saving} suspended={showFollowPrompt} className="background-dialog">
     <form className="background-editor" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <div className="background-editor-content">
       <div className={`background-preview${dragging ? ' is-dragging' : ''}`} data-theme={theme}
@@ -156,26 +183,51 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
         <div className="background-shade" style={{ opacity: (draft?.shade ?? 0) / 100 }} />
         <div className="background-preview-sample" aria-hidden="true" style={{background:theme==='dark'?`rgba(32,37,58,${(draft?.panelOpacity??95)/100})`:`rgba(255,255,255,${(draft?.panelOpacity??97)/100})`,backdropFilter:`blur(${draft?.panelBlur??0}px)`,borderColor:`color-mix(in srgb,var(--typing-border) ${draft?.borderOpacity??100}%,transparent)`}}><span>TypeLune</span><i /><i /></div>
       </div>
-      {useSiteDefault!==undefined&&<label className="settings-check follow-site-wallpaper"><input type="checkbox" checked={followingSite} disabled={saving||processing} onChange={event=>{cancelProcessing();discardStaged();setUploadFile(undefined);const follow=event.target.checked;setFollowingSite(follow);setAutomatic('off');setDraft(previous=>{const shared=siteDefaultValue??defaultBackground(theme,{image:'/assets/lake-default.webp',name:'TypeLune',width:2560,height:1440});return follow?{...shared,...(previous?backgroundPresentation(previous):{})}:previous??shared;});setDirty(true);}}/>{t('跟随全站壁纸刷新','Follow site wallpaper updates')}</label>}
-      <fieldset className="settings-group wallpaper-options" disabled={saving||processing||followingSite}><legend>Wallhaven</legend>
-        <label className="profile-visibility"><input type="checkbox" checked={automatic!=='off'||!!pendingDaily} onChange={event=>{if(event.target.checked)void daily('nature');else{setAutomatic('off');setDirty(true);}}}/>{t('每日自动更新壁纸','Update wallpaper daily')}</label>
-        <label>{t('图片偏好','Image preference')}<select value={pendingDaily??(automatic==='off'?'nature':automatic)} onChange={event=>void daily(event.target.value as WallpaperStyle)}>{wallpaperStyleNames.map(style=><option key={style} value={style}>{t(wallpaperStyles[style].zh,wallpaperStyles[style].en)}</option>)}</select></label>
-        <label className="settings-check"><input type="checkbox" checked={adaptDisplay} onChange={event=>{setAdaptDisplay(event.target.checked);setDirty(true);}} />{t('显示器自适应','Adapt to display')}<small>{adaptDisplay ? `${display.width} × ${display.height}` : t('固定尺寸','Fixed size')}</small></label>
-        <div className="wallpaper-fetch-actions"><button type="button" className="outline-button" onClick={()=>void daily(automatic==='off'?'nature':automatic)}>{t('获取今日壁纸','Get today’s wallpaper')}</button>
-          {draft?.daily && <button type="button" className="outline-button" onClick={()=>void daily(draft.daily!.kind,true)}>{t('换一张','Another wallpaper')}</button>}</div>
-        {draft?.daily&&<a href={'https://wallhaven.cc/w/'+draft.daily.id} target="_blank" rel="noopener noreferrer">{t('图片来源：Wallhaven','Source: Wallhaven')} ↗</a>}
-      </fieldset>
-      <div className="background-file-row" onDragOver={(event) => event.preventDefault()} onDrop={drop}>
-        <input ref={input} hidden aria-label={t("背景图片", "Background image")} type="file" accept="image/jpeg,image/png,image/webp" disabled={saving||followingSite}
-          onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void choose(file); }} />
-        <button type="button" className="outline-button" disabled={saving||followingSite} onClick={() => input.current?.click()}><ImageSquare size={18} aria-hidden="true" />{t("上传图片", "Upload image")}</button>
-        <span className="feature-muted">JPG / PNG / WebP · 10 MB</span>
-      </div>
+      {draft && <div className="background-file-info">
+        <span>{draft.daily ? <a href={'https://wallhaven.cc/w/' + draft.daily.id} target="_blank" rel="noopener noreferrer">{t('图片来源：Wallhaven', 'Source: Wallhaven')} ↗</a> : draft.name}</span>
+        <span>{draft.width} × {draft.height}</span>
+      </div>}
+      {useSiteDefault !== undefined && <label className="background-source" data-following={followingSite}>
+        <GlobeHemisphereWest className="background-source-icon" aria-hidden="true" />
+        <span className="background-source-copy">
+          <strong>{followLabel}</strong>
+          <small id={followHintId}>{followingSite ? t('壁纸随站点更新，显示效果可单独调整。', 'Use the site’s wallpaper and adjust its display effects independently.') : t('可上传图片或选用 Wallhaven 壁纸。', 'Upload an image or choose a Wallhaven wallpaper.')}</small>
+        </span>
+        <input ref={followToggle} className="background-source-toggle" type="checkbox" aria-label={followLabel} aria-describedby={followHintId} checked={followingSite} disabled={saving || processing} onChange={event => setWallpaperSource(event.target.checked)} />
+      </label>}
+      <section className="background-personal" data-locked={wallpaperLocked}>
+        <div className="background-section-heading">
+          <h3>{t('个人壁纸', 'Personal wallpaper')}</h3>
+          {wallpaperLocked && <span className="background-lock-status"><LockSimple size={14} aria-hidden="true" />{t('跟随全站中', 'Following site')}</span>}
+        </div>
+        <div className="background-file-row" onDragOver={event => event.preventDefault()} onDrop={drop}>
+          <input ref={input} hidden aria-label={t('背景图片', 'Background image')} type="file" accept="image/jpeg,image/png,image/webp" disabled={saving || followingSite}
+            onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void choose(file); }} />
+          <button type="button" className="background-upload" aria-label={uploadLabel} aria-haspopup={wallpaperLocked ? 'dialog' : undefined} disabled={saving} onClick={() => wallpaperLocked ? setShowFollowPrompt(true) : input.current?.click()}>
+            <span><ImageSquare size={19} aria-hidden="true" />{uploadLabel}</span>
+            <small>JPG / PNG / WebP · 10 MB</small>
+          </button>
+        </div>
+        <div className="background-provider">
+          <fieldset className="wallpaper-options" disabled={saving || processing || followingSite}>
+            <legend>Wallhaven</legend>
+            <div className="wallpaper-provider-settings">
+              <label className="wallpaper-preference">{t('图片偏好', 'Image preference')}<select value={pendingDaily ?? (automatic === 'off' ? 'nature' : automatic)} onChange={event => void daily(event.target.value as WallpaperStyle)}>{wallpaperStyleNames.map(style => <option key={style} value={style}>{t(wallpaperStyles[style].zh, wallpaperStyles[style].en)}</option>)}</select></label>
+              <label className="wallpaper-check"><input type="checkbox" checked={automatic !== 'off' || !!pendingDaily} onChange={event => { if (event.target.checked) void daily('nature'); else { setAutomatic('off'); setDirty(true); } }} />{t('每日自动更新壁纸', 'Update wallpaper daily')}</label>
+              <label className="wallpaper-check"><input type="checkbox" checked={adaptDisplay} onChange={event => { setAdaptDisplay(event.target.checked); setDirty(true); }} />{t('显示器自适应', 'Adapt to display')}<small>{adaptDisplay ? `${display.width} × ${display.height}` : t('固定尺寸', 'Fixed size')}</small></label>
+            </div>
+            <div className="wallpaper-fetch-actions">
+              <button type="button" className="outline-button" onClick={() => void daily(automatic === 'off' ? 'nature' : automatic)}>{t('获取今日壁纸', 'Get today’s wallpaper')}</button>
+              {draft?.daily && <button type="button" className="outline-button" onClick={() => { if (draft.daily) void daily(draft.daily.kind, true); }}>{t('换一张', 'Another wallpaper')}</button>}
+            </div>
+          </fieldset>
+          {wallpaperLocked && <button type="button" className="background-provider-gate" aria-label={t('解锁 Wallhaven 壁纸选项', 'Unlock Wallhaven wallpaper options')} aria-haspopup="dialog" onClick={() => setShowFollowPrompt(true)} />}
+        </div>
+      </section>
       {processing && <p className="feature-muted" role="status">{pendingDaily ? t("正在获取壁纸…", "Fetching wallpaper…") : t("正在处理图片…", "Processing image…")}</p>}
       {draft && <>
-        <div className="background-file-info"><span>{draft.name}</span><span>{draft.width} × {draft.height}</span></div>
         <fieldset className="background-controls" disabled={saving || processing}>
-          <legend className="sr-only">{t("背景显示", "Background display")}</legend>
+          <legend>{t('显示效果', 'Display effects')}</legend>
           <label className="background-fit">{t("显示方式", "Image fit")}<select value={draft.fit} onChange={(event) => change({ fit: event.target.value as BackgroundConfig['fit'] })}><option value="cover">{t("填满", "Fill")}</option><option value="contain">{t("完整显示", "Fit entire image")}</option></select></label>
           <div className="background-ranges">{sliders.map(([key, label, max, unit]) => <label className="settings-range" key={key}>
             <span>{label}</span><input type="range" aria-label={label} min={0} max={max} step={1} value={draft[key]} onChange={(event) => change({ [key]: event.target.valueAsNumber })} /><span aria-hidden="true">{draft[key]}{unit}</span>
@@ -190,5 +242,16 @@ export function BackgroundDialog({ theme, value, onSave, onClose, autoMode = 'of
         <div><button type="button" className="outline-button" disabled={saving} onClick={close}>{t("取消", "Cancel")}</button><button className="primary-button" disabled={!dirty || processing || saving}>{saving ? t("保存中…", "Saving…") : t("保存", "Save")}</button></div>
       </div>
     </form>
-  </Dialog>;
+  </Dialog>
+  {showFollowPrompt && <Dialog title={t('先关闭全站壁纸跟随', 'Turn off site wallpaper first')} descriptionId={followPromptId} onClose={() => setShowFollowPrompt(false)} className="wallpaper-follow-prompt">
+    <p id={followPromptId}>{t('关闭「跟随全站壁纸刷新」后，即可上传图片或选择 Wallhaven 壁纸。', 'Turn off “Follow site wallpaper updates” to upload an image or choose a Wallhaven wallpaper.')}</p>
+    <div className="wallpaper-prompt-actions">
+      <button type="button" className="outline-button" onClick={() => setShowFollowPrompt(false)}>{t('取消', 'Cancel')}</button>
+      <button type="button" className="primary-button" onClick={() => {
+        setWallpaperSource(false);
+        setShowFollowPrompt(false);
+        requestAnimationFrame(() => followToggle.current?.focus());
+      }}>{t('关闭跟随', 'Turn off following')}</button>
+    </div>
+  </Dialog>}</>;
 }

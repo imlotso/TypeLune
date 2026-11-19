@@ -223,7 +223,7 @@ it('discards a saved round only when its legacy copy belongs to the same owner a
   expect(readDraft(ownerId)).toBeNull();
 });
 
-it('opens a continuation on the unfinished row with a blank input for new text', async () => {
+it('opens a continuation with the saved text visible and protects the previous round', async () => {
   const saved: SavedPractice = {
     id: snapshotKey(article), article, ownerId: null, typed: '甲', duration: 60, mode: 'timed', strict: false,
     offset: 1, backspaces: 0, elapsedMs: 0, offline: true, recordId: 'continued', savedAt: Date.now(),
@@ -239,12 +239,15 @@ it('opens a continuation on the unfinished row with a blank input for new text',
   render(<Session />);
   fireEvent.click(screen.getByRole('button', { name: '加载' }));
   const first = screen.getByRole<HTMLTextAreaElement>('textbox', { name: '当前行输入' });
-  expect(first.value).toBe('');
+  expect(first.value).toBe('甲');
   fireEvent.click(screen.getByRole('button', { name: '继续' }));
-  fireEvent.change(first, { target: { value: '乙\n' } });
+  fireEvent.change(first, { target: { value: '乙' } });
+  expect(first.value).toBe('甲');
+  fireEvent.change(first, { target: { value: '甲乙\n' } });
   const next = screen.getByRole<HTMLTextAreaElement>('textbox', { name: '当前行输入' });
   expect(next).not.toBe(first);
   expect(next.value).toBe('');
+  expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: '第 1 行输入' }).value).toBe('甲乙\n');
   expect(readDraft()?.typed).toBe('甲乙\n');
 });
 
