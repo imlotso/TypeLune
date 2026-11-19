@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scoreTyping, splitCharacters } from '../src/lib/scoring';
+import { countTyping, scoreFromCounts, scoreTyping, splitCharacters } from '../src/lib/scoring';
 
 describe('typing score', () => {
   it('scores confirmed characters against the target including punctuation', () => {
@@ -23,5 +23,19 @@ describe('typing score', () => {
     expect(scoreTyping('hi', 'hii', 60)).toMatchObject({
       correct: 2, total: 3, accuracy: 66.67,
     });
+  });
+
+  it('reuses the same character counts across timer ticks in a continued practice', () => {
+    const target = splitCharacters('开头🇯🇵👨‍👩‍👧aé');
+    const input = splitCharacters('开头🇯🇵👨‍👩‍👧be\u0301!');
+    const offset = 2;
+    const { correct, total } = countTyping(target, input, offset);
+
+    for (const seconds of [0.1, 1.25, 5, 60]) {
+      expect(scoreFromCounts(correct, total, seconds)).toEqual(
+        scoreTyping(target.slice(offset, input.length).join(''), input.slice(offset).join(''), seconds),
+      );
+    }
+    expect(countTyping(target, [], offset)).toEqual({ correct: 0, total: 0 });
   });
 });

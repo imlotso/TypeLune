@@ -7,7 +7,8 @@ import { verifyLoginPassword } from './login-password.js';
 import seoPages from '../src/data/seo.json' with { type: 'json' };
 import { createSupportSettings, registerSupportAdminRoutes, registerSupportPublicRoutes } from './support-settings.js';
 import { profileValue, registerPublicProfiles } from './profile.js';
-import {registerWallpaperImages} from './wallpaper-images.js';
+import {registerWallpaperImages, wallpaperImageRoute} from './wallpaper-images.js';
+import compress from '@fastify/compress';
 import { registerWallpapers } from './wallpapers.js';
 import { createSiteWallpapers, registerSiteWallpaperAdmin, registerSiteWallpaperPublic } from './site-wallpapers.js';
 import { createBackgroundFiles, registerBackgroundFiles, BackgroundFileError } from './background-files.js';
@@ -284,6 +285,7 @@ export async function createApp(options: AppOptions) {
   };
   app.setErrorHandler((error, _request, reply) => sendUnexpectedError(error, reply));
   await app.register(cookie);
+  await app.register(compress, { global: false });
   await app.register(rateLimit, { max: 180, timeWindow: '1 minute', allowList: (request) => !request.url.startsWith('/api/'),
     ...(postgres && { store: postgresRateLimitStore(postgres.pool, codeSecret, postgres.schema), skipOnError: false }) });
   app.addHook('onClose', async () => { await db.close(); });
@@ -294,7 +296,12 @@ export async function createApp(options: AppOptions) {
     reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
     reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     if (request.url.startsWith('/api/')) {
-      reply.header('Cache-Control', 'no-store');
+      const publicWallpaper = request.routeOptions.url === wallpaperImageRoute &&
+        reply.statusCode === 200 && reply.getHeader('Content-Type') === 'image/webp' && !reply.hasHeader('Set-Cookie');
+      if (!publicWallpaper) {
+        reply.header('Cache-Control', 'no-store');
+        reply.removeHeader('Vercel-CDN-Cache-Control');
+      }
       if (!reply.hasHeader('X-Robots-Tag')) reply.header('X-Robots-Tag', 'noindex, nofollow');
     }
     return payload;
@@ -779,10 +786,9 @@ export async function createApp(options: AppOptions) {
     }
   }
 
-  app.get('/api/articles', async (_request, reply) => {
-    reply.header('Cache-Control', 'no-store');
+  app.get('/api/articles', { compress: { encodings: ['gzip'] } }, async (request, reply) => {
     const articles = (await catalog.listPublic()).map(({ content, ...article }) => ({ ...article, text: content, custom: false }));
-    return boundedList(_request, reply, 'articles', articles);
+    return boundedList(request, reply, 'articles', articles);
   });
 
   const findChallenge = db.prepare('SELECT * FROM challenges WHERE id=?');

@@ -1,10 +1,38 @@
 import {expect,it,vi} from 'vitest';
 import Fastify from 'fastify';
 import sharp from 'sharp';
+import {createApp} from '../server/app';
 import {createWallpaperImages,registerWallpaperImages} from '../server/wallpaper-images';
 import {wallpaperImageSource,wallpaperImageSet} from '../src/lib/wallpaper-image';
 
 const detail=(id='aaaaaa')=>({id,purity:'sfw',category:'general',dimension_x:3000,dimension_y:2000,path:`https://w.wallhaven.cc/full/${id.slice(0,2)}/wallhaven-${id}.jpg`,tags:[{name:'mountains'}]});
+it('keeps shared caching restricted to successful public wallpaper responses in the full app', async () => {
+  const image = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#7488ad' } }).jpeg().toBuffer();
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.endsWith('/w/aaaaaa')) return Response.json({ data: { ...detail(), dimension_x: 2, dimension_y: 2 } });
+    if (url === detail().path) return new Response(new Uint8Array(image));
+    return new Response(null, { status: 404 });
+  });
+  const app = await createApp({ databasePath: ':memory:' });
+  vi.stubGlobal('fetch', fetcher);
+  try {
+    const publicImage = await app.inject('/api/wallpapers/image/aaaaaa?w=1280');
+    expect(publicImage.statusCode).toBe(200);
+    expect(publicImage.headers['cache-control']).toMatch(/^public, .*s-maxage=43200/);
+    expect(publicImage.headers['vercel-cdn-cache-control']).toMatch(/^public,/);
+    expect(publicImage.headers['set-cookie']).toBeUndefined();
+    expect(publicImage.headers['content-security-policy']).toContain("default-src 'none'");
+
+    for (const path of ['/api/wallpapers/image/bbbbbb?w=1280', '/api/wallpapers/image/aaaaaa?w=1', '/api/me']) {
+      const response = await app.inject(path);
+      expect(response.headers['cache-control']).toBe('no-store');
+      expect(response.headers['vercel-cdn-cache-control']).toBeUndefined();
+    }
+  } finally {
+    vi.unstubAllGlobals();
+    await app.close();
+  }
+});
 it('serves one approved image as proportional small/large variants, never enlarges, and deduplicates downloads',async()=>{
  const original=await sharp({create:{width:3000,height:2000,channels:3,background:'#7488ad'}}).jpeg().toBuffer();const fetcher=vi.fn(async(url:string)=>url.includes('/api/')?Buffer.from(JSON.stringify({data:detail()})):original);const store=createWallpaperImages(fetcher);
  const [a,b]=await Promise.all([store.image('aaaaaa',1280),store.image('aaaaaa',1280)]);expect(a).toEqual(b);expect(fetcher).toHaveBeenCalledTimes(2);expect(await sharp(a).metadata()).toMatchObject({format:'webp',width:1280,height:853});const large=await store.image('aaaaaa',3840);expect(await sharp(large).metadata()).toMatchObject({width:3000,height:2000});expect(fetcher).toHaveBeenCalledTimes(2);expect(a.length).toBeLessThan(original.length);

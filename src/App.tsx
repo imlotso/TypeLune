@@ -84,7 +84,7 @@ import { browserStatisticsTimeZone } from './lib/long-term-stats';
 import { comparePersonalBest } from './lib/personal-best';
 import { makeShareCardData } from './lib/share-card';
 import { readableCharacter } from './lib/practice-lines';
-import { scoreTyping, splitCharacters } from './lib/scoring';
+import { countTyping, scoreFromCounts, splitCharacters } from './lib/scoring';
 import { createRoundMistakeDrill } from './lib/analysis';
 import { resolveTheme, themeStorageKey, type Theme } from './lib/theme';
 import { allowLocalAccount, deleteWorkspaceDrafts, deleteWorkspaceValue, DraftDeletedError, isLocalAccountBlocked, isWorkspaceDraftDeleted, isWorkspaceFallbackDraft, localAccountBlockPrefix, markWorkspaceDraftFallback, mutateWorkspaceValue, putWorkspaceValue, readBlockedWorkspace, readWorkspace, workspaceValue } from './lib/workspace';
@@ -406,9 +406,8 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
   const canStart = ready && !pendingLoad && !accountBusy && !locked && (validDuration || currentMode === 'article');
   const typedCharacters = useMemo(() => splitCharacters(typed), [typed]);
   const targetCharacters = useMemo(() => splitCharacters(target), [target]);
-  const roundTyped = useMemo(() => typedCharacters.slice(practice.offset).join(''), [typedCharacters, practice.offset]);
-  const roundTarget = useMemo(() => targetCharacters.slice(practice.offset, typedCharacters.length).join(''), [targetCharacters, typedCharacters.length, practice.offset]);
-  const previewScore = useMemo(() => scoreTyping(roundTarget, roundTyped, Math.max(practice.elapsedMs / 1000, 0.1)), [roundTarget, roundTyped, practice.elapsedMs]);
+  const { correct, total } = useMemo(() => countTyping(targetCharacters, typedCharacters, practice.offset), [targetCharacters, typedCharacters, practice.offset]);
+  const previewScore = useMemo(() => scoreFromCounts(correct, total, Math.max(practice.elapsedMs / 1000, 0.1)), [correct, total, practice.elapsedMs]);
   const activePaceTarget = phase === 'ready' ? selectedPaceTarget : practice.paceTarget;
   const paceProgress = activePaceTarget !== undefined && phase !== 'ready' ? calculatePace(previewScore.correct, practice.elapsedMs, activePaceTarget, language) : undefined;
   const clockMs = currentMode === 'article' ? practice.elapsedMs : Math.max(0, currentDuration * 1000 - practice.elapsedMs);
@@ -1138,9 +1137,9 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
           {(selectedAssessment || selectedWeakKeys) && <section className="lesson-guide" aria-label={t('训练说明', 'Training guide')}><div className="lesson-guide-top"><button className="text-button" onClick={() => navigate('lessons')}>{t('课程目录', 'Course outline')}</button><span>{displayTitle}</span></div><p>{t('英文全文 · 非严格模式 · 不参与排行', 'Full English text · non-strict · unranked')}</p></section>}
           {(workspace.settings.showTimer !== false || workspace.settings.showAccuracy !== false || workspace.settings.showSpeed !== false) && <div className="status-row">
             {workspace.settings.showTimer !== false && <span><Clock size={23} /> {currentMode === 'article' ? t("用时", "Elapsed") : t("剩余时间", "Remaining")}：<b data-testid="remaining-time">{formatTime(clockMs)}</b></span>}
-            {workspace.settings.showAccuracy !== false && <span><Crosshair size={23} />  {t("准确率：", "Accuracy:")}{roundTyped ? `${previewScore.accuracy}%` : '—'}</span>}
-            {workspace.settings.showSpeed !== false && (language === 'en' ? <EnglishSpeed score={roundTyped ? previewScore : undefined} display="live" />
-              : <span><Keyboard size={23} />  {t("字 / 分钟：", "Chars / min:")}{roundTyped ? previewScore.cpm : '—'}</span>)}
+            {workspace.settings.showAccuracy !== false && <span><Crosshair size={23} />  {t("准确率：", "Accuracy:")}{total ? `${previewScore.accuracy}%` : '—'}</span>}
+            {workspace.settings.showSpeed !== false && (language === 'en' ? <EnglishSpeed score={total ? previewScore : undefined} display="live" />
+              : <span><Keyboard size={23} />  {t("字 / 分钟：", "Chars / min:")}{total ? previewScore.cpm : '—'}</span>)}
           </div>}
           {(phase === 'ready' ? paceSettings.enabled : paceSettings.enabled || practice.paceTarget !== undefined) && <PaceIndicator language={language} target={activePaceTarget} secondsAhead={paceProgress?.secondsAhead}
             notice={phase === 'ready' && user && paceSettings.source !== 'custom' && !historyLoaded ? t("正在读取配速目标…", "Loading pace target…") : phase === 'ready' ? t("暂无同条件成绩", "No matching results yet") : t("本轮未启用配速", "Pace is off for this round")}

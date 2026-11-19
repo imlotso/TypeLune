@@ -19,6 +19,7 @@
     "test:docker:postgres": "node scripts/ci-docker-postgres-smoke.mjs"
   },
   "dependencies": {
+    "@fastify/compress": "^9.3.0",
     "@fastify/cookie": "^11.1.5",
     "@fastify/rate-limit": "^11.2.2",
     "@fastify/static": "^10.1.10",

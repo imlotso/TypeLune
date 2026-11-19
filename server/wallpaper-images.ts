@@ -5,6 +5,7 @@ import {boundedFetch,validWallpaper} from './wallpapers.js';
 import {wallpaperStyleNames,wallpaperWidths} from '../src/lib/wallpaper-policy.js';
 
 const expiry=30*60_000;
+export const wallpaperImageRoute = '/api/wallpapers/image/:id';
 class ImageCache {
   private entries=new Map<string,{bytes:Buffer;until:number}>();private size=0;
   constructor(private limit:number){}
@@ -46,7 +47,7 @@ export function createWallpaperImages(fetchBytes=boundedFetch){
   }};
 }
 export function registerWallpaperImages(app:FastifyInstance,store=createWallpaperImages()){
-  app.get('/api/wallpapers/image/:id',{config:{rateLimit:{max:120,timeWindow:'1 minute'}}},async(request,reply)=>{
+  app.get(wallpaperImageRoute,{config:{rateLimit:{max:120,timeWindow:'1 minute'}}},async(request,reply)=>{
     const {id}=request.params as {id:string};const query=request.query as Record<string,string>;const width=Number(query.w??1920);
     if(!/^[a-z0-9]{6}$/.test(id)||!wallpaperWidths.includes(width as typeof wallpaperWidths[number])||Object.keys(query).some(key=>key!=='w')||query.w!==undefined&&!/^\d{3,4}$/.test(query.w))return reply.code(400).send({error:'壁纸尺寸无效'});
     try{const bytes=await store.image(id,width);reply.header('Content-Type','image/webp').header('Cache-Control','public, max-age=3600, s-maxage=43200, stale-while-revalidate=3600').header('Vercel-CDN-Cache-Control','public, max-age=43200, stale-while-revalidate=3600').header('Content-Security-Policy',"default-src 'none'; sandbox");return reply.send(Readable.from((function*(){for(let offset=0;offset<bytes.length;offset+=64*1024)yield bytes.subarray(offset,offset+64*1024);})()));}

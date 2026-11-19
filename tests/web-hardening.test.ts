@@ -24,6 +24,23 @@ it('protects API responses including errors from caching, framing and sniffing',
   }
 });
 
+it('compresses only negotiated public catalog responses and preserves pagination and no-store', async () => {
+  app = await createApp({ databasePath: ':memory:' });
+  const headers = { 'x-list-paged': '1' };
+  const plain = await app.inject({ url: '/api/articles', headers });
+  const compressed = await app.inject({ url: '/api/articles', headers: { ...headers, 'accept-encoding': 'gzip' } });
+  expect(compressed.statusCode).toBe(200);
+  expect(compressed.headers['content-encoding']).toBe('gzip');
+  expect(compressed.headers.vary).toMatch(/accept-encoding/i);
+  expect(compressed.headers['cache-control']).toBe('no-store');
+  expect(gunzipSync(compressed.rawPayload).toString()).toBe(plain.body);
+  expect(compressed.rawPayload.byteLength).toBeLessThan(plain.rawPayload.byteLength);
+
+  const privateResponse = await app.inject({ url: '/api/me', headers: { 'accept-encoding': 'gzip' } });
+  expect(privateResponse.headers['content-encoding']).toBeUndefined();
+  expect(privateResponse.headers['cache-control']).toBe('no-store');
+});
+
 it('rejects cross-site mutations even when Origin is absent, while accepting same-origin calls', async () => {
   app = await createApp({ databasePath: ':memory:', secureCookies: false });
   for (const site of ['cross-site', 'same-site']) {
