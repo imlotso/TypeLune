@@ -40,9 +40,10 @@ test('centers and styles the admin loading screen while authentication is pendin
   await page.route('**/api/me', async (route) => {
     await mePending;
     await route.continue();
-  });
+  }, { times: 1 });
   await page.addInitScript(() => localStorage.setItem('cloudtyping.theme.v1', 'dark'));
   try {
+    const meResponse = page.waitForResponse((response) => response.url().endsWith('/api/me') && response.status() === 200);
     await page.goto('/admin?tab=overview', { waitUntil: 'domcontentloaded' });
     const status = page.getByRole('status');
     await expect(status).toContainText('正在读取账号…');
@@ -64,9 +65,10 @@ test('centers and styles the admin loading screen while authentication is pendin
     expect(metrics.alignItems).toBe('center');
     expect(Math.abs(metrics.centerX - metrics.viewportW / 2)).toBeLessThan(120);
     expect(Math.abs(metrics.centerY - metrics.viewportH / 2)).toBeLessThan(80);
+    releaseMe();
+    await meResponse;
   } finally {
     releaseMe();
-    await page.unroute('**/api/me');
   }
   await expect(page.getByRole('button', { name: '概览', exact: true })).toBeVisible();
 });
