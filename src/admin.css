@@ -1,5 +1,3 @@
-.administration-session { min-height: 100svh; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--typing-row); color: var(--typing-text); font-size: 14px; }
-.administration-session svg { color: var(--typing-accent); }
 .administration-app {
   min-height: 100svh;
   color: var(--typing-text);
