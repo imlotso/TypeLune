@@ -32,3 +32,43 @@ test('fresh administrator sign-in preserves a shared column and guards browser h
  await expect(page.getByLabel('显示捐赠入口')).toBeVisible();
  await page.reload();await expect(page.getByLabel('显示捐赠入口')).toBeVisible();
 });
+
+test('centers and styles the admin loading screen while authentication is pending on slow networks', async ({ page }) => {
+  await ensureAdmin(page.request);
+  let releaseMe!: () => void;
+  const mePending = new Promise<void>((resolve) => { releaseMe = resolve; });
+  await page.route('**/api/me', async (route) => {
+    await mePending;
+    await route.continue();
+  }, { times: 1 });
+  await page.addInitScript(() => localStorage.setItem('cloudtyping.theme.v1', 'dark'));
+  try {
+    const meResponse = page.waitForResponse((response) => response.url().endsWith('/api/me') && response.status() === 200);
+    await page.goto('/admin?tab=overview', { waitUntil: 'domcontentloaded' });
+    const status = page.getByRole('status');
+    await expect(status).toContainText('正在读取账号…');
+    const metrics = await status.evaluate((el) => {
+      const style = getComputedStyle(el);
+      const icon = el.querySelector('svg')!.getBoundingClientRect();
+      return {
+        display: style.display,
+        justifyContent: style.justifyContent,
+        alignItems: style.alignItems,
+        centerX: icon.x + icon.width / 2,
+        centerY: icon.y + icon.height / 2,
+        viewportW: window.innerWidth,
+        viewportH: window.innerHeight,
+      };
+    });
+    expect(metrics.display).toBe('flex');
+    expect(metrics.justifyContent).toBe('center');
+    expect(metrics.alignItems).toBe('center');
+    expect(Math.abs(metrics.centerX - metrics.viewportW / 2)).toBeLessThan(120);
+    expect(Math.abs(metrics.centerY - metrics.viewportH / 2)).toBeLessThan(80);
+    releaseMe();
+    await meResponse;
+  } finally {
+    releaseMe();
+  }
+  await expect(page.getByRole('button', { name: '概览', exact: true })).toBeVisible();
+});
