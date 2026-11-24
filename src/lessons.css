@@ -4,7 +4,7 @@
 .lessons-heading h1 { margin: 7px 0 0; font-size: 25px; }
 .lesson-progress { min-width: 150px; display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: center; font-size: 12px; color: var(--typing-muted); }
 .lesson-progress strong { color: var(--typing-text); font-size: 16px; font-variant-numeric: tabular-nums; }
-.lesson-progress progress { width: 100%; height: 5px; grid-column: 1 / -1; accent-color: #8f97cf; }
+.lesson-progress progress { width: 100%; height: 5px; grid-column: 1 / -1; accent-color: #0071e3; }
 .lesson-start { display: flex; justify-content: space-between; align-items: center; gap: 16px; border: 1px solid var(--typing-border); padding: 16px 20px; background: var(--typing-input); border-radius: 14px; margin-bottom: 18px; }
 .lesson-start > div { display: flex; align-items: center; gap: 12px; font-weight: 600; }
 .lesson-start button, .lesson-card button { display: inline-flex; gap: 8px; align-items: center; }
@@ -16,19 +16,19 @@
 .lesson-card h2 { margin: 13px 0 8px; font-size: 18px; }
 .lesson-keys { font-family: ui-monospace, monospace; color: var(--typing-muted); font-size: 13px; min-height: 22px; }
 .lesson-card-bottom { margin-top: 22px; font-size: 12px; color: var(--typing-muted); }
-.lesson-done { border-color: #96a9b9; }
+.lesson-done { border-color: #86868b; }
 .lesson-local-note { margin: 18px 0 0; font-size: 12px; }
 .lesson-guide { margin: 8px 0 18px; padding: 16px 20px; border: 1px solid var(--typing-border); border-radius: 14px; background: var(--typing-input); color: var(--typing-text); }
 .lesson-guide-top { display: flex; gap: 12px; justify-content: space-between; align-items: center; flex-wrap: wrap; font-size: 13px; }
 .lesson-guide-top button { display: inline-flex; gap: 7px; align-items: center; }
 .lesson-guide-top label { display: inline-flex; gap: 7px; align-items: center; cursor: pointer; color: var(--typing-muted); }
-.lesson-guide input { accent-color: #8f97cf; }
+.lesson-guide input { accent-color: #0071e3; }
 .lesson-guide p { margin: 13px 0 0; font-size: 13px; color: var(--typing-muted); line-height: 1.6; }
 .lesson-keyboard-wrap { display: flex; align-items: center; justify-content: center; gap: 30px; margin-top: 15px; }
 .lesson-keyboard { flex: 0 1 380px; min-width: 0; }
 .lesson-key-row { display: flex; gap: 4px; justify-content: center; margin-bottom: 4px; }
 .lesson-key-row span { flex: 1 1 28px; max-width: 31px; height: 27px; display: grid; place-items: center; font: 11px ui-monospace, monospace; border: 1px solid var(--typing-border); border-radius: 5px; color: var(--typing-muted); }
-.lesson-key-row .key-active { color: #fff; background: #6e80b4; border-color: #6e80b4; }
+.lesson-key-row .key-active { color: #ffffff; background: #0071e3; border-color: #0071e3; }
 .lesson-key-row .key-home { text-decoration: underline; text-underline-offset: 3px; }
 .lesson-next-key { min-width: 105px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 5px; }
 .lesson-next-key kbd { display: inline-block; padding: 5px 8px; border: 1px solid var(--typing-border); border-radius: 5px; font-size: 12px; }
@@ -57,8 +57,8 @@
 .lesson-rounds {margin-top:16px;font-size:11px;color:var(--typing-muted);display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
 .lesson-rounds>div {display:flex;gap:7px;}
 .lesson-round {width:34px;height:30px;background:transparent;border:1px solid var(--typing-border);border-radius:7px;color:var(--typing-text);cursor:pointer;}
-.lesson-round:hover,.lesson-round:focus-visible {border-color:#8d9dc7;background:#8d9dc715;}
-.lesson-round-done {background:#8d9dc722;border-color:#8d9dc7;}
+.lesson-round:hover,.lesson-round:focus-visible {border-color:#0071e3;background:rgba(0,113,227,.08);}
+.lesson-round-done {background:rgba(0,113,227,.14);border-color:#0071e3;}
 .lesson-keyboard-wrap {flex-direction:column;gap:10px;}
 .lesson-next-key {flex-wrap:nowrap;}
 .lesson-next-key span {width:auto;margin:0 0 0 4px;}
