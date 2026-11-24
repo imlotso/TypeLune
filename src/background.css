@@ -118,17 +118,18 @@
 }
 
 /* Apply transparency to painted surfaces, never to their text or children. */
-.app-shell { --wallpaper-surface: 255,255,255; --wallpaper-row:#f5f5f7; --wallpaper-input:#ffffff; --wallpaper-active:#ebebef; --wallpaper-border:#d2d2d7; }
-[data-theme='dark'] .app-shell { --wallpaper-surface:28,28,30; --wallpaper-row:#262629; --wallpaper-input:#18181a; --wallpaper-active:#323236; --wallpaper-border:#3a3a3c; }
-.app-shell .site-header { background:rgba(var(--wallpaper-surface),var(--wallpaper-header-opacity,1)); backdrop-filter:blur(var(--wallpaper-panel-blur,0px)); }
+.app-shell { --wallpaper-surface: 238,238,243; --wallpaper-panel-surface: 249,249,251; --wallpaper-row:#e6e6ec; --wallpaper-input:#ffffff; --wallpaper-active:#ffffff; --wallpaper-border:#cfd0d7; }
+[data-theme='dark'] .app-shell { --wallpaper-surface:28,28,31; --wallpaper-panel-surface:34,34,38; --wallpaper-row:#26262a; --wallpaper-input:#18181b; --wallpaper-active:#323237; --wallpaper-border:#3d3d42; }
+.app-shell .site-header { background:rgba(var(--wallpaper-surface),var(--wallpaper-header-opacity,.78)); backdrop-filter:blur(var(--wallpaper-panel-blur,16px)); }
 .app-shell .room .workspace {
- --typing-row:color-mix(in srgb,var(--wallpaper-row) calc(var(--wallpaper-panel-opacity,.97)*100%),transparent);
- --typing-input:color-mix(in srgb,var(--wallpaper-input) calc(var(--wallpaper-panel-opacity,.97)*100%),transparent);
- --typing-active:color-mix(in srgb,var(--wallpaper-active) calc(var(--wallpaper-panel-opacity,.97)*100%),transparent);
+ --typing-row:color-mix(in srgb,var(--wallpaper-row) calc(var(--wallpaper-panel-opacity,.84)*100%),transparent);
+ --typing-input:color-mix(in srgb,var(--wallpaper-input) calc(var(--wallpaper-panel-opacity,.84)*100%),transparent);
+ --typing-active:color-mix(in srgb,var(--wallpaper-active) calc(var(--wallpaper-panel-opacity,.84)*100%),transparent);
  --typing-border:color-mix(in srgb,var(--wallpaper-border) var(--wallpaper-border-opacity,100%),transparent);
 }
-.app-shell .room .workspace::before {content:'';position:absolute;z-index:-1;inset:20px -18px 125px;border-radius:24px;background:rgba(var(--wallpaper-surface),var(--wallpaper-workspace-opacity,.92));}
-.app-shell .room .typing-panel,.app-shell .room .content-panel,.app-shell .room .course-content {background:rgba(var(--wallpaper-surface),var(--wallpaper-panel-opacity,.97));backdrop-filter:blur(var(--wallpaper-panel-blur,0px));border-color:var(--typing-border);}
+.app-shell .room .workspace::before {content:'';position:absolute;z-index:-1;inset:20px -18px 125px;border-radius:24px;background:rgba(var(--wallpaper-surface),var(--wallpaper-workspace-opacity,.76));backdrop-filter:blur(var(--wallpaper-panel-blur,16px));border:1px solid rgba(255,255,255,.55);box-shadow:0 14px 40px rgba(0,0,0,.06);}
+[data-theme='dark'] .app-shell .room .workspace::before {border-color:rgba(255,255,255,.09);box-shadow:0 16px 44px rgba(0,0,0,.38);}
+.app-shell .room .typing-panel,.app-shell .room .content-panel,.app-shell .room .course-content {background:rgba(var(--wallpaper-panel-surface,var(--wallpaper-surface)),var(--wallpaper-panel-opacity,.84));backdrop-filter:blur(var(--wallpaper-panel-blur,16px));border-color:var(--typing-border);}
 .app-shell .course-content .typing-panel {background:transparent;backdrop-filter:none;}
 .app-shell .custom-background {position:fixed;inset:0;}
 .custom-background>img {object-fit:cover;}
@@ -142,8 +143,8 @@
 .wallpaper-load-status {position:fixed;bottom:12px;right:16px;z-index:2;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:8px 12px;border:1px solid var(--typing-border);border-radius:10px;background:var(--typing-input);color:var(--typing-text);font-size:12px;}
 .wallpaper-load-status button {flex-shrink:0;}
 .background-preview[data-theme='dark'] .background-preview-sample {color:#f5f5f7;}
-.room-default-background {position:fixed;inset:0;z-index:0;pointer-events:none;background:linear-gradient(rgba(255,255,255,.16),rgba(255,255,255,.16)),url('/assets/lake-default.webp') center/cover no-repeat;}
-[data-theme='dark'] .room-default-background {background-image:linear-gradient(rgba(18,18,20,.48),rgba(18,18,20,.48)),url('/assets/lake-default.webp');}
+.room-default-background {position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 75% 55% at 52% 18%, rgba(255,255,255,.72), transparent 68%),radial-gradient(ellipse 85% 45% at 22% 76%, rgba(255,255,255,.58), transparent 66%),linear-gradient(145deg, #d7d8df 0%, #eaebef 48%, #d2d4dc 100%),url('/assets/lake-default.webp') center/cover no-repeat;}
+[data-theme='dark'] .room-default-background {background-image:radial-gradient(ellipse 75% 55% at 52% 18%, rgba(255,255,255,.06), transparent 68%),radial-gradient(ellipse 85% 45% at 22% 76%, rgba(255,255,255,.04), transparent 66%),linear-gradient(145deg, #111114 0%, #1d1d22 50%, #121216 100%),url('/assets/lake-default.webp');}
 .app-shell .brand-logo-default {filter:var(--wordmark-alpha);mix-blend-mode:normal;}
 [data-theme='dark'] .app-shell .brand-logo-default {filter:var(--wordmark-alpha) invert(1);mix-blend-mode:normal;}
 
