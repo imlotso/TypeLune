@@ -239,11 +239,11 @@
   background: var(--typing-input);
 }
 .guest-nickname-input:focus-within {
-  outline: 2px solid #aa97df;
+  outline: 2px solid #0071e3;
   outline-offset: 2px;
 }
 .guest-nickname-input.is-invalid {
-  border-color: #c26d81;
+  border-color: #d70015;
 }
 .guest-nickname-prefix {
   display: flex;
@@ -252,7 +252,7 @@
   padding: 0 11px;
   background: color-mix(
     in srgb,
-    var(--typing-accent, #a28ed1) 12%,
+    var(--typing-accent, #0071e3) 12%,
     transparent
   );
   border-right: 1px solid var(--typing-border);

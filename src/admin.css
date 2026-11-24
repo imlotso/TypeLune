@@ -1,7 +1,7 @@
 .administration-app {
   min-height: 100svh;
   color: var(--typing-text);
-  background: linear-gradient(135deg, #f0f5fc, #f5f1fa);
+  background: linear-gradient(180deg, #f5f5f7, #ffffff);
 }
 .administration-header {
   display: flex;
@@ -15,7 +15,7 @@
 }
 .administration-brand { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 800; white-space: nowrap; }
 .administration-brand .brand-logo { width: 145px; height: 40px; }
-.administration-badge { margin-left: 4px; border-radius: 7px; padding: 4px 9px; color: #6b579c; background: #eee8f8; font-size: 12px; font-weight: 600; }
+.administration-badge { margin-left: 4px; border-radius: 7px; padding: 4px 9px; color: #1d1d1f; background: #e8e8ed; font-size: 12px; font-weight: 600; }
 .administration-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
 .administration-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; font-size: 14px; }
 .administration-theme { border: 0; border-radius: 10px; padding: 8px 12px; background: transparent; color: var(--typing-text); }
@@ -24,9 +24,9 @@
 .administration-content { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 28px 0 48px; }
 .administration-content > .admin-console { margin-top: 0; }
 .administration-content > .form-error { margin-bottom: 14px; }
-[data-theme='dark'] .administration-app { background: linear-gradient(135deg, #171e30, #211e34); }
-[data-theme='dark'] .administration-header { background: #20263a; }
-[data-theme='dark'] .administration-badge { color: #ded1ff; background: #39334f; }
+[data-theme='dark'] .administration-app { background: linear-gradient(180deg, #141416, #1c1c1e); }
+[data-theme='dark'] .administration-header { background: #1c1c1e; }
+[data-theme='dark'] .administration-badge { color: #f5f5f7; background: #2c2c2e; }
 @media (max-width: 700px) {
   .administration-header { flex-wrap: wrap; padding: 14px 16px; gap: 12px; }
   .administration-actions { width: 100%; justify-content: flex-start; gap: 6px; }
