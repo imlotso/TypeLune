@@ -6,7 +6,7 @@ async function appearance(page:import('@playwright/test').Page){await page.getBy
 async function alpha(page:import('@playwright/test').Page,selector:string,pseudo?:string){return page.locator(selector).first().evaluate((element,pseudo)=>{const c=getComputedStyle(element,pseudo).backgroundColor;const canvas=document.createElement('canvas');canvas.width=canvas.height=1;const ctx=canvas.getContext('2d')!;ctx.fillStyle=c;ctx.fillRect(0,0,1,1);return ctx.getImageData(0,0,1,1).data[3]/255;},pseudo);}
 test('page controls affect real panel, row, input and navigation paints; reset and cancelled previews preserve the wallpaper',async({page})=>{
  let global=background();const external:string[]=[];
- await page.route('https://*.wallhaven.cc/**',route=>{external.push(route.request.url());return route.abort();});
+ await page.route('https://*.wallhaven.cc/**',route=>{external.push(route.request().url());return route.abort();});
  await page.route('**/api/site/wallpaper?*',route=>route.fulfill({json:{enabled:true,background:global,serverTime:Date.now()}}));
  await page.route('**/api/wallpapers/image/**',route=>route.fulfill({path:'public/assets/lake-default.webp',contentType:'image/webp'}));
  await page.setViewportSize({width:1440,height:1000});await page.goto('/');await expect(page.getByTestId('custom-background-image')).toBeVisible();await page.getByRole('textbox',{name:'当前行输入'}).fill('我与父亲');
