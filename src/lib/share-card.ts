@@ -55,7 +55,7 @@ export function drawShareCard(canvas: HTMLCanvasElement, data: ShareCardData, op
   if (!ctx) throw new Error('无法生成图片');
   const dark = options.theme === 'dark';
   const color = dark ? { top: '#141416', bottom: '#242426', panel: '#1c1c1e', ink: '#f5f5f7', muted: '#98989d', accent: '#0a84ff', cloud: 'rgba(255,255,255,.06)', border: '#3a3a3c' }
-    : { top: '#f5f5f7', bottom: '#e8e8ed', panel: '#ffffff', ink: '#1d1d1f', muted: '#6e6e73', accent: '#0071e3', cloud: 'rgba(255,255,255,.78)', border: '#d2d2d7' };
+    : { top: '#c4c7ce', bottom: '#d4d7dd', panel: '#eaecf0', ink: '#1d1d1f', muted: '#52565f', accent: '#0066cc', cloud: 'rgba(255,255,255,.34)', border: '#b9bec8' };
   const gradient = ctx.createLinearGradient(0, 0, 1200, 630); gradient.addColorStop(0, color.top); gradient.addColorStop(1, color.bottom);
   ctx.fillStyle = gradient; ctx.fillRect(0, 0, 1200, 630);
   cloud(ctx, 30, 62, 2.1, color.cloud); cloud(ctx, 962, 444, 2.3, color.cloud); cloud(ctx, 970, 50, 1.3, color.cloud);

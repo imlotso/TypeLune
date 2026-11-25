@@ -1,7 +1,7 @@
 .administration-app {
   min-height: 100svh;
   color: var(--typing-text);
-  background: linear-gradient(180deg, #f5f5f7, #ffffff);
+  background: linear-gradient(180deg, #cfd2d8, #dfe2e7);
 }
 .administration-header {
   display: flex;
@@ -11,11 +11,11 @@
   min-height: 80px;
   padding: 16px max(24px, calc((100% - 1180px) / 2));
   border-bottom: 1px solid var(--typing-border);
-  background: rgba(255, 255, 255, .92);
+  background: rgba(214, 217, 223, .88);
 }
 .administration-brand { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 800; white-space: nowrap; }
 .administration-brand .brand-logo { width: 145px; height: 40px; }
-.administration-badge { margin-left: 4px; border-radius: 7px; padding: 4px 9px; color: #1d1d1f; background: #e8e8ed; font-size: 12px; font-weight: 600; }
+.administration-badge { margin-left: 4px; border-radius: 7px; padding: 4px 9px; color: #1d1d1f; background: #c3c7d0; font-size: 12px; font-weight: 600; }
 .administration-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
 .administration-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; font-size: 14px; }
 .administration-theme { border: 0; border-radius: 10px; padding: 8px 12px; background: transparent; color: var(--typing-text); }

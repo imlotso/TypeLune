@@ -6,7 +6,7 @@
   justify-content: center;
   gap: 10px;
   padding: 24px;
-  background: linear-gradient(180deg, #f5f5f7, #ffffff);
+  background: linear-gradient(180deg, #cfd2d8, #dfe2e7);
   color: var(--typing-text);
   font-size: 14px;
 }
