@@ -10,6 +10,8 @@ import { ScoresPanel } from './admin/ScoresPanel';
 import { UsersPanel } from './admin/UsersPanel';
 import { SmtpPanel } from './admin/SmtpPanel';
 import { SiteSettingsPanel } from './admin/SiteSettingsPanel';
+import { AppearanceSettingsPanel } from './admin/AppearanceSettingsPanel';
+import { FooterSettingsPanel } from './admin/FooterSettingsPanel';
 import { FeedbackPanel } from './admin/FeedbackPanel';
 import { OverviewPanel } from './admin/OverviewPanel';
 import {
@@ -19,7 +21,7 @@ import {
 import '../admin.css';
 
 const tabs = [
-  ['overview', '概览'], ['users', '用户'], ['articles', '文章'], ['scores', '成绩'], ['feedback', '反馈'], ['settings', '站点设置'], ['nicknames','昵称过滤'], ['seo', 'SEO'], ['support', '捐赠设置'], ['mail', '邮件'], ['audit', '操作日志'],
+  ['overview', '概览'], ['users', '用户'], ['articles', '文章'], ['scores', '成绩'], ['feedback', '反馈'], ['settings', '站点设置'], ['appearance', '外观主题'], ['footer', '页脚与页面'], ['nicknames','昵称过滤'], ['seo', 'SEO'], ['support', '捐赠设置'], ['mail', '邮件'], ['audit', '操作日志'],
 ] as const;
 function AuditPanel({ ownerId }: AdminProps) {
   const { at } = useAdminText();
@@ -54,6 +56,8 @@ export function AdminConsole({ ownerId, onCatalogChange }: AdminProps & { onCata
       {tab === 'nicknames' && <NicknamePolicyPanel ownerId={ownerId}/>}
       {tab === 'seo' && <SeoSettingsPanel ownerId={ownerId} />}
       {tab === 'settings' && <SiteSettingsPanel ownerId={ownerId} />}
+      {tab === 'appearance' && <AppearanceSettingsPanel ownerId={ownerId} />}
+      {tab === 'footer' && <FooterSettingsPanel ownerId={ownerId} />}
       {tab === 'support' && <SupportSettingsPanel ownerId={ownerId} />}
       {tab === 'mail' && <SmtpPanel ownerId={ownerId} />}
       {tab === 'audit' && <AuditPanel ownerId={ownerId} />}

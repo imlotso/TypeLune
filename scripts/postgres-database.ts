@@ -13,7 +13,7 @@ import { wallpaperSchema } from '../server/wallpaper-schema';
 import { dashboardVisitsSchema } from '../server/dashboard-visits';
 import { registrationPolicySchema } from '../server/registration-policy';
 
-const actions = ['migrate', 'import', 'export', 'seed', 'bootstrap', 'support', 'seo', 'wallpaper', 'nickname-policy', 'dashboard', 'registration-policy', 'repair-punctuation'];
+const actions = ['migrate', 'import', 'export', 'seed', 'bootstrap', 'support', 'seo', 'footer', 'appearance', 'wallpaper', 'nickname-policy', 'dashboard', 'registration-policy', 'repair-punctuation'];
 const actionError = `Use ${actions.slice(0, -1).join(', ')} or ${actions.at(-1)}`;
 
 async function readPassword() {
@@ -50,19 +50,19 @@ async function main() {
     if (action === 'migrate') {
       await migratePostgres(client, { database, schema });
       console.log('PostgreSQL schema is ready.');
-    } else if (action === 'support' || action === 'seo' || action === 'wallpaper' || action === 'nickname-policy' || action === 'dashboard' || action === 'registration-policy') {
+    } else if (action === 'support' || action === 'seo' || action === 'footer' || action === 'appearance' || action === 'wallpaper' || action === 'nickname-policy' || action === 'dashboard' || action === 'registration-policy') {
       await client.query('BEGIN');
       try {
         await assertPostgresTarget(client, { database, schema });
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))', ['dazi.schema.migration', schema]);
         const schemaSql = action === 'registration-policy' ? registrationPolicySchema : action === 'dashboard' ? dashboardVisitsSchema
           : action === 'nickname-policy' ? nicknamePolicySchema : action === 'wallpaper' ? wallpaperSchema
-          : readFileSync(new URL(action === 'seo' ? '../server/postgres/seo-settings.sql' : '../server/postgres/support-settings.sql', import.meta.url), 'utf8');
+          : readFileSync(new URL(action === 'seo' ? '../server/postgres/seo-settings.sql' : action === 'footer' ? '../server/postgres/footer-settings.sql' : action === 'appearance' ? '../server/postgres/appearance-settings.sql' : '../server/postgres/support-settings.sql', import.meta.url), 'utf8');
         await client.query(schemaSql);
         if (action === 'wallpaper' && process.env.TYPELUNE_ENABLE_SITE_WALLPAPER === 'true') await client.query('INSERT INTO wallpaper_settings(id,settings,revision) VALUES(1,$1,1) ON CONFLICT(id) DO NOTHING', [JSON.stringify({ enabled: true, styles: ['nature'] })]);
         if(action==='nickname-policy')await client.query('INSERT INTO nickname_policy(id,settings,revision) VALUES(1,$1,1) ON CONFLICT(id) DO NOTHING',[JSON.stringify(defaultNicknamePolicy)]);
         await client.query('COMMIT');
-        console.log(`${{ dashboard: 'Dashboard visits', 'nickname-policy': 'Nickname policy', 'registration-policy': 'Registration email rules', seo: 'SEO settings', wallpaper: 'Wallpaper', support: 'Support settings' }[action]} extension is ready.`);
+        console.log(`${{ dashboard: 'Dashboard visits', 'nickname-policy': 'Nickname policy', 'registration-policy': 'Registration email rules', seo: 'SEO settings', footer: 'Footer settings', appearance: 'Appearance settings', wallpaper: 'Wallpaper', support: 'Support settings' }[action]} extension is ready.`);
       } catch (error) { await client.query('ROLLBACK'); throw error; }
     } else if (action === 'import') {
       const { counts } = await importSqlite(client, source, { database, schema });

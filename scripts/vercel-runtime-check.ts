@@ -21,10 +21,11 @@ async function main() {
     if (env.VERCEL_ENV !== 'preview' || env.TYPELUNE_INIT_PREVIEW !== schema || !/^typelune_preview_[a-z0-9_]+$/.test(schema)) throw new Error('Preview initialization requires an explicitly selected isolated preview schema');
     const client = new pg.Client({ connectionString: env.DATABASE_URL });
     try { await client.connect(); await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`); } finally { await client.end(); }
-    for (const action of ['migrate', 'support', 'seo', 'wallpaper', 'nickname-policy', 'dashboard', 'registration-policy', 'seed']) runOperator(action);
+    for (const action of ['migrate', 'support', 'seo', 'footer', 'appearance', 'wallpaper', 'nickname-policy', 'dashboard', 'registration-policy', 'seed']) runOperator(action);
   }
   const database = new PostgresDatabase(env.DATABASE_URL, schema);
   try { await database.verifySchema(); } finally { await database.close(); }
+  for (const action of ['footer', 'appearance']) runOperator(action);
   if (env.TYPELUNE_INSTALL_SEO) {
     if (!['preview', 'production'].includes(env.TYPELUNE_INSTALL_SEO) || env.TYPELUNE_INSTALL_SEO !== env.VERCEL_ENV) throw new Error('SEO installation environment does not match the deployment');
     runOperator('seo');

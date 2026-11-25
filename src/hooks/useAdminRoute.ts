@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAdminNavigation } from '../components/AdminNavigationGuard';
 
-export const adminTabs = ['overview', 'users', 'articles', 'scores', 'feedback', 'settings', 'nicknames', 'seo', 'support', 'mail', 'audit'] as const;
+export const adminTabs = ['overview', 'users', 'articles', 'scores', 'feedback', 'settings', 'appearance', 'footer', 'nicknames', 'seo', 'support', 'mail', 'audit'] as const;
 export type AdminTab = typeof adminTabs[number];
 export function readAdminTab(search = window.location.search): AdminTab {
   const value = new URLSearchParams(search).get('tab');

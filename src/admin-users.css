@@ -67,18 +67,18 @@
 }
 
 .admin-account-badges .is-admin { background: var(--typing-active); }
-.admin-account-badges .is-active { color: #286045; border-color: #bedacb; background: #edf7f1; }
-.admin-account-badges .is-disabled { color: #903747; border-color: #edcbd2; background: #fff0f3; }
-[data-theme='dark'] .admin-account-badges .is-active { color: #a8e2c4; border-color: #3d6b59; background: #253c36; }
-[data-theme='dark'] .admin-account-badges .is-disabled { color: #ffc0c9; border-color: #795461; background: #492e3c; }
+.admin-account-badges .is-active { color: #1b6e35; border-color: #b7e4c7; background: #edf8f1; }
+.admin-account-badges .is-disabled { color: #c41e3a; border-color: #f5c2c7; background: #fff2f4; }
+[data-theme='dark'] .admin-account-badges .is-active { color: #63e68c; border-color: #2c5e3f; background: #1d3526; }
+[data-theme='dark'] .admin-account-badges .is-disabled { color: #ff8a93; border-color: #73343c; background: #3d2125; }
 
 .admin-account-time { display: grid; gap: 2px; font-size: 12px; }
 .admin-account-time > span { font-size: 11px; }
 .admin-account-row > button { justify-self: end; }
-.admin-user-detail-actions .admin-user-delete { display: inline-flex; align-items: center; gap: 5px; color: #903747; border-color: #d99aa7; }
-[data-theme='dark'] .admin-user-detail-actions .admin-user-delete { color: #ffc0c9; border-color: #9f6070; }
-.feature-form .admin-user-confirm-delete { color: #fff; background: #a63449; }
-.feature-form .admin-user-confirm-delete:not(:disabled):hover { background: #8d2b3d; }
+.admin-user-detail-actions .admin-user-delete { display: inline-flex; align-items: center; gap: 5px; color: #c41e3a; border-color: #e6a3ad; }
+[data-theme='dark'] .admin-user-detail-actions .admin-user-delete { color: #ff8a93; border-color: #8f414b; }
+.feature-form .admin-user-confirm-delete { color: #ffffff; background: #d70015; }
+.feature-form .admin-user-confirm-delete:not(:disabled):hover { background: #b80012; }
 
 .admin-registration-policy-help { margin: 0; font-size: 13px; }
 .admin-registration-fields {

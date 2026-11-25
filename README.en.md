@@ -38,21 +38,20 @@ Administrators sign in through the shared website login or `/admin`. Set `ADMIN_
 | Overview | Accounts, practice, article and score counts, traffic trends, and geographic summaries. Traffic is aggregated daily. Country and region breakdowns depend on the location information supplied by the hosting platform. |
 | Users | Search, filter, suspend or delete ordinary accounts, revoke sessions, and manage roles. Configure a registration domain allowlist, a domain blocklist, and a blocklist for individual email addresses. |
 | Content and moderation | Draft, publish, archive, and delete public articles. Review or unpublish individual or batch scores. Handle feedback screenshots, public replies, private notes, and audit logs. |
-| Site settings and appearance | Registration, guest practice, leaderboards and review policy, nickname wordlists, SMTP setup and connection testing, the shared wallpaper, and the optional support entry. |
+| Site settings and appearance | Registration, guest practice, leaderboards and review policy, site-wide default light/dark palette and transparency settings (with one-click reset), editable five footer buttons, Markdown page editor and extra footer links, nickname wordlists, SMTP setup and connection testing, the shared wallpaper, and the optional support entry. |
 | SEO | Edit page titles and descriptions by language with a live search preview. Set the canonical site address, indexing rules, robots, sitemap, and sharing images. |
 
-Registration, email verification codes, and password resets require working SMTP. The server keeps codes out of logs, and isolated tests use an in-memory mailbox. On PostgreSQL, follow the deployment guides to explicitly install extensions such as SEO, wallpapers, dashboard statistics, registration policy, nickname wordlists, and support settings.
+Registration, email verification codes, and password resets require working SMTP. The server keeps codes out of logs, and isolated tests use an in-memory mailbox. On PostgreSQL, follow the deployment guides to install extensions such as SEO, wallpapers, dashboard statistics, registration policy, nickname wordlists, footer/appearance settings, and support settings.
 
 ## Deployment options
 
-The frontend uses React, Vite, and TypeScript. The Fastify API supports SQLite and PostgreSQL. The public production site uses Vercel with Neon.
+The frontend uses React, Vite, and TypeScript. The Fastify API uses PostgreSQL for persistence. The public production site uses Vercel with Neon.
 
 | Option | Service and persistence | Configuration |
 | --- | --- | --- |
 | Vercel + PostgreSQL / Neon | Vercel Node.js 22 Functions serve the full API with a separate PostgreSQL database. | [Vercel and Neon guide](docs/vercel-neon.md) · [Vercel config](vercel.json) |
 | Docker Compose + PostgreSQL 18 | Self-host the full app with Caddy for HTTPS and a persistent PostgreSQL volume. | [Initialization, upgrades, backup, and restore](docs/docker-postgres.md) · [Compose config](compose.postgres.yaml) |
-| Docker Compose + SQLite | Self-host the full app with Caddy for HTTPS and SQLite in the `typing_data` volume. | [Compose config](compose.yaml) |
-| Standalone Node server | Fastify serves the built site and API on the same origin. Use `DATABASE_PATH` for SQLite or `DATABASE_URL` for an initialized PostgreSQL database. | [Node entry point](server/index.ts) · [Example configuration](.env.example) |
+| Standalone Node server | Fastify serves the built site and API on the same origin. Connect to an initialized PostgreSQL database via `DATABASE_URL`. | [Node entry point](server/index.ts) · [Example configuration](.env.example) |
 | Sites Worker / static hosting | Serves static pages, local practice, and local records. Accounts, cloud sync, online leaderboards, administration, and the shared wallpaper require a separately connected same-origin API. | [Worker entry point](worker/index.js) · [Sites packaging script](scripts/prepare-sites-build.mjs) |
 
 ### Before deploying
@@ -64,39 +63,19 @@ The frontend uses React, Vite, and TypeScript. The Fastify API supports SQLite a
 
 [Deployment security checklist](docs/deployment-security-checklist.md) · [HTTP protocols and troubleshooting](docs/vercel-neon.md#http-协议与排查)
 
-### Docker Compose quick reference (SQLite)
+### Docker Compose quick reference (PostgreSQL)
 
-For a new installation, copy the example configuration. Set `SITE_DOMAIN` and an independently generated `CODE_SECRET`, and configure SMTP and the administrator email as needed. Caddy can obtain HTTPS certificates when the domain points to your server and ports 80 and 443 are reachable.
+For a new installation, copy the example configuration. Set `SITE_DOMAIN`, PostgreSQL credentials, and an independently generated `CODE_SECRET`, and configure SMTP and the administrator email as needed. Caddy can obtain HTTPS certificates when the domain points to your server and ports 80 and 443 are reachable. Follow the [PostgreSQL deployment guide](docs/docker-postgres.md) for schema initialization, extensions, administrator bootstrap, and `pg_dump` backup and restore.
 
 ```bash
 cp .env.example .env
-docker compose config --quiet
-docker compose up -d --build
-```
-
-The default `compose.yaml` uses SQLite. Follow the separate guide to initialize PostgreSQL with `-f compose.postgres.yaml`. For online SQLite backups, use the application's backup script.
-
-```bash
-docker compose exec app node scripts/backup.mjs /app/data/backup.sqlite
-docker compose cp app:/app/data/backup.sqlite ./backup.sqlite
-```
-
-Before restoring, back up the current database separately and verify the restore file. Stop the app before replacing the database, check file permissions, and remove the old WAL and SHM files before restarting. Keep the data volume during routine upgrades. For PostgreSQL, use the database tools in the corresponding deployment guide.
-
-For a new SQLite installation without SMTP, start the service, then use the Bash commands below to create the first administrator. Replace the example email and enter a password of 10–128 characters. The script refuses to overwrite an account or create a second administrator.
-
-```bash
-read -rsp 'Administrator password: ' typelune_admin_password
-printf '\n'
-printf '%s\n' "$typelune_admin_password" | docker compose exec -T \
-  -e ADMIN_USERNAME=typelune_admin -e ADMIN_EMAIL=admin@example.com \
-  app node scripts/bootstrap-admin.mjs
-unset typelune_admin_password
+docker compose -f compose.postgres.yaml config --quiet
+docker compose -f compose.postgres.yaml up -d --build
 ```
 
 ## Local development and tests
 
-Use Node.js 22.13+ and npm for local development. The Docker app image uses Node.js 26. Start the API first with its default local SQLite database, then run Vite in a second terminal.
+Use Node.js 22.13+ and npm for local development. The Docker app image uses Node.js 26. Configure `DATABASE_URL` for PostgreSQL and start the API first, then run Vite in a second terminal.
 
 ```bash
 git clone https://github.com/imlotso/TypeLune.git
@@ -121,7 +100,7 @@ npx playwright install --with-deps --only-shell chromium
 npm run test:e2e
 ```
 
-[GitHub CI](.github/workflows/ci.yml) covers pull requests and `main`. It runs type checks, unit and integration tests, the production build, Sites packaging checks, Chromium tests with SQLite and isolated PostgreSQL, Node 22 function checks, and Docker smoke tests for persistence and SQLite backup and restore. PostgreSQL browser tests require a disposable loopback database. Playwright composition coverage can be supplemented by [native Linux IME verification](docs/qa/2026-11-15-system-ime.md).
+[GitHub CI](.github/workflows/ci.yml) covers pull requests and `main`. It runs type checks, unit and integration tests, the production build, Sites packaging checks, Chromium end-to-end tests with isolated PostgreSQL, Node 22 function checks, and Docker smoke tests. PostgreSQL browser tests require a disposable loopback database. Playwright composition coverage can be supplemented by [native Linux IME verification](docs/qa/2026-11-15-system-ime.md).
 
 ## License and documentation
 

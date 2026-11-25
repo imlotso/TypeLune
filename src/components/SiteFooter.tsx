@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import type { MainView } from '../lib/routes';
+import { isSafeFooterUrl, type FooterSettings } from '../lib/footer-settings';
+import { useSiteFooter } from '../hooks/useSiteFooter';
 import { Dialog } from './Dialog';
 import '../support.css';
 
@@ -11,8 +13,10 @@ const validCode = (value: unknown): value is Code => !!value && typeof value ===
 function parseSupport(value: Support): Support {
   return { enabled: value.enabled === true, alipay: validCode(value.alipay) ? value.alipay : undefined, wechat: validCode(value.wechat) ? value.wechat : undefined };
 }
-export function SiteFooter({ ready, onNavigate }: { ready: boolean; onNavigate: (view: MainView) => void }) {
-  const { t } = useI18n();
+export function SiteFooter({ ready, onNavigate, footerSettings }: { ready: boolean; onNavigate: (view: MainView) => void; footerSettings?: FooterSettings }) {
+  const { t, locale } = useI18n();
+  const loadedFooter = useSiteFooter();
+  const footer = footerSettings ?? loadedFooter;
   const [support, setSupport] = useState<Support>();
   const [open, setOpen] = useState(false);
   const [enlarged, setEnlarged] = useState<'alipay' | 'wechat' | null>(null);
@@ -38,13 +42,42 @@ export function SiteFooter({ ready, onNavigate }: { ready: boolean; onNavigate: 
   };
   useEffect(() => { load(); return () => request.current?.abort(); }, []);
   const available = support?.enabled && !!(support.alipay || support.wechat);
-  const links: [MainView, string][] = [['help', t('使用帮助', 'Help')], ['feedback', t('功能反馈', 'Feedback')], ['privacy', t('隐私政策', 'Privacy')], ['terms', t('服务条款', 'Terms')], ['about', t('关于与联系', 'About & contact')]];
+  const visibleButtons = footer.buttons.filter((item) => item.enabled);
+  const visibleExtras = footer.extraLinks.filter((item) => item.enabled && isSafeFooterUrl(item.url));
+  const showAttribution = footer.attribution.enabled && (footer.attribution.prefix || footer.attribution.label);
+  const showBottomRow = showAttribution || visibleExtras.length > 0;
   return <>
     <footer className="site-footer">
-      <nav className="footer-links" aria-label={t('页脚导航', 'Footer navigation')}>{links.map(([page, label]) => <button key={page} className="text-button" disabled={!ready} onClick={() => onNavigate(page)}>{label}</button>)}
-        {available && <button className="text-button support-button" onClick={() => { setEnlarged(null); setOpen(true); load(); }}>{t('支持 TypeLune', 'Support TypeLune')}</button>}
-      </nav>
-      <span className="site-attribution">Powered by <a href="https://www.sitetalk.net" target="_blank" rel="noopener noreferrer">SiteTalk</a></span>
+      <div className="site-footer-pill">
+        {(visibleButtons.length > 0 || available) && <nav className="footer-links" aria-label={t('页脚导航', 'Footer navigation')}>
+          {visibleButtons.map((item) => {
+            const label = locale === 'en' ? (item.labelEn || item.labelZh) : (item.labelZh || item.labelEn);
+            if (item.mode === 'link' && isSafeFooterUrl(item.url)) {
+              return <a key={item.id} className="text-button footer-link-anchor" href={item.url} target={item.openInNewTab ? '_blank' : undefined} rel={item.openInNewTab ? 'noopener noreferrer' : undefined}>{label}</a>;
+            }
+            return <button key={item.id} className="text-button" disabled={!ready} onClick={() => onNavigate(item.id)}>{label}</button>;
+          })}
+          {available && <button className="text-button support-button" onClick={() => { setEnlarged(null); setOpen(true); load(); }}>{t('支持 TypeLune', 'Support TypeLune')}</button>}
+        </nav>}
+        {showBottomRow && <div className="site-attribution">
+          {showAttribution && <span className="site-attribution-brand">
+            {footer.attribution.prefix ? `${footer.attribution.prefix} ` : ''}
+            {footer.attribution.label ? (
+              isSafeFooterUrl(footer.attribution.url)
+                ? <a href={footer.attribution.url} target="_blank" rel="noopener noreferrer">{footer.attribution.label}</a>
+                : <span>{footer.attribution.label}</span>
+            ) : null}
+          </span>}
+          {visibleExtras.map((extra, index) => {
+            const label = locale === 'en' ? (extra.labelEn || extra.labelZh) : (extra.labelZh || extra.labelEn);
+            const needSep = showAttribution || index > 0;
+            return <Fragment key={extra.id}>
+              {needSep && <span className="footer-sep" aria-hidden="true">·</span>}
+              <a href={extra.url} target={extra.openInNewTab ? '_blank' : undefined} rel={extra.openInNewTab ? 'noopener noreferrer' : undefined}>{label}</a>
+            </Fragment>;
+          })}
+        </div>}
+      </div>
     </footer>
     {open && <Dialog title={t('支持 TypeLune', 'Support TypeLune')} onClose={() => setOpen(false)} className="support-dialog">
       {loading ? <p role="status">{t('正在读取收款码…', 'Loading payment codes…')}</p> : error ? <div><p role="alert" className="form-error">{t('收款码暂时无法读取', 'Payment codes are unavailable')}</p><button className="outline-button" onClick={load}>{t('重试', 'Retry')}</button></div> : !available ? <p role="status">{t('收款码尚未配置', 'No payment codes are configured')}</p> : <>

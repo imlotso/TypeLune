@@ -62,8 +62,8 @@ a.rank-player:hover {color:var(--typing-accent);text-decoration:underline;}
 }
 @media(max-width:600px){.profile-stats,.profile-wallpapers{grid-template-columns:1fr;}.ranking-simple-filters{gap:12px;}.ranking-simple-filters>div{flex-wrap:wrap;}.ranking-table th,.ranking-table td{padding:12px 8px;}.rankings .feature-segments button{padding:8px 12px;}.ranking-table .rank-speed{font-size:18px;}.rank-player{gap:6px;}.rank-player .account-avatar-image{width:24px;height:24px;}}
 
-.room,[data-theme='dark'] .room {background-image:linear-gradient(#a9b9e633,#a9b9e633),url('/assets/lake-default.webp');background-size:cover;background-position:center;background-attachment:fixed;}
-[data-theme='dark'] .room {background-image:linear-gradient(#151b3d88,#151b3d88),url('/assets/lake-default.webp');}
+.room,[data-theme='dark'] .room {background-image:radial-gradient(ellipse 72% 52% at 52% 16%, rgba(255,255,255,.22), transparent 68%),radial-gradient(ellipse 80% 44% at 24% 78%, rgba(255,255,255,.16), transparent 66%),linear-gradient(145deg, #bfc3cb 0%, #cdd0d7 50%, #b9bdc6 100%),url('/assets/lake-default.webp');background-size:cover;background-position:center;background-attachment:fixed;}
+[data-theme='dark'] .room {background-image:radial-gradient(ellipse 75% 55% at 52% 18%, rgba(255,255,255,.06), transparent 68%),radial-gradient(ellipse 85% 45% at 22% 76%, rgba(255,255,255,.04), transparent 66%),linear-gradient(145deg, #111114 0%, #1d1d22 50%, #121216 100%),url('/assets/lake-default.webp');}
 .room.room-custom,[data-theme='dark'] .room.room-custom {background-image:none;}
 .wallpaper-credit {position:absolute;bottom:12px;right:20px;font-size:11px;color:var(--typing-muted);text-decoration:none;background:var(--typing-input);padding:4px 8px;border-radius:6px;}
 

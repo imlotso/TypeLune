@@ -1,6 +1,8 @@
 import {X} from '@phosphor-icons/react/X';
 import { SystemMessage } from './SystemMessage';
 import { useI18n, type UiLocale } from '../lib/i18n';
+import { useSiteFooter } from '../hooks/useSiteFooter';
+import { renderMarkdownToHtml } from '../lib/markdown';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { ChatCircleText } from '@phosphor-icons/react/ChatCircleText';
 import { api } from '../lib/api';
@@ -90,6 +92,11 @@ export function FeedbackView({ ownerId, draft, setDraft, onLogin, routeFeedbackI
   onClose?:()=>void;routeFeedbackId?: string; onOpenFeedback?: (id: string) => void; onCloseFeedback?: () => void;
 }) {
   const { t, locale } = useI18n();
+  const footer = useSiteFooter();
+  const feedbackButton = footer.buttons.find((item) => item.id === 'feedback');
+  const feedbackHeading = feedbackButton ? (locale === 'en' ? (feedbackButton.labelEn || 'Feedback') : (feedbackButton.labelZh || '功能反馈')) : t('功能反馈', 'Feedback');
+  const feedbackIntroMd = (locale === 'en' ? (footer.pages.feedback?.en || footer.pages.feedback?.zh) : (footer.pages.feedback?.zh || footer.pages.feedback?.en))?.trim() ?? '';
+  const feedbackIntroHtml = feedbackIntroMd ? renderMarkdownToHtml(feedbackIntroMd) : '';
   const [list, setList] = useState<Page>();
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
@@ -182,7 +189,8 @@ export function FeedbackView({ ownerId, draft, setDraft, onLogin, routeFeedbackI
   }
 
   return <section className="content-panel feature-panel feedback-panel">
-    <div className="content-heading"><h1><ChatCircleText size={25} aria-hidden="true" />{t("功能反馈", "Feedback")}</h1>{onClose&&<button type="button" className="icon-button" aria-label={t('关闭功能反馈','Close feedback')} title={t('关闭','Close')} disabled={busy} onClick={onClose}><X size={22} aria-hidden="true"/></button>}</div>
+    <div className="content-heading"><h1><ChatCircleText size={25} aria-hidden="true" />{feedbackHeading}</h1>{onClose&&<button type="button" className="icon-button" aria-label={t('关闭功能反馈','Close feedback')} title={t('关闭','Close')} disabled={busy} onClick={onClose}><X size={22} aria-hidden="true"/></button>}</div>
+    {!routeFeedbackId && feedbackIntroHtml && <div className="markdown-body feedback-intro" dangerouslySetInnerHTML={{ __html: feedbackIntroHtml }} />}
     {routeFeedbackId && !ownerId ? <div className="feature-form"><p>{t("请先登录", "Please sign in")}</p><button type="button" className="outline-button" onClick={() => onLogin(draft)}>{t("登录", "Sign in")}</button></div> :
       routeFeedbackId && !shownDetail ? <div className="feature-form">{detailLoading || !detailError ? <p role="status">{t("正在读取反馈…", "Loading feedback…")}</p> : <><p className="form-error" role="alert">{detailError}</p><button type="button" className="outline-button" onClick={() => setDetailRetry((value) => value + 1)}>{t("重试", "Retry")}</button></>}<button type="button" className="outline-button" onClick={onCloseFeedback}>{t("返回反馈", "Back to feedback")}</button></div> :
       shownDetail ? <>

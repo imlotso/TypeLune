@@ -38,21 +38,20 @@ TypeLune 是一个支持中文输入法的中英文打字练习网站。可以�
 | 概览 | 账号、练习、文章、成绩、访问趋势与地理汇总。访问统计按日聚合，国家和地区取决于部署平台提供的地理信息。 |
 | 用户 | 搜索、筛选、停用、删除普通账号、撤销会话与管理角色。可配置注册邮箱域名白名单、域名黑名单和单个邮箱黑名单。 |
 | 内容与审核 | 公开文章草稿、发布、归档和删除，成绩单项或批量审核及下架，反馈截图、公开回复、内部备注与操作日志。 |
-| 站点与外观 | 注册、游客练习、排行榜与审核规则，昵称词库，SMTP 配置及连接测试，全站壁纸和可选支持入口。 |
+| 站点与外观 | 注册、游客练习、排行榜与审核规则，全站默认日夜间配色与透明度设置（含一键恢复默认），页脚五个按钮与 Markdown 页面编辑及扩展链接，昵称词库，SMTP 配置及连接测试，全站壁纸和可选支持入口。 |
 | SEO | 按页面和语言编辑标题与描述，实时预览搜索摘要，设置正式网址、索引、robots、Sitemap 以及分享图片。 |
 
-邮件验证码、注册与密码重置需要可用的 SMTP。服务端启动时不会将验证码输出到日志。隔离测试使用内存邮箱。PostgreSQL 上的 SEO、壁纸、概览、注册规则、昵称词库和支持入口等扩展按部署文档显式安装。
+邮件验证码、注册与密码重置需要可用的 SMTP。服务端启动时不会将验证码输出到日志。隔离测试使用内存邮箱。PostgreSQL 上的 SEO、壁纸、概览、注册规则、昵称词库、页脚与外观及支持入口等扩展按部署文档安装。
 
 ## 部署方式
 
-前端使用 React、Vite 和 TypeScript，API 使用 Fastify，持久化支持 SQLite 与 PostgreSQL。生产网站使用 Vercel + Neon。
+前端使用 React、Vite 和 TypeScript，API 使用 Fastify，持久化使用 PostgreSQL。生产网站使用 Vercel + Neon。
 
 | 方式 | 服务范围和存储 | 配置 |
 | --- | --- | --- |
 | Vercel + PostgreSQL / Neon | Vercel Node.js 22 Functions 提供完整 API，数据保存在独立 PostgreSQL 数据库。 | [Vercel + Neon 操作指南](docs/vercel-neon.md) · [Vercel 配置](vercel.json) |
 | Docker Compose + PostgreSQL 18 | 自托管完整应用，Caddy 提供 HTTPS，PostgreSQL 由独立卷持久化。 | [初始化、升级、备份和恢复](docs/docker-postgres.md) · [Compose 配置](compose.postgres.yaml) |
-| Docker Compose + SQLite | 自托管完整应用，Caddy 提供 HTTPS，SQLite 保存在 `typing_data` 卷中。 | [Compose 配置](compose.yaml) |
-| 直接运行 Node 服务 | 构建后由 Fastify 同源提供页面和 API。通过 `DATABASE_PATH` 选用 SQLite，或用 `DATABASE_URL` 连接已准备的 PostgreSQL。 | [Node 入口](server/index.ts) · [配置示例](.env.example) |
+| 直接运行 Node 服务 | 构建后由 Fastify 同源提供页面和 API，通过 `DATABASE_URL` 连接已初始化的 PostgreSQL 数据库。 | [Node 入口](server/index.ts) · [配置示例](.env.example) |
 | Sites Worker / 静态托管 | 提供静态页面、本机练习和本机记录。账号、云端同步、在线排行、后台、共享壁纸等需要额外接入同源 API。 | [Worker 入口](worker/index.js) · [Sites 包装脚本](scripts/prepare-sites-build.mjs) |
 
 ### 部署前准备
@@ -64,39 +63,19 @@ TypeLune 是一个支持中文输入法的中英文打字练习网站。可以�
 
 [部署安全检查清单](docs/deployment-security-checklist.md) · [HTTP 协议与排查](docs/vercel-neon.md#http-协议与排查)
 
-### Docker Compose 速查（SQLite）
+### Docker Compose 速查（PostgreSQL）
 
-在新安装目录中复制配置示例，填入 `SITE_DOMAIN` 和独立生成的 `CODE_SECRET`，按需设置 SMTP 和管理员邮箱。域名指向服务器且 80/443 可访问时，Caddy 可自动签发 HTTPS 证书。
+在新安装目录中复制配置示例，填入 `SITE_DOMAIN`、PostgreSQL 凭据和独立生成的 `CODE_SECRET`，按需设置 SMTP 和管理员邮箱。域名指向服务器且 80/443 可访问时，Caddy 可自动签发 HTTPS 证书。完整的初始化、迁移、扩展表安装、首位管理员创建及 `pg_dump` 备份恢复步骤见 [PostgreSQL 部署指南](docs/docker-postgres.md)。
 
 ```bash
 cp .env.example .env
-docker compose config --quiet
-docker compose up -d --build
-```
-
-默认的 `compose.yaml` 使用 SQLite。PostgreSQL 需要按独立指南用 `-f compose.postgres.yaml` 初始化。SQLite 在线备份使用应用内的备份脚本。
-
-```bash
-docker compose exec app node scripts/backup.mjs /app/data/backup.sqlite
-docker compose cp app:/app/data/backup.sqlite ./backup.sqlite
-```
-
-恢复前保存当前数据库的独立备份并验证恢复文件。停掉应用后再替换数据库，核对文件权限，清理旧的 WAL/SHM 辅助文件后启动。常规升级应保留数据卷。PostgreSQL 备份须用对应指南的数据库工具。
-
-SQLite 新站点尚未配置 SMTP 时，可以先启动服务，再通过下面的 Bash 命令创建首位管理员。将示例邮箱换成自己的邮箱，密码为 10–128 字符。脚本拒绝覆盖已有账号或创建第二位管理员。
-
-```bash
-read -rsp '管理员密码: ' typelune_admin_password
-printf '\n'
-printf '%s\n' "$typelune_admin_password" | docker compose exec -T \
-  -e ADMIN_USERNAME=typelune_admin -e ADMIN_EMAIL=admin@example.com \
-  app node scripts/bootstrap-admin.mjs
-unset typelune_admin_password
+docker compose -f compose.postgres.yaml config --quiet
+docker compose -f compose.postgres.yaml up -d --build
 ```
 
 ## 本地开发与测试
 
-本地使用 Node.js 22.13+ 和 npm。Docker 应用镜像使用 Node.js 26。先启动默认使用本机 SQLite 的 API，再在第二个终端启动 Vite。
+本地使用 Node.js 22.13+ 和 npm。Docker 应用镜像使用 Node.js 26。在环境中配置好 `DATABASE_URL` 连接 PostgreSQL 后启动 API，再在第二个终端启动 Vite。
 
 ```bash
 git clone https://github.com/imlotso/TypeLune.git
@@ -121,7 +100,7 @@ npx playwright install --with-deps --only-shell chromium
 npm run test:e2e
 ```
 
-[GitHub CI](.github/workflows/ci.yml) 对 PR 和 `main` 执行类型检查、单元与集成测试、生产构建、Sites 包装验证、SQLite 与隔离 PostgreSQL 的 Chromium 测试、Node 22 函数验证，以及 Docker 容器持久化和 SQLite 备份恢复冒烟测试。PostgreSQL 浏览器测试仅接受回环地址上的一次性测试库。Playwright 模拟的组合输入验证可配合 [Linux 原生输入法验收](docs/qa/2026-11-15-system-ime.md)。
+[GitHub CI](.github/workflows/ci.yml) 对 PR 和 `main` 执行类型检查、单元与集成测试、生产构建、Sites 包装验证、隔离 PostgreSQL 的 Chromium 端到端测试、Node 22 函数验证与 Docker 容器冒烟测试。PostgreSQL 浏览器测试仅接受回环地址上的一次性测试库。Playwright 模拟的组合输入验证可配合 [Linux 原生输入法验收](docs/qa/2026-11-15-system-ime.md)。
 
 ## 许可与文档
 

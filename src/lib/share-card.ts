@@ -54,8 +54,8 @@ export function drawShareCard(canvas: HTMLCanvasElement, data: ShareCardData, op
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('无法生成图片');
   const dark = options.theme === 'dark';
-  const color = dark ? { top: '#171b3a', bottom: '#35315c', panel: '#252942', ink: '#f1efff', muted: '#cac5e4', accent: '#c5b5ff', cloud: 'rgba(191,182,255,.10)', border: '#68618e' }
-    : { top: '#e8f5ff', bottom: '#ebe5fa', panel: '#fffefe', ink: '#37335e', muted: '#746c8f', accent: '#7560bd', cloud: 'rgba(255,255,255,.62)', border: '#d2c7ec' };
+  const color = dark ? { top: '#141416', bottom: '#242426', panel: '#1c1c1e', ink: '#f5f5f7', muted: '#98989d', accent: '#0a84ff', cloud: 'rgba(255,255,255,.06)', border: '#3a3a3c' }
+    : { top: '#c4c7ce', bottom: '#d4d7dd', panel: '#eaecf0', ink: '#1d1d1f', muted: '#52565f', accent: '#0066cc', cloud: 'rgba(255,255,255,.34)', border: '#b9bec8' };
   const gradient = ctx.createLinearGradient(0, 0, 1200, 630); gradient.addColorStop(0, color.top); gradient.addColorStop(1, color.bottom);
   ctx.fillStyle = gradient; ctx.fillRect(0, 0, 1200, 630);
   cloud(ctx, 30, 62, 2.1, color.cloud); cloud(ctx, 962, 444, 2.3, color.cloud); cloud(ctx, 970, 50, 1.3, color.cloud);
@@ -68,7 +68,7 @@ export function drawShareCard(canvas: HTMLCanvasElement, data: ShareCardData, op
   const title = options.showTitle && data.title ? data.title : t("练习成绩","Practice result");
   ctx.fillText(truncateCanvasText(title, data.personalBest ? 740 : 980, (text) => ctx.measureText(text).width), 108, 185);
   if (data.personalBest) {
-    rounded(ctx, 900, 152, 190, 48, 24); ctx.fillStyle = dark ? '#51447c' : '#eee8fb'; ctx.fill();
+    rounded(ctx, 900, 152, 190, 48, 24); ctx.fillStyle = dark ? '#2c2c2e' : '#e8f2ff'; ctx.fill();
     ctx.fillStyle = color.accent; ctx.font = '700 20px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(t("个人最佳","Personal best"), 995, 176); ctx.textAlign = 'left';
   }
   ctx.fillStyle = color.muted; ctx.font = '600 22px system-ui, sans-serif'; ctx.fillText(data.language === 'zh' ? t("速度 · 字/分","Speed · chars/min") : t("速度 · WPM","Speed · WPM"), 110, 255); ctx.fillText(t("准确率","Accuracy"), 680, 255);
