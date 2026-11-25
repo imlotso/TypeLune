@@ -73,6 +73,7 @@ import { lessonArticle, lessonCopy, lessonForArticle, type Lesson } from './lib/
 import { canDiscardSavedDraft, continuationDraftId, deleteLocalHistory, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, recoveryDraftFromSaved, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useSiteFeatures } from './hooks/useSiteFeatures';
+import { isResultDismissed, markResultDismissed, readAdminPreviewOwner, writeAdminPreviewOwner } from './lib/session-ui-state';
 import { usePublicPageVisit } from './hooks/usePublicPageVisit';
 import { useScoreStatus } from './hooks/useScoreStatus';
 import { shortcutNames, useShortcuts, type ShortcutAction } from './hooks/useShortcuts';
@@ -141,7 +142,8 @@ export function App() {
   const [feedbackResume, setFeedbackResume] = useState<{ ownerId: string; draft: FeedbackDraft }>();
   const [guestOfferOwner, setGuestOfferOwner] = useState<string>();
   const pendingFeedback = useRef<FeedbackDraft | undefined>(undefined);
-  const [previewOwner, setPreviewOwner] = useState<string>();
+  const [previewOwner, setPreviewOwnerState] = useState<string | undefined>(() => (/^\/admin\/?$/.test(window.location.pathname) ? undefined : readAdminPreviewOwner()));
+  const setPreviewOwner = useCallback((next?: string) => { writeAdminPreviewOwner(next); setPreviewOwnerState(next); }, []);
   const request = useRef<AbortController | null>(null);
   const changeUser = useCallback((next: User | null) => {
     request.current?.abort();
@@ -187,7 +189,7 @@ export function App() {
       api<{ user: User | null }>('/api/me', { timeoutMs: 3000, signal: controller.signal }).then(({ user: current }) => {
         if (!controller.signal.aborted) {
           const accepted = current && !isLocalAccountBlocked(current.id) ? current : null;
-          if (!accepted?.isAdmin || !currentUser.current?.isAdmin || accepted.id !== currentUser.current.id) setPreviewOwner(undefined);
+          if (!accepted?.isAdmin) setPreviewOwner(undefined); else if (currentUser.current && currentUser.current.id !== accepted.id) setPreviewOwner(undefined);
           currentUser.current = accepted;
           setUser(accepted);
         }
@@ -484,7 +486,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
   }, [minutes, minutesText, validDuration, workspace.settings.minutes]);
 
   useEffect(() => {
-    if (result) { setRankMessage(result.submitted ? t("已提交，正在确认排行状态。", "Submitted. Checking leaderboard status.") : ''); setRankSubmitted(!!result.submitted); setShowResult(true); }
+    if (result) { setRankMessage(result.submitted ? t("已提交，正在确认排行状态。", "Submitted. Checking leaderboard status.") : ''); setRankSubmitted(!!result.submitted); if (!isResultDismissed(ownerId, result.recordId)) setShowResult(true); }
   }, [result]);
   useEffect(() => {
     if (resultStatus.status && ['pending', 'ranked', 'published', 'rejected', 'removed'].includes(resultStatus.status.state)) {
@@ -1249,8 +1251,8 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
         }}>{confirmPractice.action === 'restart' ? t("确认重新开始", "Restart practice") : t("结束并查看成绩", "Finish and view result")}</button>
       </div>
     </Dialog>}
-    {showResult && result && <Dialog title={t("练习成绩", "Practice result")} className="result-dialog" onClose={() => setShowResult(false)}
-      leadingAction={<button type="button" className="icon-button result-back" aria-label={t("返回练习", "Back to practice")} onClick={() => setShowResult(false)}><ArrowLeft size={22} aria-hidden="true" /></button>}>
+    {showResult && result && <Dialog title={t("练习成绩", "Practice result")} className="result-dialog" onClose={() => { markResultDismissed(ownerId, result.recordId); setShowResult(false); }}
+      leadingAction={<button type="button" className="icon-button result-back" aria-label={t("返回练习", "Back to practice")} onClick={() => { markResultDismissed(ownerId, result.recordId); setShowResult(false); }}><ArrowLeft size={22} aria-hidden="true" /></button>}>
       <ResultLayout key={result.recordId ?? result.elapsedMs} result={result} article={result.record?.article ?? selection} typed={typedCharacters.length} offset={practice.offset}
         status={<>{result.offline ? <>{practice.canRetryOnline ? <><p className="dialog-intro">{t("成绩尚未同步", "Result not yet synced")}</p><p className="score-status">{t("可恢复提交", "Submission can be recovered")}</p></> : <p className="dialog-intro">{!result.custom && result.elapsedMs < 1000 ? t("用时不足 1 秒，不参与排行", "Under 1 second. Not ranked.") : t("个人练习，不参与排行", "Private practice. Not ranked.")}</p>}</> :
         resultStatus.status ? <ScoreStatusView status={resultStatus.status} /> : resultStatus.loading ? <p role="status">{t("正在读取成绩状态…", "Loading result status…")}</p> : <div><p className="form-error" role="alert">{resultStatus.error || t("成绩状态暂不可用", "Result status unavailable")}</p><button type="button" className="text-button" onClick={resultStatus.retry}>{t("重试状态", "Retry status")}</button></div>}</>} comparison={<>{result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? (hasUnloadedLocalHistory() ? 'partial' : 'local') :
