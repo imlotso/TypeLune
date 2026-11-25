@@ -73,7 +73,7 @@ import { lessonArticle, lessonCopy, lessonForArticle, type Lesson } from './lib/
 import { canDiscardSavedDraft, continuationDraftId, deleteLocalHistory, discardSavedDraft, draftAwaitingStart, hasUnloadedLocalHistory, localHistory, practiceDraftId, readDraft, readDrafts, recoveryDraftFromSaved, savedPracticeFromLegacy, usePractice, type PracticeDraft } from './hooks/usePractice';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useSiteFeatures } from './hooks/useSiteFeatures';
-import { isResultDismissed, markResultDismissed, readAdminPreviewOwner, writeAdminPreviewOwner } from './lib/session-ui-state';
+import { clearResultDismissed, isResultDismissed, markResultDismissed, readAdminPreviewOwner, writeAdminPreviewOwner } from './lib/session-ui-state';
 import { usePublicPageVisit } from './hooks/usePublicPageVisit';
 import { useScoreStatus } from './hooks/useScoreStatus';
 import { shortcutNames, useShortcuts, type ShortcutAction } from './hooks/useShortcuts';
@@ -846,7 +846,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
         const available = practice.describeResultRecovery(latest);
         if (!available.available) { setFeedback(available.reason); return; }
       }
-      setShowResult(false); setFeedback(''); setSelection(legacyArticle(latest));
+      clearResultDismissed(ownerId, latest.recordId); setShowResult(false); setFeedback(''); setSelection(legacyArticle(latest));
       setPendingLoad({ legacy: latest }); commitView('practice');
     });
   }
@@ -860,7 +860,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       if (practice.isStoredDraftLeased(latest.recordId)) { setFeedback(t("进度正在其他页面使用", "Progress is in use in another tab")); return; }
       const available = practice.describeResultRecovery(recoveryDraftFromSaved(latest));
       if (!available.available) { setFeedback(available.reason); return; }
-      setShowResult(false); setFeedback(''); setSelection(latest.article);
+      clearResultDismissed(ownerId, latest.recordId); setShowResult(false); setFeedback(''); setSelection(latest.article);
       setPendingLoad({ draft: latest, recoverCompleted: true }); commitView('practice');
     });
   }
