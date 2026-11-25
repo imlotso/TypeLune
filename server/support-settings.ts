@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import type { AsyncDatabase } from './database/types.js';
 import type { AdminActor, createAdminAudit } from './admin.js';
+import { createFooterSettings, registerFooterAdminRoutes, registerFooterPublicRoutes } from './footer-settings.js';
+import { createAppearanceSettings, registerAppearanceAdminRoutes, registerAppearancePublicRoutes } from './appearance-settings.js';
 const maxBytes = 1024 * 1024;
 const image = z.strictObject({ dataUrl: z.string().max(1_400_000) }).nullable();
 const schema = z.strictObject({ enabled: z.boolean(), alipay: image, wechat: image });
@@ -33,6 +35,8 @@ export async function createSupportSettings(db: AsyncDatabase, audit: ReturnType
   if (db.dialect === 'sqlite') await db.exec('CREATE TABLE IF NOT EXISTS support_settings (id INTEGER PRIMARY KEY CHECK(id=1), settings TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0))');
   const available = async () => db.dialect === 'sqlite' || !!(await db.prepare("SELECT to_regclass('support_settings') AS name").get())?.name;
   const select = db.prepare('SELECT settings,revision FROM support_settings WHERE id=1');
+  const footer = await createFooterSettings(db, audit);
+  const appearance = await createAppearanceSettings(db, audit);
   async function read(): Promise<SupportSnapshot> {
     if (!(await available())) return { settings: { ...empty }, revision: 0 };
     const row = await select.get();
@@ -47,7 +51,7 @@ export async function createSupportSettings(db: AsyncDatabase, audit: ReturnType
     await audit(actor, 'settings.support.update', 'setting', 'support', 'Support QR codes', 'Updated support visibility or QR images');
     return { settings, revision: revision + 1 };
   });
-  return { read, available, update: update.immediate };
+  return { read, available, update: update.immediate, footer, appearance };
 }
 export function registerSupportAdminRoutes(app: FastifyInstance, store: Awaited<ReturnType<typeof createSupportSettings>>) {
   app.get('/support', async (_request, reply) => { if (!(await store.available())) return reply.code(503).send({ error: 'Support settings storage has not been installed' }); return store.read(); });
@@ -71,6 +75,8 @@ export function registerSupportAdminRoutes(app: FastifyInstance, store: Awaited<
     if (!saved) return reply.code(409).send({ error: 'Settings changed. Reload before saving.' });
     return saved;
   });
+  registerFooterAdminRoutes(app, store.footer);
+  registerAppearanceAdminRoutes(app, store.appearance);
 }
 export function registerSupportPublicRoutes(app: FastifyInstance, store: Awaited<ReturnType<typeof createSupportSettings>>) {
   app.get('/api/site/support', async (_request, reply) => {
@@ -79,4 +85,6 @@ export function registerSupportPublicRoutes(app: FastifyInstance, store: Awaited
     if (!settings.enabled || (!settings.alipay && !settings.wechat)) return { enabled: false };
     return { enabled: true, ...(settings.alipay ? { alipay: settings.alipay } : {}), ...(settings.wechat ? { wechat: settings.wechat } : {}) };
   });
+  registerFooterPublicRoutes(app, store.footer);
+  registerAppearancePublicRoutes(app, store.appearance);
 }
