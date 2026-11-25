@@ -32,6 +32,8 @@ if (postgresUrl) {
   // Optional production extensions are installed explicitly, including in this
   // uniquely named, loopback-only disposable browser-test schema.
   await setup.query(readFileSync(new URL('../server/postgres/support-settings.sql', import.meta.url), 'utf8'));
+  await setup.query(readFileSync(new URL('../server/postgres/footer-settings.sql', import.meta.url), 'utf8'));
+  await setup.query(readFileSync(new URL('../server/postgres/appearance-settings.sql', import.meta.url), 'utf8'));
   await setup.query(readFileSync(new URL('../server/postgres/seo-settings.sql', import.meta.url), 'utf8'));
   await setup.query(wallpaperSchema);
   await setup.query(nicknamePolicySchema);

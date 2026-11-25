@@ -145,7 +145,7 @@
 .background-preview[data-theme='dark'] .background-preview-sample {color:#f5f5f7;}
 .room-default-background {position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 72% 52% at 52% 16%, rgba(255,255,255,.22), transparent 68%),radial-gradient(ellipse 80% 44% at 24% 78%, rgba(255,255,255,.16), transparent 66%),linear-gradient(145deg, #bfc3cb 0%, #cdd0d7 50%, #b9bdc6 100%),url('/assets/lake-default.webp') center/cover no-repeat;}
 [data-theme='dark'] .room-default-background {background-image:radial-gradient(ellipse 75% 55% at 52% 18%, rgba(255,255,255,.06), transparent 68%),radial-gradient(ellipse 85% 45% at 22% 76%, rgba(255,255,255,.04), transparent 66%),linear-gradient(145deg, #111114 0%, #1d1d22 50%, #121216 100%),url('/assets/lake-default.webp');}
-.app-shell .brand-logo-default {filter:var(--wordmark-alpha);mix-blend-mode:normal;}
+.app-shell .brand-logo-default {filter:var(--wordmark-alpha);mix-blend-mode:normal;clip-path:inset(1px 3px 1px 1px);}
 [data-theme='dark'] .app-shell .brand-logo-default {filter:var(--wordmark-alpha) invert(1);mix-blend-mode:normal;}
 
 .appearance-theme-icons {grid-template-columns:repeat(2,48px);gap:10px;}
