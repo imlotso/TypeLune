@@ -217,12 +217,8 @@ test('administration and its front-site account settings use the same saved pref
   await expect(dialog.getByRole('combobox', { name: 'Interface language', exact: true })).toHaveValue('en');
   await expect(dialog.getByText('Synced', { exact: true })).toBeVisible();
   await page.reload();
-  // Session restoration deliberately reopens the independent admin shell.
-  // Preview is explicit, but the saved interface preference survives both shells.
-  await expect(page.getByRole('main', { name: 'Administration workspace' })).toBeVisible();
-  await page.getByRole('button', { name: 'Preview site', exact: true }).click();
-  await page.getByRole('button', { name: 'ci_admin', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Account settings', exact: true }).click();
+  // Explicit front-site preview persists across reloads in the same tab,
+  // and the saved interface preference survives both shells.
   await expect(dialog.getByRole('combobox', { name: 'Interface language', exact: true })).toHaveValue('en');
   await dialog.getByRole('combobox', { name: 'Interface language', exact: true }).selectOption('zh');
   const chinese = page.getByRole('dialog', { name: '账号设置', exact: true });

@@ -51,3 +51,15 @@ export function markResultDismissed(ownerId: string | null, recordId?: string): 
     // Ignore storage unavailability in restricted browser contexts.
   }
 }
+
+export function clearResultDismissed(ownerId: string | null, recordId?: string): void {
+  if (!recordId) return;
+  try {
+    const key = resultKey(ownerId, recordId);
+    const list = readDismissedList();
+    if (!list.includes(key)) return;
+    localStorage.setItem(dismissedResultsKey, JSON.stringify(list.filter((item) => item !== key)));
+  } catch {
+    // Ignore storage unavailability in restricted browser contexts.
+  }
+}
