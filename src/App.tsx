@@ -3,12 +3,6 @@ import {GuestNicknameField} from './components/GuestNicknameField';
 import {saveSurfaceAppearance} from './lib/workspace';
 import {effectiveSurface,surfaceStyle,type SurfaceAppearance} from './lib/surface-appearance';
 import {saveAccountWallpaper} from './lib/account-wallpaper';
-import { StatsView } from './components/StatsView';
-import { RecordsView } from './components/RecordsView';
-import { MistakesView } from './components/MistakesView';
-import { DraftsView } from './components/DraftsView';
-import { PublicArticleView } from './components/PublicArticleView';
-import { ArticleLibrary } from './components/ArticleLibrary';
 import { PageLoadBoundary } from './components/PageLoadBoundary';
 import { preserveLanguageAddress, updatePageMetadata } from './lib/seo';
 import { CourseLayout } from './components/CourseLayout';
@@ -39,33 +33,18 @@ import { Play } from '@phosphor-icons/react/Play';
 import { Trophy } from '@phosphor-icons/react/Trophy';
 import { BrandLogo } from './components/BrandLogo';
 import { guestNicknamePrefix, validGuestNickname } from './lib/leaderboard';
-import { AccountDialog } from './components/AccountDialog';
 import { AccountMenu } from './components/AccountMenu';
-import { CommandPalette, type Command } from './components/CommandPalette';
-import { BackgroundDialog } from './components/BackgroundDialog';
-import { AppearanceDialog } from './components/AppearanceDialog';
+import type { Command } from './components/CommandPalette';
 import { RoomBackground } from './components/RoomBackground';
-import { AuthDialog } from './components/AuthDialog';
 import { Dialog } from './components/Dialog';
 import { EnglishSpeed } from './components/EnglishSpeed';
 import { ScoreStatusView } from './components/ScoreStatusView';
-import { FeedbackView, newFeedbackDraft, type FeedbackDraft } from './components/FeedbackView';
-import { GuestImportDialog } from './components/GuestImportDialog';
+import { newFeedbackDraft, type FeedbackDraft } from './lib/feedback-draft';
 import { PracticeLines } from './components/PracticeLines';
-import { PersonalDataView } from './components/PersonalDataView';
 import { PersonalBestComparison } from './components/PersonalBestComparison';
 import { PaceIndicator } from './components/PaceIndicator';
-import { PresetsDialog } from './components/PresetsDialog';
-import { SettingsTransferDialog } from './components/SettingsTransferDialog';
-import { ShareCardDialog } from './components/ShareCardDialog';
-import { SpecialTrainingDialog } from './components/SpecialTrainingDialog';
-import { LogoutDialog } from './components/LogoutDialog';
-import { WorkspaceRecoveryDialog } from './components/WorkspaceRecoveryDialog';
 import type { CapacityDestination } from './components/WorkspaceCapacity';
-import { SettingsDialog } from './components/SettingsDialog';
-import { SiteInfoView } from './components/SiteInfoView';
 import { articles, type Difficulty, type Language } from './data/articles';
-import { LessonsView, LessonGuide, LessonResult } from './components/LessonsView';
 import { AssessmentPanel } from './components/AssessmentPanel';
 import { assessmentArticle, isAssessmentArticle, isWeakKeyArticle } from './lib/assessment';
 import { SiteFooter } from './components/SiteFooter';
@@ -108,6 +87,31 @@ const AdminWorkspace = lazy(() => import('./components/AdminWorkspace').then(mod
 
 const PublicProfile = lazy(() => import('./components/PublicProfile').then(module => ({ default: module.PublicProfile })));
 const RankingView = lazy(() => import('./components/RankingView').then(module => ({ default: module.RankingView })));
+const LessonsView = lazy(() => import('./components/LessonsView').then((m) => ({ default: m.LessonsView })));
+const LessonGuide = lazy(() => import('./components/LessonsView').then((m) => ({ default: m.LessonGuide })));
+const LessonResult = lazy(() => import('./components/LessonsView').then((m) => ({ default: m.LessonResult })));
+const ArticleLibrary = lazy(() => import('./components/ArticleLibrary').then((m) => ({ default: m.ArticleLibrary })));
+const RecordsView = lazy(() => import('./components/RecordsView').then((m) => ({ default: m.RecordsView })));
+const StatsView = lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })));
+const MistakesView = lazy(() => import('./components/MistakesView').then((m) => ({ default: m.MistakesView })));
+const DraftsView = lazy(() => import('./components/DraftsView').then((m) => ({ default: m.DraftsView })));
+const PublicArticleView = lazy(() => import('./components/PublicArticleView').then((m) => ({ default: m.PublicArticleView })));
+const FeedbackView = lazy(() => import('./components/FeedbackView').then((m) => ({ default: m.FeedbackView })));
+const PersonalDataView = lazy(() => import('./components/PersonalDataView').then((m) => ({ default: m.PersonalDataView })));
+const SiteInfoView = lazy(() => import('./components/SiteInfoView').then((m) => ({ default: m.SiteInfoView })));
+const AccountDialog = lazy(() => import('./components/AccountDialog').then((m) => ({ default: m.AccountDialog })));
+const AuthDialog = lazy(() => import('./components/AuthDialog').then((m) => ({ default: m.AuthDialog })));
+const SettingsDialog = lazy(() => import('./components/SettingsDialog').then((m) => ({ default: m.SettingsDialog })));
+const AppearanceDialog = lazy(() => import('./components/AppearanceDialog').then((m) => ({ default: m.AppearanceDialog })));
+const BackgroundDialog = lazy(() => import('./components/BackgroundDialog').then((m) => ({ default: m.BackgroundDialog })));
+const ShareCardDialog = lazy(() => import('./components/ShareCardDialog').then((m) => ({ default: m.ShareCardDialog })));
+const SpecialTrainingDialog = lazy(() => import('./components/SpecialTrainingDialog').then((m) => ({ default: m.SpecialTrainingDialog })));
+const PresetsDialog = lazy(() => import('./components/PresetsDialog').then((m) => ({ default: m.PresetsDialog })));
+const SettingsTransferDialog = lazy(() => import('./components/SettingsTransferDialog').then((m) => ({ default: m.SettingsTransferDialog })));
+const CommandPalette = lazy(() => import('./components/CommandPalette').then((m) => ({ default: m.CommandPalette })));
+const LogoutDialog = lazy(() => import('./components/LogoutDialog').then((m) => ({ default: m.LogoutDialog })));
+const WorkspaceRecoveryDialog = lazy(() => import('./components/WorkspaceRecoveryDialog').then((m) => ({ default: m.WorkspaceRecoveryDialog })));
+const GuestImportDialog = lazy(() => import('./components/GuestImportDialog').then((m) => ({ default: m.GuestImportDialog })));
 
 const recordViews: View[] = ['history', 'mistakes', 'stats', 'lessons'];
 const authChangeKey = 'cloudtyping.auth-change.v1';
@@ -1132,10 +1136,9 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       <div className="workspace">
         {!user && pendingCleanup > 0 && <div className="cleanup-warning" role="alert"><span>{t("本机账号缓存清理未完成。", "Local account cleanup is incomplete.")}</span><button className="outline-button" disabled={cleanupBusy} onClick={onRetryCleanup}>{t("重试清理", "Retry cleanup")}</button></div>}
         {user && guestImportOffer && hasGuestData && view !== 'data' && <div className="cleanup-warning" role="status"><span>{t("有游客资料可导入。", "Guest data is available to import.")}</span><button className="outline-button" onClick={() => void afterPark(() => setShowGuestImport(true))}>{t("导入游客资料", "Import guest data")}</button><button className="text-button" onClick={onDismissGuestImport}>{t("稍后", "Later")}</button></div>}
-        {site.error && <div className="cleanup-warning" role="status"><span>{t("站点配置读取失败：", "Could not load site settings:")}{<SystemMessage text={site.error} />}</span><button className="outline-button" onClick={site.retry}>{t("重试", "Retry")}</button></div>}
         {view === 'practice' && <>
           {focused ? <div className="focus-actions"><button ref={focusButton} className="outline-button feature-action-button" onClick={exitFocus}>{t("退出专注", "Exit focus")}</button><button className="outline-button feature-action-button" disabled={!canCommand} onClick={openCommands}>{t("功能面板", "Commands")}</button></div> : selectedTraining ? null : filters}
-          <CourseLayout active={!!selectedLesson} guide={selectedLesson && <LessonGuide lesson={selectedLesson} character={targetCharacters[typedCharacters.length]} onBack={() => navigate('lessons')} />}>
+          <CourseLayout active={!!selectedLesson} guide={selectedLesson && <Suspense fallback={null}><LessonGuide lesson={selectedLesson} character={targetCharacters[typedCharacters.length]} onBack={() => navigate('lessons')} /></Suspense>}>
           {(selectedAssessment || selectedWeakKeys) && <section className="lesson-guide" aria-label={t('训练说明', 'Training guide')}><div className="lesson-guide-top"><button className="text-button" onClick={() => navigate('lessons')}>{t('课程目录', 'Course outline')}</button><span>{displayTitle}</span></div><p>{t('英文全文 · 非严格模式 · 不参与排行', 'Full English text · non-strict · unranked')}</p></section>}
           {(workspace.settings.showTimer !== false || workspace.settings.showAccuracy !== false || workspace.settings.showSpeed !== false) && <div className="status-row">
             {workspace.settings.showTimer !== false && <span><Clock size={23} /> {currentMode === 'article' ? t("用时", "Elapsed") : t("剩余时间", "Remaining")}：<b data-testid="remaining-time">{formatTime(clockMs)}</b></span>}
@@ -1219,6 +1222,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       {customError && <p className="form-error" role="alert">{customError}</p>}
       <div className="result-actions"><span className="custom-count">{splitCharacters(customDraft).length}  {t("/ 20000 字符", "/ 20000 characters")}</span><button className="primary-button" onClick={useCustomText}>{t("使用这段文字", "Use this text")}</button></div>
     </Dialog>}
+    <Suspense fallback={null}>
     {showSpecialTraining && <SpecialTrainingDialog language={language} onClose={() => setShowSpecialTraining(false)} onSelect={(article) => { setShowSpecialTraining(false); selectArticle(article); }} />}
     {(showAuth || adminLogin) && <AuthDialog onClose={() => { setShowAuth(false); onCancelFeedbackHandoff(); setAdminLoginDismissed(true); if (directAdmin && !authCompleted.current) { window.history.replaceState(null, '', '/'); currentPath.current = '/'; } }} onLogin={(next) => { authCompleted.current = true; onUser(next); }} registrationEnabled={site.features?.registrationEnabled} />}
     {view === 'account' && user && <AccountDialog user={user} onClose={() => navigate(accountReturn.current)} onUpdate={onUpdateUser} onSignedOut={onAccountReauthentication} onDelete={deleteAccount} onGuardChange={setAccountGuard} />}
@@ -1238,6 +1242,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       if(ownerId)await saveAccountWallpaper(ownerId,showBackground,background,automatic??'off',adaptive,followSite,workspace.sync);
       else await saveWallpaper(null,showBackground,background,automatic??'off',adaptive,followSite);
     }} />}
+    </Suspense>
     {confirmPractice && <Dialog title={confirmPractice.action === 'restart' ? t("重新开始本次练习？", "Restart this practice?") : t("结束本次练习？", "Finish this practice?")} onClose={cancelPracticeAction}>
       {confirmPractice.action === 'restart' && <p className="dialog-intro">{t("本次输入和计时将被清除。", "Current input and timing will be cleared.")}</p>}
       {phase === 'restoring' && <p className="dialog-intro" role="status">{t("恢复中…", "Restoring…")}</p>}
@@ -1256,7 +1261,7 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       <ResultLayout key={result.recordId ?? result.elapsedMs} result={result} article={result.record?.article ?? selection} typed={typedCharacters.length} offset={practice.offset}
         status={<>{result.offline ? <>{practice.canRetryOnline ? <><p className="dialog-intro">{t("成绩尚未同步", "Result not yet synced")}</p><p className="score-status">{t("可恢复提交", "Submission can be recovered")}</p></> : <p className="dialog-intro">{!result.custom && result.elapsedMs < 1000 ? t("用时不足 1 秒，不参与排行", "Under 1 second. Not ranked.") : t("个人练习，不参与排行", "Private practice. Not ranked.")}</p>}</> :
         resultStatus.status ? <ScoreStatusView status={resultStatus.status} /> : resultStatus.loading ? <p role="status">{t("正在读取成绩状态…", "Loading result status…")}</p> : <div><p className="form-error" role="alert">{resultStatus.error || t("成绩状态暂不可用", "Result status unavailable")}</p><button type="button" className="text-button" onClick={resultStatus.retry}>{t("重试状态", "Retry status")}</button></div>}</>} comparison={<>{result.record && result.score.total > 0 && <PersonalBestComparison current={result.record} records={records} coverage={!user ? (hasUnloadedLocalHistory() ? 'partial' : 'local') :
-        historyCheckedFor !== result.recordId ? 'loading' : historyError || !workspace.cloudLoaded || workspace.syncState !== 'synced' || hasUnloadedLocalHistory() ? 'partial' : 'complete'} />}</>} course={<>{result.record && <LessonResult record={result.record} onSelect={selectLesson} onReview={selectArticle} onCourse={() => navigate('lessons')} />}
+        historyCheckedFor !== result.recordId ? 'loading' : historyError || !workspace.cloudLoaded || workspace.syncState !== 'synced' || hasUnloadedLocalHistory() ? 'partial' : 'complete'} />}</>} course={<>{result.record && <Suspense fallback={null}><LessonResult record={result.record} onSelect={selectLesson} onReview={selectArticle} onCourse={() => navigate('lessons')} /></Suspense>}
       {result.record && isAssessmentArticle(result.record.article) && <AssessmentPanel records={[result.record, ...records]} ownerId={ownerId} onSelect={selectArticle} />}
       {result.record && (isAssessmentArticle(result.record.article) || isWeakKeyArticle(result.record.article)) && <button className="text-button" onClick={() => navigate('lessons')}>{t('课程目录', 'Course outline')}</button>}</>} mistakes={<>{result.record && (result.record.mistakesTruncated || (result.record.mistakes?.length ?? 0) >= 500) && <p className="feature-muted" role="status">{t("错字样本可能不完整", "Mistake samples may be incomplete")}</p>}
       {roundDrillAvailable && <div className="round-mistake-actions">
@@ -1280,6 +1285,6 @@ const languageNames: Record<Language, string> = { zh: t("中文", "Chinese"), en
       {result.record && !shareData && <p className="form-error" role="status">{t("无法生成分享卡", "Could not create share card")}</p>}
       </div></>}/>
     </Dialog>}
-    {showShare && shareData && <ShareCardDialog data={shareData} theme={theme} onClose={() => { setShowShare(false); setShowResult(true); }} />}
+    {showShare && shareData && <Suspense fallback={null}><ShareCardDialog data={shareData} theme={theme} onClose={() => { setShowShare(false); setShowResult(true); }} /></Suspense>}
   </div>;
 }

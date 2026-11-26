@@ -46,8 +46,9 @@ export function SiteFooter({ ready, onNavigate, footerSettings }: { ready: boole
   const visibleExtras = footer.extraLinks.filter((item) => item.enabled && isSafeFooterUrl(item.url));
   const showAttribution = footer.attribution.enabled && (footer.attribution.prefix || footer.attribution.label);
   const showBottomRow = showAttribution || visibleExtras.length > 0;
+  const hasFooterContent = visibleButtons.length > 0 || available || showBottomRow;
   return <>
-    <footer className="site-footer">
+    {hasFooterContent && <footer className="site-footer">
       <div className="site-footer-pill">
         {(visibleButtons.length > 0 || available) && <nav className="footer-links" aria-label={t('页脚导航', 'Footer navigation')}>
           {visibleButtons.map((item) => {
@@ -78,7 +79,7 @@ export function SiteFooter({ ready, onNavigate, footerSettings }: { ready: boole
           })}
         </div>}
       </div>
-    </footer>
+    </footer>}
     {open && <Dialog title={t('支持 TypeLune', 'Support TypeLune')} onClose={() => setOpen(false)} className="support-dialog">
       {loading ? <p role="status">{t('正在读取收款码…', 'Loading payment codes…')}</p> : error ? <div><p role="alert" className="form-error">{t('收款码暂时无法读取', 'Payment codes are unavailable')}</p><button className="outline-button" onClick={load}>{t('重试', 'Retry')}</button></div> : !available ? <p role="status">{t('收款码尚未配置', 'No payment codes are configured')}</p> : <>
         {enlarged && support[enlarged] ? <div className="support-expanded">

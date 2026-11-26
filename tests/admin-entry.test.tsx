@@ -33,7 +33,7 @@ async function signIn() {
   const login = await screen.findByRole('button', { name: '登录' });
   await waitFor(() => expect((login as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(login);
-  const dialog = screen.getByRole('dialog', { name: '登录' });
+  const dialog = await screen.findByRole('dialog', { name: '登录' });
   fireEvent.change(within(dialog).getByLabelText('用户名或邮箱'), { target: { value: loginAs.username } });
   fireEvent.change(within(dialog).getByLabelText('密码'), { target: { value: 'test-password-only' } });
   fireEvent.click(within(dialog).getByRole('button', { name: '登录' }));
