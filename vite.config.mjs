@@ -7,6 +7,22 @@ export default defineConfig({
   test: { setupFiles: ["./tests/browser-locale.ts"] },
   build: {
     outDir: "dist/client",
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          const normalized = id.replace(/\\\\/g, "/");
+          if (
+            normalized.includes("/src/lib/") ||
+            normalized.includes("/src/hooks/") ||
+            normalized.includes("/src/data/") ||
+            normalized.includes("/node_modules/@noble/") ||
+            normalized.includes("/node_modules/@phosphor-icons/")
+          ) {
+            return "shared";
+          }
+        },
+      },
+    },
   },
   optimizeDeps: {
     include: ["react", "react-dom/client"],
