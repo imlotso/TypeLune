@@ -32,7 +32,7 @@ it('preserves a guest feedback draft through login and shows the submitted feedb
   fireEvent.change(await screen.findByLabelText('标题'), { target: { value: '输入问题' } });
   fireEvent.change(screen.getByLabelText('详细描述'), { target: { value: '换行时出现问题' } });
   fireEvent.click(screen.getByRole('button', { name: '登录后提交' }));
-  const login = screen.getByRole('dialog', { name: '登录' });
+  const login = await screen.findByRole('dialog', { name: '登录' });
   fireEvent.change(within(login).getByLabelText('用户名或邮箱'), { target: { value: 'reader' } });
   fireEvent.change(within(login).getByLabelText('密码'), { target: { value: 'a-long-password' } });
   fireEvent.click(within(login).getByRole('button', { name: '登录' }));

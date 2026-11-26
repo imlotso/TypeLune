@@ -131,7 +131,7 @@ const difficulties: Record<RankingDifficulty, string> = { all:t('全部','All'),
       return <tr key={entry.attemptId??index} className={entry.mine?'rank-mine':undefined}>
         <td><span className={'rank-number rank-'+rank}>{rank<=3?<><Crown size={17} weight="fill"/>{rank}</>:rank}</span></td>
         <td>{entry.userId&&entry.profilePublic!==false?<a className="rank-player" href={'/users/'+encodeURIComponent(entry.userId)} onClick={event=>{if(onProfile&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&!event.altKey){event.preventDefault();onProfile(entry.userId!);}}}><AccountAvatar avatar={entry.avatar} size={30}/><span>{entry.nickname}</span></a>:<span className="rank-player"><AccountAvatar avatar={entry.avatar} size={30}/><span>{entry.nickname}</span></span>}</td>
-        <td className="rank-speed">{entry.speed}</td>{language==='en'&&<td>{Math.round((entry.cpm??entry.speed*5)*100)/100}</td>}<td>{entry.accuracy}%</td>
+        <td className="rank-speed">{entry.speed}</td>{language==='en'&&<td>{Math.round((entry.cpm??entry.speed*5)*100)/100}</td>}<td className="rank-accuracy">{entry.accuracy}%</td>
         {isAdmin&&<td><button className="text-button" onClick={()=>{setReason('');setRemoveError('');setSelectedScore(entry);}}>{t('下架','Unpublish')}</button></td>}
       </tr>;
     })}</tbody></table></div>}

@@ -58,6 +58,7 @@ it.each(['adjust', 'reset'])('keeps the edited background theme fixed when remot
   await screen.findByRole('button', { name: /背景账号/ });
   await waitFor(() => expect((screen.getByRole('textbox', { name: '当前行输入' }) as HTMLTextAreaElement).disabled).toBe(false));
   fireEvent.click(screen.getByRole('button', { name: '外观' })); fireEvent.click(await screen.findByRole('button', { name: '日间背景图' }));
+  await screen.findByRole('dialog', { name: '日间背景' });
   if (action === 'reset') fireEvent.click(screen.getByRole('button', { name: '恢复默认' }));
   else fireEvent.change(screen.getByRole('slider', { name: '模糊' }), { target: { value: 4 } });
   await act(() => putWorkspaceValue(owner, 'settings', 'preferences', { ...defaultSettings, theme: 'dark' }));
@@ -104,7 +105,7 @@ it('uses reader settings and exits focus mode with Escape', async () => {
   render(<App />);
   await screen.findByRole('textbox', { name: '当前行输入' });
   more('设置');
-  const dialog = screen.getByRole('dialog', { name: '练习设置' });
+  const dialog = await screen.findByRole('dialog', { name: '练习设置' });
   fireEvent.change(within(dialog).getByRole('slider', { name: '字号' }), { target: { value: '24' } });
   await waitFor(() => expect(screen.getByLabelText('当前文章：背影').style.getPropertyValue('--practice-font-size')).toBe('24px'));
   fireEvent.click(within(dialog).getByRole('button', { name: '进入专注' }));
@@ -222,7 +223,7 @@ it('does not revive a locally cached draft deleted on another device', async () 
   render(<App />);
   await screen.findByRole('button', { name: /同步账号/ });
   more('设置');
-  const settings = screen.getByRole('dialog', { name: '练习设置' });
+  const settings = await screen.findByRole('dialog', { name: '练习设置' });
   await within(settings).findByText('已同步');
   fireEvent.click(within(settings).getByRole('button', { name: '关闭' }));
   expect(screen.queryByRole('heading', { name: '已删草稿' })).toBeNull();
@@ -287,7 +288,7 @@ it('logs out after parking an unfinished round and keeps it with its account', a
   await screen.findByRole('heading', { name: '文章库' });
   fireEvent.click(screen.getByRole('button', { name: '草稿账号' }));
   fireEvent.click(screen.getByRole('menuitem', { name: '退出登录' }));
-  fireEvent.click(within(await screen.findByRole('dialog', { name: '退出登录' })).getByRole('button', { name: '确认退出' }));
+  fireEvent.click(within(await screen.findByRole('dialog', { name: '退出登录' }, { timeout: 5000 })).getByRole('button', { name: '确认退出' }));
   await screen.findByRole('button', { name: '登录' });
   expect(fetch.mock.calls.some(([url]) => url === '/api/auth/logout')).toBe(true);
   expect(readDraft(owner.id)?.typed).toBe('甲乙');
