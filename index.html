@@ -13,21 +13,41 @@
       } catch { document.documentElement.dataset.theme = 'light'; }
     </script>
     <style>
-      body{margin:0;background:#cfd2d8;color:#1d1d1f;font-family:'Nunito','PingFang SC','Microsoft YaHei',system-ui,sans-serif}
-      [data-theme='dark'] body{background:#141416;color:#f5f5f7}
-      #root>header{min-height:76px;padding:0 3.5%;display:flex;align-items:center;background:#d6d9df;border-bottom:1px solid rgba(0,0,0,.09);font-size:14px}
-      #root>header a{color:inherit;text-decoration:none;margin:0 6px}
-      #root>main{width:min(900px,calc(100% - 32px));margin:28px auto;padding:24px 28px;border-radius:19px;background:rgba(234,237,241,.94);border:1px solid rgba(0,0,0,.09)}
-      #root>main h1{margin:0 0 8px;font-size:20px}
-      #root>main p{margin:0 0 12px;color:#454952;line-height:1.6}
-      [data-theme='dark'] #root>header{background:#1c1c1e;border-bottom-color:rgba(255,255,255,.08)}
-      [data-theme='dark'] #root>main{background:rgba(28,28,30,.95);border-color:rgba(255,255,255,.1)}
-      [data-theme='dark'] #root>main p{color:#98989d}
+      body{margin:0;background:linear-gradient(180deg,#cfd2d8 0%,#dfe2e8 100%);min-height:100svh;color:#1d1d1f;font-family:'Nunito','PingFang SC','Microsoft YaHei',system-ui,sans-serif}
+      [data-theme='dark'] body{background:linear-gradient(180deg,#141416 0%,#1c1c1e 100%);color:#f5f5f7}
+      #root>header,#root>main{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+      .boot-loader{position:fixed;inset:0;display:grid;place-items:center;padding:20px;z-index:1}
+      body:has(.app-shell,.admin-shell,.admin-login) .boot-loader{display:none}
+      .boot-card{width:min(420px,100%);padding:34px 36px 30px;border-radius:26px;background:rgba(234,237,241,.94);border:1px solid rgba(0,0,0,.08);box-shadow:0 16px 40px rgba(15,23,42,.08);display:flex;flex-direction:column;align-items:center;gap:22px}
+      [data-theme='dark'] .boot-card{background:rgba(28,28,30,.95);border-color:rgba(255,255,255,.10);box-shadow:0 16px 40px rgba(0,0,0,.42)}
+      .boot-wordmark-wrap{position:relative;width:240px;height:62px;display:flex;align-items:center;justify-content:center}
+      .boot-wordmark{display:block;width:240px;height:62px;object-fit:contain;mix-blend-mode:multiply;clip-path:inset(0 100% 0 0);animation:tl-type-reveal 1.5s cubic-bezier(.22,1,.36,1) forwards}
+      [data-theme='dark'] .boot-wordmark{filter:invert(1);mix-blend-mode:screen}
+      .boot-caret{position:absolute;top:12px;bottom:14px;left:18px;width:3px;border-radius:2px;background:#0066cc;animation:tl-caret-move 1.5s cubic-bezier(.22,1,.36,1) forwards,tl-caret-blink .85s ease-in-out 1.5s infinite}
+      [data-theme='dark'] .boot-caret{background:#0a84ff}
+      .boot-bar{width:180px;height:5px;border-radius:999px;background:#d4d8df;overflow:hidden;position:relative}
+      [data-theme='dark'] .boot-bar{background:#2c2c2e}
+      .boot-bar::after{content:'';position:absolute;inset:0;width:45%;border-radius:999px;background:#0066cc;animation:tl-bar-sweep 1.35s ease-in-out infinite}
+      [data-theme='dark'] .boot-bar::after{background:#0a84ff}
+      @keyframes tl-type-reveal{0%{clip-path:inset(0 100% 0 0)}100%{clip-path:inset(0 0% 0 0)}}
+      @keyframes tl-caret-move{0%{left:18px}100%{left:222px}}
+      @keyframes tl-caret-blink{0%,100%{opacity:1}50%{opacity:.22}}
+      @keyframes tl-bar-sweep{0%{transform:translateX(-110%)}100%{transform:translateX(240%)}}
+      @media (prefers-reduced-motion:reduce){.boot-wordmark{clip-path:inset(0 0 0 0);animation:none}.boot-caret{left:222px;animation:none}.boot-bar::after{width:100%;animation:none}}
     </style>
     <title>TypeLune · 中英文打字测试</title>
   </head>
   <body>
     <div id="root"></div>
+    <div class="boot-loader" aria-hidden="true">
+      <div class="boot-card">
+        <div class="boot-wordmark-wrap">
+          <img class="boot-wordmark" src="/src/assets/typelune-wordmark.jpg" alt="" width="240" height="62" />
+          <span class="boot-caret"></span>
+        </div>
+        <div class="boot-bar"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
