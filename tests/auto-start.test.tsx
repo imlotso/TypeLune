@@ -146,7 +146,7 @@ it('uses the latest practice mode when input starts', async () => {
   const input = await useText('甲乙丙丁');
   fireEvent.click(screen.getByRole('button', { name: '更多' }));
   fireEvent.click(screen.getByRole('button', { name: '设置' }));
-  fireEvent.change(screen.getByLabelText('练习模式'), { target: { value: 'article' } });
+  fireEvent.change(await screen.findByLabelText('练习模式'), { target: { value: 'article' } });
   await waitFor(() => expect((screen.getByLabelText('练习模式') as HTMLSelectElement).value).toBe('article'));
   fireEvent.click(screen.getByRole('button', { name: '关闭' }));
   fireEvent.change(input, { target: { value: '甲' } });

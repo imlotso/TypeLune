@@ -53,12 +53,12 @@ test('reflects public site switches while preserving a previously started guest 
   }
 });
 
-test('reports unavailable configuration and retries without disabling local practice', async ({ page }) => {
+test('falls back silently on unavailable configuration and retries without disabling local practice', async ({ page }) => {
   await page.route('**/api/site/features', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '配置服务不可用' }) }));
   await page.goto('/');
-  await expect(page.getByText(/站点配置读取失败/)).toBeVisible();
   await expect(page.getByRole('textbox', { name: '当前行输入' })).toBeEnabled();
+  await expect(page.getByText(/站点配置读取失败/)).toBeHidden();
   await page.unroute('**/api/site/features');
-  await page.getByRole('button', { name: '重试', exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(page.getByText(/站点配置读取失败/)).toBeHidden();
 });
